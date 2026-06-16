@@ -105,3 +105,9 @@ The system should detect cyberbullying, school avoidance, shame or embarrassment
 - `feature/devops`: Davier Docker, environment, deployment
 
 Merge feature branches into `dev` first. Test `dev` before promoting to `main`.
+
+## Project Board
+
+Day-by-day work is tracked in the GitHub Project board:
+
+https://github.com/users/King-Shelton/projects/1

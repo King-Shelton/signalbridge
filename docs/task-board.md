@@ -1,6 +1,10 @@
 # SignalBridge Task Board v1
 
-GitHub Project columns to create when the token has project scope:
+GitHub Project:
+
+https://github.com/users/King-Shelton/projects/1
+
+Board Status columns:
 
 - Backlog
 - Today
