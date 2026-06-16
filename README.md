@@ -39,7 +39,7 @@ infra/
 
 ## Setup Instructions
 
-Setup commands will be finalised after the Day 2 application scaffold is created.
+Backend and PostgreSQL can run from the Day 1 scaffold.
 
 Expected local flow:
 
@@ -50,7 +50,25 @@ docker compose up --build
 Expected seed/reset flow:
 
 ```bash
-# Placeholder until backend seed command exists
+docker compose run --rm api python seed.py
+```
+
+Local backend-only flow:
+
+```bash
+cd services/api
+python -m venv .venv
+.venv/Scripts/activate
+pip install -r requirements.txt
+uvicorn app.main:app --reload
+```
+
+Initial backend endpoints:
+
+```text
+GET  /health
+GET  /version
+POST /auth/login
 ```
 
 ## Main Fictional Case
