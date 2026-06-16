@@ -1,0 +1,4 @@
+# Root compose file is the Day 1 runnable skeleton.
+# This wrapper keeps the planned infra path documented in README.
+include:
+  - ../docker-compose.yml

@@ -3,6 +3,7 @@ node_modules/
 .venv/
 venv/
 __pycache__/
+*.py[cod]
 
 # Environment
 .env
@@ -14,6 +15,9 @@ __pycache__/
 dist/
 build/
 .pytest_cache/
+.mypy_cache/
+.ruff_cache/
+postgres_data/
 
 # Local editor and OS files
 .DS_Store
