@@ -1,0 +1,33 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: signalbridge
+      POSTGRES_USER: signalbridge
+      POSTGRES_PASSWORD: signalbridge
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U signalbridge -d signalbridge"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build:
+      context: .
+      dockerfile: services/api/Dockerfile
+    environment:
+      SIGNALBRIDGE_ENVIRONMENT: docker
+      SIGNALBRIDGE_DATABASE_URL: postgresql+psycopg://signalbridge:signalbridge@postgres:5432/signalbridge
+      SIGNALBRIDGE_JWT_SECRET: dev-only-change-me
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  postgres_data:
