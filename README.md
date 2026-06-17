@@ -14,7 +14,7 @@ Core demo line:
 
 ## Stack
 
-- Frontend: Next.js, Tailwind CSS, shadcn/ui
+- Frontend: Next.js and Tailwind CSS with custom components
 - Backend: FastAPI
 - Database: PostgreSQL
 - ORM: SQLAlchemy
@@ -39,7 +39,7 @@ infra/
 
 ## Setup Instructions
 
-Backend and PostgreSQL can run from the Day 1 scaffold.
+The whole Day 1/Day 2 skeleton can run from Docker Compose.
 
 Expected local flow:
 
@@ -47,11 +47,30 @@ Expected local flow:
 docker compose up --build
 ```
 
+This starts:
+
+- Web: `http://localhost:3000`
+- API: `http://localhost:8000`
+- PostgreSQL: `localhost:5432`
+
 Expected seed/reset flow:
 
 ```bash
 docker compose run --rm api python seed.py
 ```
+
+End-of-day verification:
+
+```bash
+npm run check:web
+npm run check:api
+npm run check:integration
+docker compose config
+```
+
+`check:integration` uses the local backend virtual environment at
+`services/api/.venv`; create it with the backend-only flow below before running
+that command on a fresh clone.
 
 Local backend-only flow:
 

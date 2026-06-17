@@ -2,11 +2,13 @@
 
 Status: Day 2 working contract. Endpoint names and response shapes should guide implementation and be updated only when frontend and backend owners agree.
 
-Base URL:
+Local backend base URL:
 
 ```text
-/api
+http://localhost:8000
 ```
+
+Endpoint paths below are root-relative backend paths, for example `/auth/login`.
 
 ## Roles
 
