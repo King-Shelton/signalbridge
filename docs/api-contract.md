@@ -23,6 +23,8 @@ Base URL:
 | worker1@signalbridge.test | worker |
 | supervisor@signalbridge.test | supervisor |
 
+All seeded demo accounts use the password `password`.
+
 ## Auth
 
 ### POST /auth/login
@@ -53,6 +55,23 @@ Response:
 ### GET /auth/me
 
 Returns the authenticated user and role.
+
+Header:
+
+```text
+Authorization: Bearer <accessToken>
+```
+
+Response:
+
+```json
+{
+  "id": "user_mira",
+  "name": "Mira Tan",
+  "email": "mira@signalbridge.test",
+  "role": "youth"
+}
+```
 
 ## Youth Conversation
 
