@@ -3,30 +3,31 @@
 import { useRouter } from "next/navigation";
 import { LockKeyhole, Loader2, UserRound } from "lucide-react";
 import { FormEvent, useState } from "react";
-import { demoYouthSession, saveYouthSession } from "@/lib/youth-session";
+import { login } from "@/lib/api-client";
+import { getRoleHome, saveAuthSession } from "@/lib/auth-session";
+import { DEMO_ACCOUNTS } from "@/lib/constants";
 
 export default function LoginPage() {
   const router = useRouter();
-  const [email, setEmail] = useState(demoYouthSession.email);
+  const [email, setEmail] = useState(DEMO_ACCOUNTS[0].email);
   const [password, setPassword] = useState("password");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError("");
     setIsLoading(true);
 
-    window.setTimeout(() => {
-      if (email.trim().toLowerCase() !== demoYouthSession.email || password !== "password") {
-        setIsLoading(false);
-        setError("Use Mira's demo login to open the youth dashboard.");
-        return;
-      }
-
-      saveYouthSession(demoYouthSession);
-      router.push("/youth/chat");
-    }, 350);
+    try {
+      const session = await login(email.trim().toLowerCase(), password);
+      saveAuthSession(session);
+      router.push(getRoleHome(session.user.role));
+    } catch (error) {
+      setError(error instanceof Error ? error.message : "Unable to sign in.");
+    } finally {
+      setIsLoading(false);
+    }
   }
 
   return (
@@ -35,10 +36,22 @@ export default function LoginPage() {
         <p className="text-sm font-semibold uppercase tracking-[0.16em] text-pine">
           SignalBridge
         </p>
-        <h1 className="mt-3 text-2xl font-semibold text-ink">Youth login</h1>
+        <h1 className="mt-3 text-2xl font-semibold text-ink">SignalBridge login</h1>
         <p className="mt-2 text-sm leading-6 text-slate-600">
-          Day 1 mock login for Mira&apos;s SafeNight Companion flow.
+          Day 2 role-based login backed by the FastAPI auth service.
         </p>
+        <div className="mt-5 grid grid-cols-3 gap-2">
+          {DEMO_ACCOUNTS.map((account) => (
+            <button
+              key={account.email}
+              type="button"
+              onClick={() => setEmail(account.email)}
+              className="rounded-lg border border-slate-200 bg-mist px-3 py-2 text-xs font-semibold text-slate-700 transition hover:border-pine hover:text-pine"
+            >
+              {account.label}
+            </button>
+          ))}
+        </div>
         <form className="mt-6 grid gap-4" onSubmit={handleSubmit}>
           <label className="grid gap-2 text-sm font-medium text-slate-700">
             Email
@@ -75,7 +88,7 @@ export default function LoginPage() {
             className="mt-2 inline-flex items-center justify-center gap-2 rounded-lg bg-pine px-4 py-3 text-center text-sm font-semibold text-white transition hover:bg-pine/90 disabled:cursor-not-allowed disabled:bg-pine/60"
           >
             {isLoading ? <Loader2 aria-hidden="true" className="h-4 w-4 animate-spin" /> : null}
-            {isLoading ? "Opening dashboard" : "Continue as Mira"}
+            {isLoading ? "Opening workspace" : "Sign in"}
           </button>
         </form>
       </section>
