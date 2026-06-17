@@ -58,6 +58,8 @@ def seed() -> None:
             )
             db.add(youth)
 
+        db.flush()
+
         conversation = db.get(Conversation, "conv_mira_after_hours")
         if conversation is None:
             conversation = Conversation(
@@ -79,6 +81,8 @@ def seed() -> None:
             conversation.consent_to_handoff = True
             conversation.unresolved_handoff = True
             conversation.last_message_at = datetime(2026, 6, 16, 23, 42)
+
+        db.flush()
 
         if db.get(Message, "msg_mira_001") is None:
             db.add(
