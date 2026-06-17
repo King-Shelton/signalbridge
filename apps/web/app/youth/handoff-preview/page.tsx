@@ -19,7 +19,7 @@ const briefItems = [
 
 export default function HandoffPreviewPage() {
   return (
-    <main className="mx-auto min-h-screen w-full max-w-5xl px-4 py-5 sm:px-6">
+    <section className="w-full">
       <header className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 pb-4">
         <div>
           <Link
@@ -70,6 +70,6 @@ export default function HandoffPreviewPage() {
           </section>
         </aside>
       </section>
-    </main>
+    </section>
   );
 }
