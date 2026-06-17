@@ -1,9 +1,11 @@
+import type { ChannelType } from "@/lib/constants";
+
 export type RiskLevel = "high" | "medium" | "low";
 
 export type WorkerYouthCase = {
   id: string;
   youthName: string;
-  channel: string;
+  channel: ChannelType;
   riskLevel: RiskLevel;
   lastActive: string;
   suggestedAction: string;
@@ -23,7 +25,7 @@ export const workerYouthCases: WorkerYouthCase[] = [
   {
     id: "mira",
     youthName: "Mira Tan",
-    channel: "Web Chat",
+    channel: "web_chat",
     riskLevel: "high",
     lastActive: "11:42 PM yesterday",
     suggestedAction: "Open handoff brief and check school safety",
@@ -52,7 +54,7 @@ export const workerYouthCases: WorkerYouthCase[] = [
   {
     id: "jay",
     youthName: "Jay Lim",
-    channel: "WhatsApp",
+    channel: "whatsapp",
     riskLevel: "medium",
     lastActive: "Yesterday, 9:10 PM",
     suggestedAction: "Review escalation note and confirm next contact window",
@@ -76,7 +78,7 @@ export const workerYouthCases: WorkerYouthCase[] = [
   {
     id: "dan",
     youthName: "Dan Ng",
-    channel: "Instagram DM",
+    channel: "instagram_dm",
     riskLevel: "medium",
     lastActive: "Today, 7:15 AM",
     suggestedAction: "Check on morning mood and whether school support is needed",
@@ -100,7 +102,7 @@ export const workerYouthCases: WorkerYouthCase[] = [
   {
     id: "afiq",
     youthName: "Afiq Rahman",
-    channel: "Telegram",
+    channel: "telegram",
     riskLevel: "low",
     lastActive: "Today, 8:40 AM",
     suggestedAction: "Send a warm check-in and monitor for changes",
@@ -124,7 +126,7 @@ export const workerYouthCases: WorkerYouthCase[] = [
   {
     id: "leanne",
     youthName: "Leanne Tan",
-    channel: "SMS",
+    channel: "sms",
     riskLevel: "low",
     lastActive: "Yesterday, 6:55 PM",
     suggestedAction: "Close the loop with a supportive follow-up note",
@@ -154,3 +156,11 @@ export function getWorkerCaseById(id: string) {
 export function countByRisk(risk: RiskLevel) {
   return workerYouthCases.filter((item) => item.riskLevel === risk).length;
 }
+
+export const channelLabels: Record<ChannelType, string> = {
+  web_chat: "Web Chat",
+  whatsapp: "WhatsApp",
+  instagram_dm: "Instagram DM",
+  telegram: "Telegram",
+  sms: "SMS"
+};

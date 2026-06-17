@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { ArrowLeft, HeartHandshake, MessageCircleMore, Sparkles } from "lucide-react";
-import { getWorkerCaseById, workerYouthCases } from "@/lib/worker-data";
+import { channelLabels, getWorkerCaseById, workerYouthCases } from "@/lib/worker-data";
 import { notFound } from "next/navigation";
 
 const riskStyles: Record<
@@ -78,7 +78,9 @@ export default function WorkerYouthPage({ params }: YouthPageProps) {
                 <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
                   Channel
                 </p>
-                <p className="mt-2 text-sm font-medium text-ink">{youth.channel}</p>
+                <p className="mt-2 text-sm font-medium text-ink">
+                  {channelLabels[youth.channel]}
+                </p>
               </div>
               <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
                 <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">

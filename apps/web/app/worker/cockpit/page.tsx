@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { ArrowRight, Clock3, Layers3, ShieldAlert, Users } from "lucide-react";
-import { countByRisk, workerYouthCases } from "@/lib/worker-data";
+import { channelLabels, countByRisk, workerYouthCases } from "@/lib/worker-data";
 
 const riskStyles: Record<
   "high" | "medium" | "low",
@@ -122,7 +122,9 @@ export default function WorkerCockpitPage() {
                     </div>
                     <p className="text-sm text-slate-500">Handoff: {youth.handoffId}</p>
                   </div>
-                  <p className="text-sm font-medium text-slate-700">{youth.channel}</p>
+                  <p className="text-sm font-medium text-slate-700">
+                    {channelLabels[youth.channel]}
+                  </p>
                   <div>
                     <span
                       className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${risk.className}`}
