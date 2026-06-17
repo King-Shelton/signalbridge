@@ -68,6 +68,7 @@ Initial backend endpoints:
 ```text
 GET  /health
 GET  /version
+GET  /constants
 POST /auth/login
 GET  /auth/me
 ```
@@ -93,6 +94,8 @@ The system should detect cyberbullying, school avoidance, shame or embarrassment
 | mira@signalbridge.test | youth | Youth demo account for the Mira after-hours cyberbullying journey |
 | worker1@signalbridge.test | worker | Youth worker who reviews Mira's handoff brief |
 | supervisor@signalbridge.test | supervisor | Supervisor who reviews worker load and audit activity |
+
+Frontend login now calls the backend auth service directly. Set `NEXT_PUBLIC_SIGNALBRIDGE_API_URL` if the API is not running at `http://localhost:8000`.
 
 ## Team Ownership
 

@@ -1,6 +1,6 @@
 # SignalBridge API Contract v1
 
-Status: Day 1 working contract. Endpoint names and response shapes should guide implementation and be updated only when frontend and backend owners agree.
+Status: Day 2 working contract. Endpoint names and response shapes should guide implementation and be updated only when frontend and backend owners agree.
 
 Base URL:
 
@@ -14,6 +14,30 @@ Base URL:
 - `worker`
 - `supervisor`
 - `admin`
+
+## Response Format Rules
+
+- Use JSON for every successful response and every validation/auth error.
+- Use camelCase for API response fields consumed by the frontend.
+- Return one clear top-level resource for write endpoints, for example `handoffBrief`.
+- Return top-level collections as named arrays, for example `conversations` or `items`.
+- Auth responses intentionally return `accessToken` and `user` at the top level so the frontend can store the session directly.
+- Error responses follow FastAPI's standard `detail` shape.
+
+## Shared Constants
+
+### GET /constants
+
+Response:
+
+```json
+{
+  "roles": ["youth", "worker", "supervisor", "admin"],
+  "caseStatuses": ["open", "needs_follow_up", "escalated", "closed"],
+  "riskLevels": ["low", "medium", "high", "critical"],
+  "channelTypes": ["web_chat", "whatsapp", "instagram_dm", "telegram", "sms"]
+}
+```
 
 ## Seed Users
 
@@ -96,7 +120,7 @@ Response:
       "id": "conv_mira_after_hours",
       "youthId": "youth_mira",
       "youthName": "Mira Tan",
-      "channel": "Web Chat",
+      "channel": "web_chat",
       "status": "needs_review",
       "lastMessageAt": "2026-06-16T23:42:00+08:00",
       "riskLevel": "high",

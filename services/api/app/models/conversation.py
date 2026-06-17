@@ -5,6 +5,7 @@ from datetime import datetime
 from sqlalchemy import DateTime, Enum, ForeignKey, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
+from app.constants import ChannelType, RiskLevel
 from app.database import Base
 
 
@@ -14,19 +15,12 @@ class ConversationStatus(str, enum.Enum):
     closed = "closed"
 
 
-class RiskLevel(str, enum.Enum):
-    low = "low"
-    medium = "medium"
-    high = "high"
-    critical = "critical"
-
-
 class Conversation(Base):
     __tablename__ = "conversations"
 
     id: Mapped[str] = mapped_column(String, primary_key=True, default=lambda: f"conv_{uuid.uuid4().hex}")
     youth_id: Mapped[str] = mapped_column(ForeignKey("youth_profiles.id"), nullable=False)
-    channel: Mapped[str] = mapped_column(String(80), default="Web Chat", nullable=False)
+    channel: Mapped[ChannelType] = mapped_column(Enum(ChannelType), default=ChannelType.web_chat, nullable=False)
     status: Mapped[ConversationStatus] = mapped_column(Enum(ConversationStatus), default=ConversationStatus.active)
     risk_level: Mapped[RiskLevel] = mapped_column(Enum(RiskLevel), default=RiskLevel.low)
     risk_score: Mapped[int] = mapped_column(default=0, nullable=False)
