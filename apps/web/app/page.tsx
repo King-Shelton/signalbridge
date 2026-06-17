@@ -4,7 +4,8 @@ import { ArrowRight } from "lucide-react";
 const links = [
   { href: "/login", label: "Login" },
   { href: "/youth/chat", label: "SafeNight chat" },
-  { href: "/youth/handoff-preview", label: "Handoff preview" }
+  { href: "/youth/handoff-preview", label: "Handoff preview" },
+  { href: "/youth/past-notes", label: "Past notes" }
 ];
 
 export default function HomePage() {
@@ -20,7 +21,7 @@ export default function HomePage() {
         Day 1 mock screens for Mira&apos;s after-hours cyberbullying journey and
         youth-approved handoff preview.
       </p>
-      <div className="mt-8 grid gap-3 sm:grid-cols-3">
+      <div className="mt-8 grid gap-3 sm:grid-cols-4">
         {links.map((link) => (
           <Link
             key={link.href}
