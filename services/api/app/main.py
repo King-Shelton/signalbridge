@@ -3,7 +3,7 @@ from fastapi import FastAPI
 from app.config import get_settings
 from app.database import Base, engine
 from app.models import AuditLog, Case, Conversation, HandoffBrief, Message, Signal, User, YouthProfile
-from app.routes import auth, health
+from app.routes import auth, health, youth
 
 settings = get_settings()
 
@@ -21,3 +21,4 @@ def create_tables() -> None:
 
 app.include_router(health.router)
 app.include_router(auth.router, prefix="/auth", tags=["auth"])
+app.include_router(youth.router, prefix="/youth", tags=["youth"])
