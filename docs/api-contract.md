@@ -60,13 +60,9 @@ Returns the authenticated user and role.
 
 Returns the youth profile, assigned worker, preferred channel, and latest case state.
 
-### GET /conversations
+### GET /youth/conversations
 
-Role behaviour:
-
-- Youth: returns the youth's own conversations.
-- Worker: returns assigned youth conversations.
-- Supervisor/Admin: returns all conversations.
+Returns the authenticated youth's own conversations with message history and detected signals for frontend display.
 
 Response:
 
@@ -81,13 +77,35 @@ Response:
       "status": "needs_review",
       "lastMessageAt": "2026-06-16T23:42:00+08:00",
       "riskLevel": "high",
-      "unresolvedHandoff": true
+      "riskScore": 78,
+      "consentToHandoff": true,
+      "unresolvedHandoff": true,
+      "messages": [
+        {
+          "id": "msg_mira_001",
+          "conversationId": "conv_mira_after_hours",
+          "senderType": "youth",
+          "content": "People in my class group chat keep editing my photos. I don't want to go school tomorrow. I'm so tired of explaining this.",
+          "safetyStatus": null,
+          "createdAt": "2026-06-16T23:42:00"
+        }
+      ],
+      "signals": [
+        {
+          "id": "signal_mira_cyberbullying",
+          "type": "cyberbullying",
+          "severity": "high",
+          "reason": "Edited photos in class group chat",
+          "source": "simulated_web_chat",
+          "createdAt": "2026-06-16T23:42:00"
+        }
+      ]
     }
   ]
 }
 ```
 
-### POST /conversations/{conversationId}/messages
+### POST /youth/conversations/{conversationId}/messages
 
 Request:
 
@@ -111,7 +129,7 @@ Response:
     "id": "msg_ai_001",
     "senderType": "ai",
     "content": "I'm sorry this is happening. I can stay with you for a bit and help prepare a short note for your worker so you do not have to repeat everything tomorrow.",
-    "safetyStatus": "passed"
+    "safetyStatus": "fallback_passed"
   },
   "signals": [
     {
@@ -125,17 +143,19 @@ Response:
       "reason": "Does not want to go to school tomorrow"
     }
   ],
-  "handoffRecommended": true
+  "handoffRecommended": true,
+  "handoffPrompt": "Would you like SignalBridge to prepare a short handoff note for your worker?"
 }
 ```
 
-### POST /handoffs/consent
+The endpoint saves the youth message and SafeNight fallback reply to PostgreSQL, updates conversation risk state, records detected signals, and writes audit events for message creation and fallback response creation.
+
+### POST /youth/conversations/{conversationId}/handoff-consent
 
 Request:
 
 ```json
 {
-  "conversationId": "conv_mira_after_hours",
   "consentGiven": true
 }
 ```
@@ -146,6 +166,7 @@ Response:
 {
   "conversationId": "conv_mira_after_hours",
   "consentToHandoff": true,
+  "unresolvedHandoff": true,
   "nextAction": "generate_handoff"
 }
 ```
