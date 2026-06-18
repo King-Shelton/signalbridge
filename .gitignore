@@ -24,6 +24,3 @@ postgres_data/
 Thumbs.db
 .idea/
 .vscode/
-
-# Office temporary lock files
-~$*

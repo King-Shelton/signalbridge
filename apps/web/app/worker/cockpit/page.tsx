@@ -1,24 +1,6 @@
-import Link from "next/link";
-import { ArrowRight, Clock3, Layers3, ShieldAlert, Users } from "lucide-react";
-import { channelLabels, countByRisk, workerYouthCases } from "@/lib/worker-data";
-
-const riskStyles: Record<
-  "high" | "medium" | "low",
-  { label: string; className: string }
-> = {
-  high: {
-    label: "High",
-    className: "bg-coral/10 text-coral ring-1 ring-coral/20"
-  },
-  medium: {
-    label: "Medium",
-    className: "bg-amber/10 text-amber ring-1 ring-amber/20"
-  },
-  low: {
-    label: "Low",
-    className: "bg-pine/10 text-pine ring-1 ring-pine/20"
-  }
-};
+import { Clock3, Layers3, ShieldAlert, Users } from "lucide-react";
+import { countByRisk, workerYouthCases } from "@/lib/worker-data";
+import { WorkerConversationPreview } from "@/components/WorkerConversationPreview";
 
 const summaryCards = [
   {
@@ -57,9 +39,10 @@ export default function WorkerCockpitPage() {
                 Triage the day without losing the youth story.
               </h1>
               <p className="mt-4 max-w-2xl text-sm leading-7 text-slate-600 sm:text-base">
-                This wireframe keeps Mira at the top of the queue while showing
-                the lighter follow-ups beside her, so the worker can move from
-                signal to action quickly.
+                This cockpit surfaces seeded conversation previews for Mira and
+                the rest of the youth queue so the worker can move from signal
+                to action quickly today, then swap in real conversations on Day 5
+                without redesigning the feed.
               </p>
             </div>
 
@@ -87,66 +70,63 @@ export default function WorkerCockpitPage() {
 
         <section className="overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-panel">
           <div className="border-b border-slate-200 px-6 py-4">
-            <h2 className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-500">
-              Youth queue
-            </h2>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <h2 className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-500">
+                Youth conversation feed
+              </h2>
+              <p className="text-xs font-medium text-slate-500">
+                Approved channels: WhatsApp, Instagram, GatherTown, Discord, Web Chat
+              </p>
+            </div>
           </div>
 
-          <div className="grid gap-4 p-4 sm:p-6">
-            <div className="hidden grid-cols-[1.2fr_0.9fr_0.7fr_0.9fr_1.2fr_0.7fr] gap-4 rounded-2xl bg-slate-50 px-4 py-3 text-xs font-semibold uppercase tracking-[0.14em] text-slate-500 lg:grid">
-              <span>Youth name</span>
-              <span>Channel</span>
-              <span>Risk level</span>
-              <span>Last active</span>
-              <span>Suggested action</span>
-              <span>Status</span>
+          <div className="grid gap-5 p-4 sm:p-6 lg:grid-cols-[minmax(0,1fr)_320px]">
+            <div className="grid gap-4">
+              {workerYouthCases.map((youth) => (
+                <WorkerConversationPreview key={youth.id} youth={youth} />
+              ))}
             </div>
 
-            {workerYouthCases.map((youth) => {
-              const risk = riskStyles[youth.riskLevel];
-              return (
-                <article
-                  key={youth.id}
-                  className="grid gap-3 rounded-[24px] border border-slate-200 bg-[linear-gradient(180deg,_rgba(255,255,255,0.98),_rgba(248,250,252,0.96))] p-4 transition hover:-translate-y-0.5 hover:shadow-lg lg:grid-cols-[1.2fr_0.9fr_0.7fr_0.9fr_1.2fr_0.7fr] lg:items-center lg:gap-4"
-                >
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-3">
-                      <h3 className="text-lg font-semibold text-ink">{youth.youthName}</h3>
-                      <Link
-                        href={`/worker/youths/${youth.id}`}
-                        className="inline-flex items-center gap-1 text-xs font-semibold text-pine hover:text-ink"
-                      >
-                        View youth
-                        <ArrowRight aria-hidden="true" className="h-3.5 w-3.5" />
-                      </Link>
-                    </div>
-                    <p className="text-sm text-slate-500">Handoff: {youth.handoffId}</p>
-                  </div>
-                  <p className="text-sm font-medium text-slate-700">
-                    {channelLabels[youth.channel]}
-                  </p>
-                  <div>
+            <aside className="rounded-[24px] border border-slate-200 bg-slate-50 p-5">
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+                Day 5 seam
+              </p>
+              <h3 className="mt-2 text-lg font-semibold text-ink">
+                Ready for real conversations later
+              </h3>
+              <p className="mt-3 text-sm leading-6 text-slate-600">
+                The cockpit now reads from one shared mock conversation feed. On
+                Day 5, the team can swap that feed for an API response or live
+                backend query while keeping the card layout and worker actions
+                unchanged.
+              </p>
+
+              <div className="mt-5 space-y-3">
+                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
+                  Supported labels
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {["WhatsApp", "Instagram", "GatherTown", "Discord", "Web Chat"].map((label) => (
                     <span
-                      className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${risk.className}`}
+                      key={label}
+                      className="inline-flex rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-700 ring-1 ring-slate-200"
                     >
-                      {risk.label}
+                      {label}
                     </span>
-                  </div>
-                  <p className="text-sm text-slate-700">{youth.lastActive}</p>
-                  <div className="space-y-2">
-                    <p className="text-sm leading-6 text-slate-700">{youth.suggestedAction}</p>
-                    <Link
-                      href={`/worker/handoffs/${youth.id}`}
-                      className="inline-flex items-center gap-1 text-sm font-semibold text-pine hover:text-ink"
-                    >
-                      Open handoff brief
-                      <ArrowRight aria-hidden="true" className="h-3.5 w-3.5" />
-                    </Link>
-                  </div>
-                  <p className="text-sm font-semibold text-ink">{youth.status}</p>
-                </article>
-              );
-            })}
+                  ))}
+                </div>
+              </div>
+
+              <div className="mt-5 rounded-2xl border border-dashed border-slate-300 bg-white p-4">
+                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
+                  Feed contract
+                </p>
+                <p className="mt-2 text-sm leading-6 text-slate-600">
+                  Keep the worker card shape stable so an API response can be
+                  dropped in later without changing the worker cockpit layout.
+                </p>
+              </div>
+            </aside>
           </div>
         </section>
       </div>

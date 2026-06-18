@@ -1,11 +1,18 @@
+import enum
 import uuid
 from datetime import datetime
 
 from sqlalchemy import DateTime, Enum, ForeignKey, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
-from app.constants import CaseStatus
 from app.database import Base
+
+
+class CaseStatus(str, enum.Enum):
+    open = "open"
+    needs_follow_up = "needs_follow_up"
+    escalated = "escalated"
+    closed = "closed"
 
 
 class Case(Base):
