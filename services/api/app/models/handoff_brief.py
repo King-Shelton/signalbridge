@@ -5,8 +5,8 @@ from datetime import datetime
 from sqlalchemy import DateTime, Enum, ForeignKey, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
-from app.constants import RiskLevel
 from app.database import Base
+from app.models.conversation import RiskLevel
 
 
 class ReviewStatus(str, enum.Enum):

@@ -7,9 +7,6 @@
   "scripts": {
     "dev": "npm --workspace apps/web run dev",
     "build": "npm --workspace apps/web run build",
-    "lint": "npm --workspace apps/web run lint",
-    "check:web": "npm --workspace apps/web run lint && npm --workspace apps/web run build",
-    "check:api": "python -m compileall services\\api\\app services\\api\\seed.py",
-    "check:integration": "services\\api\\.venv\\Scripts\\python.exe services\\api\\scripts\\day2_integration_check.py"
+    "lint": "npm --workspace apps/web run lint"
   }
 }
