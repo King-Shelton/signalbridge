@@ -8,18 +8,16 @@ const miraMessage =
 
 export default function YouthChatPage() {
   return (
-    <section className="flex min-h-[720px] w-full flex-col">
+    <main className="mx-auto flex min-h-screen w-full max-w-6xl flex-col px-4 py-5 sm:px-6">
       <header className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 pb-4">
         <div>
+          <p className="text-sm font-semibold text-pine">SafeNight Companion</p>
           <h1 className="text-2xl font-semibold text-ink">Mira&apos;s chat</h1>
-          <p className="mt-1 text-sm text-slate-600">
-            Connected to Mira&apos;s youth login session.
-          </p>
         </div>
         <AfterHoursBadge />
       </header>
 
-      <div className="mt-5 grid flex-1 overflow-hidden rounded-lg border border-slate-200 bg-mist/50 shadow-panel lg:grid-cols-[1fr_340px]">
+      <section className="mt-5 grid flex-1 overflow-hidden rounded-lg border border-slate-200 bg-mist/50 shadow-panel lg:grid-cols-[1fr_340px]">
         <div className="flex min-h-[680px] flex-col bg-white">
           <div className="flex-1 space-y-5 overflow-y-auto p-4 sm:p-6">
             <ChatBubble sender="system" author="SignalBridge" timestamp="11:41 PM">
@@ -63,7 +61,7 @@ export default function YouthChatPage() {
             ))}
           </div>
         </aside>
-      </div>
-    </section>
+      </section>
+    </main>
   );
 }

@@ -1,14 +1,12 @@
 # SignalBridge API Contract v1
 
-Status: Day 2 working contract. Endpoint names and response shapes should guide implementation and be updated only when frontend and backend owners agree.
+Status: Day 1 working contract. Endpoint names and response shapes should guide implementation and be updated only when frontend and backend owners agree.
 
-Local backend base URL:
+Base URL:
 
 ```text
-http://localhost:8000
+/api
 ```
-
-Endpoint paths below are root-relative backend paths, for example `/auth/login`.
 
 ## Roles
 
@@ -17,30 +15,6 @@ Endpoint paths below are root-relative backend paths, for example `/auth/login`.
 - `supervisor`
 - `admin`
 
-## Response Format Rules
-
-- Use JSON for every successful response and every validation/auth error.
-- Use camelCase for API response fields consumed by the frontend.
-- Return one clear top-level resource for write endpoints, for example `handoffBrief`.
-- Return top-level collections as named arrays, for example `conversations` or `items`.
-- Auth responses intentionally return `accessToken` and `user` at the top level so the frontend can store the session directly.
-- Error responses follow FastAPI's standard `detail` shape.
-
-## Shared Constants
-
-### GET /constants
-
-Response:
-
-```json
-{
-  "roles": ["youth", "worker", "supervisor", "admin"],
-  "caseStatuses": ["open", "needs_follow_up", "escalated", "closed"],
-  "riskLevels": ["low", "medium", "high", "critical"],
-  "channelTypes": ["web_chat", "whatsapp", "instagram_dm", "telegram", "sms"]
-}
-```
-
 ## Seed Users
 
 | Email | Role |
@@ -48,8 +22,6 @@ Response:
 | mira@signalbridge.test | youth |
 | worker1@signalbridge.test | worker |
 | supervisor@signalbridge.test | supervisor |
-
-All seeded demo accounts use the password `password`.
 
 ## Auth
 
@@ -82,23 +54,6 @@ Response:
 
 Returns the authenticated user and role.
 
-Header:
-
-```text
-Authorization: Bearer <accessToken>
-```
-
-Response:
-
-```json
-{
-  "id": "user_mira",
-  "name": "Mira Tan",
-  "email": "mira@signalbridge.test",
-  "role": "youth"
-}
-```
-
 ## Youth Conversation
 
 ### GET /youth/me
@@ -122,7 +77,7 @@ Response:
       "id": "conv_mira_after_hours",
       "youthId": "youth_mira",
       "youthName": "Mira Tan",
-      "channel": "web_chat",
+      "channel": "Web Chat",
       "status": "needs_review",
       "lastMessageAt": "2026-06-16T23:42:00+08:00",
       "riskLevel": "high",

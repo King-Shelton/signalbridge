@@ -1,24 +1,18 @@
-from datetime import datetime
-
 from sqlalchemy.orm import Session
 
-from app.constants import ChannelType, RiskLevel, Role
 from app.database import Base, SessionLocal, engine
 from app.models.audit_log import AuditLog
 from app.models.case import Case, CaseStatus
-from app.models.conversation import Conversation, ConversationStatus
+from app.models.conversation import Conversation, ConversationStatus, RiskLevel
 from app.models.handoff_brief import HandoffBrief, ReviewStatus
 from app.models.message import Message, SenderType
 from app.models.signal import Signal
-from app.models.user import User
+from app.models.user import User, UserRole
 from app.models.youth_profile import YouthProfile
 from app.services.auth_service import hash_password
 
 
-DEMO_PASSWORD = "password"
-
-
-def upsert_user(db: Session, user_id: str, name: str, email: str, role: Role) -> User:
+def upsert_user(db: Session, user_id: str, name: str, email: str, role: UserRole) -> User:
     user = db.get(User, user_id)
     if user is None:
         user = User(
@@ -26,15 +20,9 @@ def upsert_user(db: Session, user_id: str, name: str, email: str, role: Role) ->
             name=name,
             email=email,
             role=role,
-            password_hash=hash_password(DEMO_PASSWORD),
+            password_hash=hash_password("password"),
         )
         db.add(user)
-    else:
-        user.name = name
-        user.email = email
-        user.role = role
-        if not user.password_hash:
-            user.password_hash = hash_password(DEMO_PASSWORD)
     return user
 
 
@@ -42,9 +30,9 @@ def seed() -> None:
     Base.metadata.create_all(bind=engine)
     db = SessionLocal()
     try:
-        mira = upsert_user(db, "user_mira", "Mira Tan", "mira@signalbridge.test", Role.youth)
-        worker = upsert_user(db, "user_worker_1", "Aisha Rahman", "worker1@signalbridge.test", Role.worker)
-        upsert_user(db, "user_supervisor", "Daniel Lim", "supervisor@signalbridge.test", Role.supervisor)
+        mira = upsert_user(db, "user_mira", "Mira Tan", "mira@signalbridge.test", UserRole.youth)
+        worker = upsert_user(db, "user_worker_1", "Aisha Rahman", "worker1@signalbridge.test", UserRole.worker)
+        upsert_user(db, "user_supervisor", "Daniel Lim", "supervisor@signalbridge.test", UserRole.supervisor)
 
         youth = db.get(YouthProfile, "youth_mira")
         if youth is None:
@@ -52,37 +40,25 @@ def seed() -> None:
                 id="youth_mira",
                 user_id=mira.id,
                 assigned_worker_id=worker.id,
-                preferred_channel="web_chat",
+                preferred_channel="Web Chat",
                 support_style="Prefers gentle check-ins and not having to repeat painful details.",
                 stressors="Cyberbullying, school avoidance, peer group pressure.",
             )
             db.add(youth)
-
-        db.flush()
 
         conversation = db.get(Conversation, "conv_mira_after_hours")
         if conversation is None:
             conversation = Conversation(
                 id="conv_mira_after_hours",
                 youth_id="youth_mira",
-                channel=ChannelType.web_chat,
+                channel="Web Chat",
                 status=ConversationStatus.needs_review,
                 risk_level=RiskLevel.high,
                 risk_score=78,
                 consent_to_handoff=True,
                 unresolved_handoff=True,
-                last_message_at=datetime(2026, 6, 16, 23, 42),
             )
             db.add(conversation)
-        else:
-            conversation.status = ConversationStatus.needs_review
-            conversation.risk_level = RiskLevel.high
-            conversation.risk_score = 78
-            conversation.consent_to_handoff = True
-            conversation.unresolved_handoff = True
-            conversation.last_message_at = datetime(2026, 6, 16, 23, 42)
-
-        db.flush()
 
         if db.get(Message, "msg_mira_001") is None:
             db.add(
