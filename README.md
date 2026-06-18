@@ -14,7 +14,7 @@ Core demo line:
 
 ## Stack
 
-- Frontend: Next.js and Tailwind CSS with custom components
+- Frontend: Next.js, Tailwind CSS, shadcn/ui
 - Backend: FastAPI
 - Database: PostgreSQL
 - ORM: SQLAlchemy
@@ -39,7 +39,7 @@ infra/
 
 ## Setup Instructions
 
-The whole Day 1/Day 2 skeleton can run from Docker Compose.
+Backend and PostgreSQL can run from the Day 1 scaffold.
 
 Expected local flow:
 
@@ -47,30 +47,11 @@ Expected local flow:
 docker compose up --build
 ```
 
-This starts:
-
-- Web: `http://localhost:3000`
-- API: `http://localhost:8000`
-- PostgreSQL: `localhost:5432`
-
 Expected seed/reset flow:
 
 ```bash
 docker compose run --rm api python seed.py
 ```
-
-End-of-day verification:
-
-```bash
-npm run check:web
-npm run check:api
-npm run check:integration
-docker compose config
-```
-
-`check:integration` uses the local backend virtual environment at
-`services/api/.venv`; create it with the backend-only flow below before running
-that command on a fresh clone.
 
 Local backend-only flow:
 
@@ -87,12 +68,8 @@ Initial backend endpoints:
 ```text
 GET  /health
 GET  /version
-GET  /constants
 POST /auth/login
-GET  /auth/me
 ```
-
-All seeded demo accounts use the password `password`.
 
 ## Main Fictional Case
 
@@ -113,8 +90,6 @@ The system should detect cyberbullying, school avoidance, shame or embarrassment
 | mira@signalbridge.test | youth | Youth demo account for the Mira after-hours cyberbullying journey |
 | worker1@signalbridge.test | worker | Youth worker who reviews Mira's handoff brief |
 | supervisor@signalbridge.test | supervisor | Supervisor who reviews worker load and audit activity |
-
-Frontend login now calls the backend auth service directly. Set `NEXT_PUBLIC_SIGNALBRIDGE_API_URL` if the API is not running at `http://localhost:8000`.
 
 ## Team Ownership
 

@@ -4,10 +4,8 @@ import { ArrowRight } from "lucide-react";
 const links = [
   { href: "/login", label: "Login" },
   { href: "/worker/cockpit", label: "Worker cockpit" },
-  { href: "/supervisor", label: "Supervisor" },
   { href: "/youth/chat", label: "SafeNight chat" },
-  { href: "/youth/handoff-preview", label: "Handoff preview" },
-  { href: "/youth/past-notes", label: "Past notes" }
+  { href: "/youth/handoff-preview", label: "Handoff preview" }
 ];
 
 export default function HomePage() {
@@ -17,13 +15,13 @@ export default function HomePage() {
         SignalBridge
       </p>
       <h1 className="mt-3 max-w-3xl text-4xl font-semibold leading-tight text-ink sm:text-5xl">
-        Role-based SignalBridge alpha
+        SafeNight Companion youth flow
       </h1>
       <p className="mt-4 max-w-2xl text-base leading-7 text-slate-600">
-        Day 2 app shell with backend auth, persistent seeded users, and
-        role-specific workspaces for Mira, a worker, and a supervisor.
+        Day 1 mock screens for Mira&apos;s after-hours cyberbullying journey and
+        youth-approved handoff preview.
       </p>
-      <div className="mt-8 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="mt-8 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         {links.map((link) => (
           <Link
             key={link.href}
