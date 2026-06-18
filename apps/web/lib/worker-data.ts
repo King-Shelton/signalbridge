@@ -1,14 +1,24 @@
 export type RiskLevel = "high" | "medium" | "low";
 
+export type ChannelLabel = "WhatsApp" | "Instagram" | "GatherTown" | "Discord" | "Web Chat";
+export type ConversationSource = "mock-seed" | "api-ready";
+export type ConversationTurn = {
+  sender: "youth" | "worker" | "system";
+  author: string;
+  message: string;
+  timestamp: string;
+};
+
 export type WorkerYouthCase = {
   id: string;
   youthName: string;
-  channel: string;
+  channel: ChannelLabel;
   riskLevel: RiskLevel;
   lastActive: string;
   suggestedAction: string;
   status: string;
   handoffId: string;
+  conversationSource: ConversationSource;
   concern: string;
   keyQuote: string;
   emotionalState: string;
@@ -17,6 +27,7 @@ export type WorkerYouthCase = {
   supportStyle: string;
   helpfulApproaches: string[];
   signalNotes: string[];
+  conversationPreview: ConversationTurn[];
 };
 
 export const workerYouthCases: WorkerYouthCase[] = [
@@ -29,6 +40,7 @@ export const workerYouthCases: WorkerYouthCase[] = [
     suggestedAction: "Open handoff brief and check school safety",
     status: "Needs follow-up",
     handoffId: "handoff-mira-001",
+    conversationSource: "mock-seed",
     concern: "Cyberbullying involving edited photos in a class group chat",
     keyQuote: "I'm so tired of explaining this.",
     emotionalState: "Tired, embarrassed, and reluctant to repeat the story",
@@ -47,6 +59,28 @@ export const workerYouthCases: WorkerYouthCase[] = [
       "Cyberbullying",
       "School avoidance",
       "Unresolved handoff"
+    ],
+    conversationPreview: [
+      {
+        sender: "system",
+        author: "SignalBridge",
+        message: "Approved after-hours support is active. Mira chose to share a handoff note.",
+        timestamp: "11:41 PM"
+      },
+      {
+        sender: "youth",
+        author: "Mira",
+        message:
+          "People in my class group chat keep editing my photos. I don't want to go school tomorrow.",
+        timestamp: "11:42 PM"
+      },
+      {
+        sender: "worker",
+        author: "SafeNight",
+        message:
+          "You do not need to repeat everything. We can start with whether school feels safe tomorrow.",
+        timestamp: "11:42 PM"
+      }
     ]
   },
   {
@@ -58,6 +92,7 @@ export const workerYouthCases: WorkerYouthCase[] = [
     suggestedAction: "Review escalation note and confirm next contact window",
     status: "Awaiting worker reply",
     handoffId: "handoff-jay-001",
+    conversationSource: "mock-seed",
     concern: "Peer conflict and stress from repeated late-night messages",
     keyQuote: "I don't know if I should reply anymore.",
     emotionalState: "Uneasy, guarded, and unsure what to do next",
@@ -71,17 +106,39 @@ export const workerYouthCases: WorkerYouthCase[] = [
       "Offer a simple follow-up plan with one next action",
       "Avoid asking for the full story twice"
     ],
-    signalNotes: ["Repeated messages", "Peer pressure", "No immediate self-harm indicators"]
+    signalNotes: ["Repeated messages", "Peer pressure", "No immediate self-harm indicators"],
+    conversationPreview: [
+      {
+        sender: "youth",
+        author: "Jay",
+        message: "I don't know if I should reply anymore.",
+        timestamp: "9:10 PM"
+      },
+      {
+        sender: "worker",
+        author: "SafeNight",
+        message:
+          "Thanks for sending that through. We can look at the safest next step together when you're ready.",
+        timestamp: "9:11 PM"
+      },
+      {
+        sender: "system",
+        author: "SignalBridge",
+        message: "Conversation tagged for worker follow-up during the next contact window.",
+        timestamp: "9:11 PM"
+      }
+    ]
   },
   {
     id: "dan",
     youthName: "Dan Ng",
-    channel: "Instagram DM",
+    channel: "Instagram",
     riskLevel: "medium",
     lastActive: "Today, 7:15 AM",
     suggestedAction: "Check on morning mood and whether school support is needed",
     status: "In queue",
     handoffId: "handoff-dan-001",
+    conversationSource: "mock-seed",
     concern: "Sleep disruption and rising anxiety after online teasing",
     keyQuote: "I barely slept and now I can't focus.",
     emotionalState: "Tense, tired, and mentally overloaded",
@@ -95,17 +152,38 @@ export const workerYouthCases: WorkerYouthCase[] = [
       "Offer a brief grounding check before planning",
       "Track whether school attendance needs support"
     ],
-    signalNotes: ["Morning escalation", "Poor sleep", "Anxiety"]
+    signalNotes: ["Morning escalation", "Poor sleep", "Anxiety"],
+    conversationPreview: [
+      {
+        sender: "youth",
+        author: "Dan",
+        message: "I barely slept and now I can't focus.",
+        timestamp: "7:15 AM"
+      },
+      {
+        sender: "worker",
+        author: "SafeNight",
+        message: "Let's keep this simple this morning. Are you safe to get ready for school?",
+        timestamp: "7:16 AM"
+      },
+      {
+        sender: "system",
+        author: "SignalBridge",
+        message: "Instagram conversation surfaced as a morning follow-up case.",
+        timestamp: "7:16 AM"
+      }
+    ]
   },
   {
     id: "afiq",
     youthName: "Afiq Rahman",
-    channel: "Telegram",
+    channel: "GatherTown",
     riskLevel: "low",
     lastActive: "Today, 8:40 AM",
     suggestedAction: "Send a warm check-in and monitor for changes",
     status: "Stable",
     handoffId: "handoff-afiq-001",
+    conversationSource: "mock-seed",
     concern: "Routine check-in after a quiet evening",
     keyQuote: "I'm okay, just busy with school stuff.",
     emotionalState: "Settled and responsive",
@@ -119,17 +197,38 @@ export const workerYouthCases: WorkerYouthCase[] = [
       "Watch for subtle tone changes over time",
       "Respect his current stability"
     ],
-    signalNotes: ["Low urgency", "Consistent activity", "No current handoff pressure"]
+    signalNotes: ["Low urgency", "Consistent activity", "No current handoff pressure"],
+    conversationPreview: [
+      {
+        sender: "system",
+        author: "SignalBridge",
+        message: "GatherTown check-in captured from the approved support space.",
+        timestamp: "8:39 AM"
+      },
+      {
+        sender: "youth",
+        author: "Afiq",
+        message: "I'm okay, just busy with school stuff.",
+        timestamp: "8:40 AM"
+      },
+      {
+        sender: "worker",
+        author: "Worker",
+        message: "Sounds steady. I will keep the follow-up light unless you need more support.",
+        timestamp: "8:40 AM"
+      }
+    ]
   },
   {
     id: "leanne",
     youthName: "Leanne Tan",
-    channel: "SMS",
+    channel: "Discord",
     riskLevel: "low",
     lastActive: "Yesterday, 6:55 PM",
     suggestedAction: "Close the loop with a supportive follow-up note",
     status: "Logged",
     handoffId: "handoff-leanne-001",
+    conversationSource: "api-ready",
     concern: "Quiet check-in after a support session",
     keyQuote: "Thanks for checking in.",
     emotionalState: "Calm and settled",
@@ -143,7 +242,27 @@ export const workerYouthCases: WorkerYouthCase[] = [
       "Confirm the next agreed follow-up",
       "Leave space for her to reach out first"
     ],
-    signalNotes: ["Low risk", "No escalation", "Routine follow-up"]
+    signalNotes: ["Low risk", "No escalation", "Routine follow-up"],
+    conversationPreview: [
+      {
+        sender: "system",
+        author: "SignalBridge",
+        message: "Discord thread is tagged as API-ready for Day 5 live conversation sync.",
+        timestamp: "6:54 PM"
+      },
+      {
+        sender: "youth",
+        author: "Leanne",
+        message: "Thanks for checking in.",
+        timestamp: "6:55 PM"
+      },
+      {
+        sender: "worker",
+        author: "Worker",
+        message: "Noted. I will log that things are steady and follow up as agreed.",
+        timestamp: "6:55 PM"
+      }
+    ]
   }
 ];
 
