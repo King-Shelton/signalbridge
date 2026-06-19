@@ -5,6 +5,7 @@ export type YouthSession = {
   name: string;
   email: string;
   role: "youth";
+  accessToken?: string;
 };
 
 export const demoYouthSession: YouthSession = {
@@ -34,7 +35,8 @@ export function readYouthSession(): YouthSession | null {
       id: parsed.id ?? "youth",
       name: parsed.name,
       email: parsed.email,
-      role: "youth"
+      role: "youth",
+      accessToken: parsed.accessToken
     };
   } catch {
     return null;
