@@ -5,6 +5,8 @@ import { LockKeyhole, Loader2, UserRound } from "lucide-react";
 import { FormEvent, useState } from "react";
 import { demoYouthSession, saveYouthSession } from "@/lib/youth-session";
 
+const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+
 export default function LoginPage() {
   const router = useRouter();
   const [email, setEmail] = useState(demoYouthSession.email);
@@ -12,21 +14,49 @@ export default function LoginPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError("");
     setIsLoading(true);
 
-    window.setTimeout(() => {
-      if (email.trim().toLowerCase() !== demoYouthSession.email || password !== "password") {
-        setIsLoading(false);
-        setError("Use Mira's demo login to open the youth dashboard.");
-        return;
+    try {
+      const response = await fetch(`${apiBaseUrl}/auth/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: email.trim().toLowerCase(), password })
+      });
+
+      if (!response.ok) {
+        throw new Error("Use Mira's demo login to open the youth dashboard.");
       }
 
-      saveYouthSession(demoYouthSession);
+      const data = (await response.json()) as {
+        accessToken: string;
+        user: {
+          id: string;
+          name: string;
+          email: string;
+          role: string;
+        };
+      };
+
+      if (data.user.role !== "youth") {
+        throw new Error("This login is not a youth account.");
+      }
+
+      saveYouthSession({
+        id: data.user.id,
+        name: data.user.name,
+        email: data.user.email,
+        role: "youth",
+        accessToken: data.accessToken
+      });
       router.push("/youth/chat");
-    }, 350);
+    } catch (loginError) {
+      setError(loginError instanceof Error ? loginError.message : "Could not open Mira's dashboard.");
+    } finally {
+      setIsLoading(false);
+    }
   }
 
   return (
@@ -37,7 +67,7 @@ export default function LoginPage() {
         </p>
         <h1 className="mt-3 text-2xl font-semibold text-ink">Youth login</h1>
         <p className="mt-2 text-sm leading-6 text-slate-600">
-          Day 1 mock login for Mira&apos;s SafeNight Companion flow.
+          Continue as Mira to open the SafeNight Companion flow.
         </p>
         <form className="mt-6 grid gap-4" onSubmit={handleSubmit}>
           <label className="grid gap-2 text-sm font-medium text-slate-700">
