@@ -273,6 +273,91 @@ Returns worker list and active case counts.
 
 Reassigns a case and writes an audit log entry.
 
+## AI
+
+All AI endpoints require `Authorization: Bearer <accessToken>`. The Day 4 alpha
+uses `fallback_rule_based` mode so demos remain stable without a live AI provider.
+The fallback still returns structured JSON, persists important outputs, and writes
+audit events.
+
+### POST /ai/analyse-risk
+
+Analyses text or a stored conversation for risk signals. When `conversationId` is
+provided and `persist` is true, detected signals are saved to the database and the
+conversation risk state is updated.
+
+Request:
+
+```json
+{
+  "conversationId": "conv_mira_after_hours",
+  "content": "People in my class group chat keep editing my photos. I don't want to go school tomorrow.",
+  "persist": true
+}
+```
+
+Response:
+
+```json
+{
+  "conversationId": "conv_mira_after_hours",
+  "riskLevel": "high",
+  "riskScore": 83,
+  "safetyStatus": "fallback_passed",
+  "handoffRecommended": true,
+  "aiMode": "fallback_rule_based",
+  "signals": [
+    {
+      "type": "cyberbullying",
+      "severity": "high",
+      "reason": "Message mentions online peer harm, edited photos, group chat harassment, or bullying.",
+      "source": "fallback_rule_based"
+    }
+  ]
+}
+```
+
+### POST /ai/generate-handoff
+
+Creates and saves a structured handoff brief from a conversation, persists fresh
+risk signals, updates conversation risk, and writes an audit log.
+
+Request:
+
+```json
+{
+  "conversationId": "conv_mira_after_hours"
+}
+```
+
+Response:
+
+```json
+{
+  "handoffBrief": {
+    "id": "handoff_generated_id",
+    "conversationId": "conv_mira_after_hours",
+    "youthId": "youth_mira",
+    "youthName": "Mira Tan",
+    "mainConcern": "Cyberbullying or online peer harm affecting school safety and emotional wellbeing.",
+    "emotionalState": "Tired, distressed, or overwhelmed based on the youth's wording.",
+    "riskLevel": "high",
+    "riskScore": 83,
+    "suggestedWorkerResponse": "Hi, I read the note you allowed SignalBridge to prepare..."
+  },
+  "aiMode": "fallback_rule_based"
+}
+```
+
+### POST /ai/suggest-reply
+
+Returns a worker-safe suggested first response and writes an audit log.
+
+### POST /ai/safety-check
+
+Checks a draft response or youth message for critical phrases. Critical results set
+`blocked` to true and return `requires_immediate_human_review`.
+
 ## Safety And Audit
 
 ### GET /audit/logs
