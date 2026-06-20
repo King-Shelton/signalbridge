@@ -1,4 +1,6 @@
-export const YOUTH_SESSION_KEY = "signalbridge.youthSession";
+import { clearAuthSession, readAuthSession, saveAuthSession } from "@/lib/auth-session";
+
+export const YOUTH_SESSION_KEY = "signalbridge.authSession";
 
 export type YouthSession = {
   id: string;
@@ -16,37 +18,36 @@ export const demoYouthSession: YouthSession = {
 };
 
 export function readYouthSession(): YouthSession | null {
-  if (typeof window === "undefined") {
+  const session = readAuthSession();
+  if (!session || session.user.role !== "youth") {
     return null;
   }
 
-  const rawSession = window.localStorage.getItem(YOUTH_SESSION_KEY);
-  if (!rawSession) {
-    return null;
-  }
-
-  try {
-    const parsed = JSON.parse(rawSession) as Partial<YouthSession>;
-    if (parsed.role !== "youth" || !parsed.name || !parsed.email) {
-      return null;
-    }
-
-    return {
-      id: parsed.id ?? "youth",
-      name: parsed.name,
-      email: parsed.email,
-      role: "youth",
-      accessToken: parsed.accessToken
-    };
-  } catch {
-    return null;
-  }
+  return {
+    id: session.user.id,
+    name: session.user.name,
+    email: session.user.email,
+    role: "youth",
+    accessToken: session.accessToken
+  };
 }
 
 export function saveYouthSession(session: YouthSession) {
-  window.localStorage.setItem(YOUTH_SESSION_KEY, JSON.stringify(session));
+  if (!session.accessToken) {
+    throw new Error("An access token is required to save the youth session.");
+  }
+
+  saveAuthSession({
+    accessToken: session.accessToken,
+    user: {
+      id: session.id,
+      name: session.name,
+      email: session.email,
+      role: session.role
+    }
+  });
 }
 
 export function clearYouthSession() {
-  window.localStorage.removeItem(YOUTH_SESSION_KEY);
+  clearAuthSession();
 }

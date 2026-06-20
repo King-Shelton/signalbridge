@@ -19,7 +19,7 @@ export function ChatBubble({ sender, author, children, timestamp }: ChatBubblePr
   const isYouth = sender === "youth";
 
   return (
-    <article className={cn("flex max-w-[82%] flex-col gap-1", isYouth && "items-end")}>
+    <article className={cn("flex max-w-[92%] flex-col gap-1 sm:max-w-[82%]", isYouth && "items-end")}>
       <div className="flex items-center gap-2 px-1 text-xs font-medium text-slate-500">
         <span>{author}</span>
         {timestamp ? <span>{timestamp}</span> : null}

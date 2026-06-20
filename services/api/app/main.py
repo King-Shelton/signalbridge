@@ -4,7 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.config import get_settings
 from app.database import Base, engine
 from app.models import AuditLog, Case, Conversation, HandoffBrief, Message, Signal, User, YouthProfile
-from app.routes import auth, health, youth
+from app.routes import ai, auth, conversations, health, youth
 
 settings = get_settings()
 
@@ -16,7 +16,7 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.cors_origins,
+    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -31,3 +31,5 @@ def create_tables() -> None:
 app.include_router(health.router)
 app.include_router(auth.router, prefix="/auth", tags=["auth"])
 app.include_router(youth.router, prefix="/youth", tags=["youth"])
+app.include_router(ai.router, prefix="/ai", tags=["ai"])
+app.include_router(conversations.router, tags=["conversations"])

@@ -69,10 +69,7 @@ Initial backend endpoints:
 GET  /health
 GET  /version
 POST /auth/login
-GET  /auth/me
 ```
-
-All seeded demo accounts use the password `password`.
 
 ## Main Fictional Case
 
