@@ -7,9 +7,11 @@ import { ChatBubble } from "@/components/ChatBubble";
 import { HandoffConsentCard } from "@/components/HandoffConsentCard";
 import { MessageInput } from "@/components/MessageInput";
 import { StatePanel } from "@/components/StatePanel";
+import { readYouthSession, type YouthSession } from "@/lib/youth-session";
 
 type ApiMessage = {
   id: string;
+  conversationId: string;
   senderType: "youth" | "ai" | "system" | "worker";
   content: string;
   safetyStatus?: string | null;
@@ -17,9 +19,12 @@ type ApiMessage = {
 };
 
 type ApiSignal = {
+  id: string;
   type: string;
   severity: string;
   reason: string;
+  source: string;
+  createdAt: string;
 };
 
 type Conversation = {
@@ -43,11 +48,11 @@ function formatTime(value: string) {
 }
 
 function bubbleSender(senderType: ApiMessage["senderType"]): "youth" | "assistant" | "system" {
-  if (senderType === "ai") {
+  if (senderType === "ai" || senderType === "worker") {
     return "assistant";
   }
 
-  return senderType === "worker" ? "assistant" : senderType;
+  return senderType;
 }
 
 function authorFor(message: ApiMessage) {
@@ -64,6 +69,7 @@ function authorFor(message: ApiMessage) {
 
 export default function YouthChatPage() {
   const bottomRef = useRef<HTMLDivElement | null>(null);
+  const [session, setSession] = useState<YouthSession | null>(null);
   const [conversation, setConversation] = useState<Conversation | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSending, setIsSending] = useState(false);
@@ -78,6 +84,7 @@ export default function YouthChatPage() {
     return [
       {
         id: "after-hours-banner",
+        conversationId: conversation.id,
         senderType: "system" as const,
         content:
           "A youth worker may not be available now. SignalBridge can help prepare a handoff note.",
@@ -89,14 +96,25 @@ export default function YouthChatPage() {
 
   useEffect(() => {
     async function loadConversation() {
+      const currentSession = readYouthSession();
+      setSession(currentSession);
+
+      if (!currentSession?.accessToken) {
+        setError("Please log in again so SignalBridge can load Mira's saved chat.");
+        setIsLoading(false);
+        return;
+      }
+
       try {
-        const response = await fetch(`${apiBaseUrl}/youth/conversation`);
+        const response = await fetch(`${apiBaseUrl}/youth/conversations`, {
+          headers: { Authorization: `Bearer ${currentSession.accessToken}` }
+        });
         if (!response.ok) {
           throw new Error("Could not load Mira's chat history.");
         }
 
-        const data = (await response.json()) as { conversation: Conversation };
-        setConversation(data.conversation);
+        const data = (await response.json()) as { conversations: Conversation[] };
+        setConversation(data.conversations[0] ?? null);
       } catch (loadError) {
         setError(loadError instanceof Error ? loadError.message : "Could not load chat.");
       } finally {
@@ -112,7 +130,7 @@ export default function YouthChatPage() {
   }, [messages.length, isSending]);
 
   async function sendMessage(content: string) {
-    if (!conversation) {
+    if (!conversation || !session?.accessToken) {
       return;
     }
 
@@ -121,6 +139,7 @@ export default function YouthChatPage() {
 
     const optimisticMessage: ApiMessage = {
       id: `local_${Date.now()}`,
+      conversationId: conversation.id,
       senderType: "youth",
       content,
       createdAt: new Date().toISOString()
@@ -131,9 +150,12 @@ export default function YouthChatPage() {
     });
 
     try {
-      const response = await fetch(`${apiBaseUrl}/conversations/${conversation.id}/messages`, {
+      const response = await fetch(`${apiBaseUrl}/youth/conversations/${conversation.id}/messages`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          Authorization: `Bearer ${session.accessToken}`,
+          "Content-Type": "application/json"
+        },
         body: JSON.stringify({ content })
       });
 
@@ -142,24 +164,10 @@ export default function YouthChatPage() {
       }
 
       const data = (await response.json()) as {
-        message: ApiMessage;
-        aiReply: ApiMessage;
-        signals: ApiSignal[];
+        conversation: Conversation;
       };
 
-      setConversation((current) =>
-        current
-          ? {
-              ...current,
-              messages: [
-                ...current.messages.filter((message) => message.id !== optimisticMessage.id),
-                data.message,
-                data.aiReply
-              ],
-              signals: data.signals
-            }
-          : current
-      );
+      setConversation(data.conversation);
     } catch (sendError) {
       setConversation((current) =>
         current
@@ -176,25 +184,28 @@ export default function YouthChatPage() {
   }
 
   async function updateConsent(consentGiven: boolean) {
-    if (!conversation) {
+    if (!conversation || !session?.accessToken) {
       return;
     }
 
     setError("");
     setIsSavingConsent(true);
     try {
-      const response = await fetch(`${apiBaseUrl}/handoffs/consent`, {
+      const response = await fetch(`${apiBaseUrl}/youth/conversations/${conversation.id}/handoff-consent`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ conversationId: conversation.id, consentGiven })
+        headers: {
+          Authorization: `Bearer ${session.accessToken}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ consentGiven })
       });
 
       if (!response.ok) {
         throw new Error("Consent could not be saved. Please try again.");
       }
 
-      const data = (await response.json()) as { consentToHandoff: boolean };
-      setConversation({ ...conversation, consentToHandoff: data.consentToHandoff });
+      const data = (await response.json()) as { conversation: Conversation };
+      setConversation(data.conversation);
     } catch (consentError) {
       setError(consentError instanceof Error ? consentError.message : "Consent could not be saved.");
     } finally {
@@ -216,17 +227,18 @@ export default function YouthChatPage() {
     return (
       <StatePanel
         title="Chat unavailable"
-        description={error || "Mira's conversation could not be opened."}
+        description={error || "Mira's saved conversation could not be opened."}
+        actionHref="/login"
+        actionLabel="Go to login"
         variant="error"
       />
     );
   }
 
   return (
-    <main className="mx-auto flex min-h-screen w-full max-w-6xl flex-col px-4 py-5 sm:px-6">
+    <section className="flex min-h-[720px] w-full flex-col">
       <header className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 pb-4">
         <div>
-          <p className="text-sm font-semibold text-pine">SafeNight Companion</p>
           <h1 className="text-2xl font-semibold text-ink">Mira&apos;s chat</h1>
           <p className="mt-1 text-sm text-slate-600">
             Message history is loaded from SignalBridge&apos;s backend.
@@ -242,7 +254,7 @@ export default function YouthChatPage() {
         </p>
       ) : null}
 
-      <section className="mt-5 grid flex-1 overflow-hidden rounded-lg border border-slate-200 bg-mist/50 shadow-panel lg:grid-cols-[1fr_340px]">
+      <div className="mt-5 grid flex-1 overflow-hidden rounded-lg border border-slate-200 bg-mist/50 shadow-panel lg:grid-cols-[1fr_340px]">
         <div className="flex min-h-[680px] flex-col bg-white">
           <div className="flex-1 space-y-5 overflow-y-auto p-4 sm:p-6">
             {messages.map((message) => (
@@ -282,7 +294,7 @@ export default function YouthChatPage() {
           <h2 className="text-sm font-semibold text-ink">Detected support signals</h2>
           <div className="mt-4 grid gap-3">
             {conversation.signals.map((signal) => (
-              <article key={signal.type} className="rounded-lg border border-slate-200 bg-white p-3">
+              <article key={signal.id} className="rounded-lg border border-slate-200 bg-white p-3">
                 <div className="flex items-center justify-between gap-2">
                   <h3 className="text-sm font-semibold capitalize text-ink">
                     {signal.type.replaceAll("_", " ")}
@@ -296,7 +308,7 @@ export default function YouthChatPage() {
             ))}
           </div>
         </aside>
-      </section>
-    </main>
+      </div>
+    </section>
   );
 }
