@@ -57,18 +57,18 @@ export function YouthDashboardShell({ children }: { children: React.ReactNode })
   }
 
   return (
-    <main className="mx-auto flex min-h-screen w-full max-w-7xl flex-col px-4 py-5 sm:px-6">
-      <header className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-200 pb-4">
+    <main className="mx-auto flex min-h-screen w-full max-w-7xl flex-col px-3 py-4 sm:px-6 sm:py-5">
+      <header className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 pb-4">
         <div>
           <p className="text-sm font-semibold uppercase tracking-[0.16em] text-pine">
             SignalBridge Youth
           </p>
           <h1 className="mt-1 text-2xl font-semibold text-ink">SafeNight Companion</h1>
         </div>
-        <div className="flex items-center gap-3">
-          <div className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-right shadow-sm">
+        <div className="flex min-w-0 items-center gap-2 sm:gap-3">
+          <div className="min-w-0 rounded-lg border border-slate-200 bg-white px-3 py-2 text-right shadow-sm">
             <p className="text-sm font-semibold text-ink">{session.name}</p>
-            <p className="text-xs text-slate-500">{session.email}</p>
+            <p className="truncate text-xs text-slate-500">{session.email}</p>
           </div>
           <button
             type="button"
@@ -81,8 +81,8 @@ export function YouthDashboardShell({ children }: { children: React.ReactNode })
         </div>
       </header>
 
-      <div className="grid flex-1 gap-5 py-5 lg:grid-cols-[220px_1fr]">
-        <nav className="h-fit rounded-lg border border-slate-200 bg-white p-2 shadow-sm">
+      <div className="grid flex-1 gap-4 py-4 lg:grid-cols-[220px_1fr] lg:gap-5 lg:py-5">
+        <nav className="flex h-fit gap-2 overflow-x-auto rounded-lg border border-slate-200 bg-white p-2 shadow-sm lg:grid lg:overflow-visible">
           {youthNav.map((item) => {
             const Icon = item.icon;
             const isActive = pathname === item.href;
@@ -92,7 +92,7 @@ export function YouthDashboardShell({ children }: { children: React.ReactNode })
                 key={item.href}
                 href={item.href}
                 className={cn(
-                  "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-semibold transition",
+                  "flex shrink-0 items-center gap-2 rounded-lg px-3 py-2.5 text-sm font-semibold transition lg:gap-3",
                   isActive
                     ? "bg-pine text-white"
                     : "text-slate-600 hover:bg-mist hover:text-ink"

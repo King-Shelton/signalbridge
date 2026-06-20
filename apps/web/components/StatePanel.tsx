@@ -6,6 +6,7 @@ type StatePanelProps = {
   description: string;
   actionHref?: string;
   actionLabel?: string;
+  compact?: boolean;
   variant?: "loading" | "empty" | "error";
 };
 
@@ -20,12 +21,19 @@ export function StatePanel({
   description,
   actionHref,
   actionLabel,
+  compact = false,
   variant = "empty"
 }: StatePanelProps) {
   const Icon = icons[variant];
 
   return (
-    <section className="grid min-h-[320px] place-items-center rounded-lg border border-slate-200 bg-white p-8 text-center shadow-sm">
+    <section
+      className={
+        compact
+          ? "grid place-items-center rounded-lg border border-slate-200 bg-white p-4 text-center shadow-sm"
+          : "grid min-h-[320px] place-items-center rounded-lg border border-slate-200 bg-white p-8 text-center shadow-sm"
+      }
+    >
       <div className="max-w-sm">
         <div className="mx-auto grid h-11 w-11 place-items-center rounded-full bg-mist text-pine">
           <Icon
