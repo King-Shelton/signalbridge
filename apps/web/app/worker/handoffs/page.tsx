@@ -6,7 +6,7 @@ import { workerYouthCases } from "@/lib/worker-data";
 const cards = [
   {
     label: "Open handoffs",
-    value: workerYouthCases.filter((caseItem) => caseItem.status !== "Stable").length.toString(),
+    value: workerYouthCases.filter((caseItem) => caseItem.status !== "Closed").length.toString(),
     detail: "Briefs that still need a worker review",
     icon: ClipboardList,
     tone: "pine" as const
@@ -119,7 +119,7 @@ export default function WorkerHandoffsPage() {
             <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
               <p className="text-sm text-slate-500">Last active: {youth.lastActive}</p>
               <Link
-                href={`/worker/handoffs/${youth.id}`}
+                href={`/worker/handoffs/${youth.handoffId}`}
                 className="inline-flex items-center gap-2 rounded-full border border-pine/20 bg-pine px-3 py-2 text-xs font-semibold text-white transition hover:bg-pine/90"
               >
                 Open full brief

@@ -166,7 +166,7 @@ export default function WorkerSignalRadarPage() {
                     </p>
                     <p className="mt-2 text-sm leading-7 text-slate-700">{youth.keyQuote}</p>
                     <Link
-                      href={`/worker/handoffs/${youth.id}`}
+                      href={`/worker/handoffs/${youth.handoffId}`}
                       className="mt-4 inline-flex items-center gap-2 text-sm font-semibold text-pine hover:text-ink"
                     >
                       Open brief
