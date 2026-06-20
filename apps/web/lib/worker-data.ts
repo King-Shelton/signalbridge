@@ -2,6 +2,15 @@ export type RiskLevel = "high" | "medium" | "low";
 
 export type ChannelLabel = "WhatsApp" | "Instagram" | "GatherTown" | "Discord" | "Web Chat";
 export type ConversationSource = "mock-seed" | "api-ready";
+
+export const channelLabels: Record<ChannelLabel, string> = {
+  WhatsApp: "WhatsApp",
+  Instagram: "Instagram",
+  GatherTown: "GatherTown",
+  Discord: "Discord",
+  "Web Chat": "Web Chat"
+};
+
 export type ConversationTurn = {
   sender: "youth" | "worker" | "system";
   author: string;
