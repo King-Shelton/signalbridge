@@ -14,6 +14,7 @@ export type WorkerYouthCase = {
   youthName: string;
   channel: ChannelLabel;
   riskLevel: RiskLevel;
+  riskScore: number;
   lastActive: string;
   suggestedAction: string;
   status: string;
@@ -23,6 +24,9 @@ export type WorkerYouthCase = {
   keyQuote: string;
   emotionalState: string;
   workerResponse: string;
+  whatAiDid: string;
+  whatNotToRepeat: string;
+  recommendedNextStep: string;
   background: string;
   supportStyle: string;
   helpfulApproaches: string[];
@@ -36,6 +40,7 @@ export const workerYouthCases: WorkerYouthCase[] = [
     youthName: "Mira Tan",
     channel: "Web Chat",
     riskLevel: "high",
+    riskScore: 92,
     lastActive: "11:42 PM yesterday",
     suggestedAction: "Open handoff brief and check school safety",
     status: "Needs follow-up",
@@ -46,6 +51,12 @@ export const workerYouthCases: WorkerYouthCase[] = [
     emotionalState: "Tired, embarrassed, and reluctant to repeat the story",
     workerResponse:
       "Hi Mira, I read the note you allowed SignalBridge to prepare. You don't have to repeat everything unless you want to. I'm here now. Can I first check whether you feel safe going to school today?",
+    whatAiDid:
+      "Validated the distress, identified cyberbullying and school avoidance as the core signals, and prepared the handoff only after consent.",
+    whatNotToRepeat:
+      "Do not make Mira retell the edited-photo incident unless she chooses to add more.",
+    recommendedNextStep:
+      "Review the handoff first thing, open with a safety check, and plan a same-day follow-up.",
     background:
       "Mira reached out after-hours after seeing her photos edited and shared in a class group chat.",
     supportStyle: "Gentle, direct, and low-pressure",
@@ -88,6 +99,7 @@ export const workerYouthCases: WorkerYouthCase[] = [
     youthName: "Jay Lim",
     channel: "WhatsApp",
     riskLevel: "medium",
+    riskScore: 67,
     lastActive: "Yesterday, 9:10 PM",
     suggestedAction: "Review escalation note and confirm next contact window",
     status: "Awaiting worker reply",
@@ -98,6 +110,12 @@ export const workerYouthCases: WorkerYouthCase[] = [
     emotionalState: "Uneasy, guarded, and unsure what to do next",
     workerResponse:
       "Thanks for letting SignalBridge hold this for you. Let's work out the safest next step together when you're ready.",
+    whatAiDid:
+      "Captured the stress from repeated late-night messages, kept the tone calm, and queued a worker follow-up instead of escalating early.",
+    whatNotToRepeat:
+      "Do not push Jay for an immediate reply decision or force a long explanation twice.",
+    recommendedNextStep:
+      "Confirm the best contact window and decide whether the concern is conflict, pressure, or overwhelm.",
     background:
       "Jay has been getting pressured by friends in a group chat and is worried about making things worse.",
     supportStyle: "Calm, practical, and reassuring",
@@ -134,6 +152,7 @@ export const workerYouthCases: WorkerYouthCase[] = [
     youthName: "Dan Ng",
     channel: "Instagram",
     riskLevel: "medium",
+    riskScore: 58,
     lastActive: "Today, 7:15 AM",
     suggestedAction: "Check on morning mood and whether school support is needed",
     status: "In queue",
@@ -144,6 +163,11 @@ export const workerYouthCases: WorkerYouthCase[] = [
     emotionalState: "Tense, tired, and mentally overloaded",
     workerResponse:
       "I saw the note you agreed to share. We can keep this simple and focus on what you need this morning.",
+    whatAiDid:
+      "Noted the sleep disruption and anxiety, flagged the morning timing, and kept the handoff short so the worker can act quickly.",
+    whatNotToRepeat: "Do not turn the morning check-in into a long questionnaire.",
+    recommendedNextStep:
+      "Check on school readiness, offer a brief grounding step, and document whether support is needed before class.",
     background:
       "Dan woke up still stuck on a message thread that spiraled late into the night.",
     supportStyle: "Short check-ins and concrete next steps",
@@ -179,6 +203,7 @@ export const workerYouthCases: WorkerYouthCase[] = [
     youthName: "Afiq Rahman",
     channel: "GatherTown",
     riskLevel: "low",
+    riskScore: 24,
     lastActive: "Today, 8:40 AM",
     suggestedAction: "Send a warm check-in and monitor for changes",
     status: "Stable",
@@ -189,6 +214,10 @@ export const workerYouthCases: WorkerYouthCase[] = [
     emotionalState: "Settled and responsive",
     workerResponse:
       "Thanks for the update, Afiq. I'll keep this light unless anything changes, and you can tell me if you want more support.",
+    whatAiDid:
+      "Tagged the conversation as stable, captured the low-risk tone, and preserved a light-touch follow-up path.",
+    whatNotToRepeat: "Do not over-interpret a routine check-in as an escalation.",
+    recommendedNextStep: "Send a warm check-in and keep monitoring for changes.",
     background:
       "Afiq has been consistent in messaging and is not showing current escalation signs.",
     supportStyle: "Light-touch and responsive",
@@ -224,6 +253,7 @@ export const workerYouthCases: WorkerYouthCase[] = [
     youthName: "Leanne Tan",
     channel: "Discord",
     riskLevel: "low",
+    riskScore: 18,
     lastActive: "Yesterday, 6:55 PM",
     suggestedAction: "Close the loop with a supportive follow-up note",
     status: "Logged",
@@ -234,6 +264,12 @@ export const workerYouthCases: WorkerYouthCase[] = [
     emotionalState: "Calm and settled",
     workerResponse:
       "I got your update, Leanne. I am noting that things are steady for now and I will check back in as agreed.",
+    whatAiDid:
+      "Logged the routine follow-up, captured the calm tone, and kept the path ready for an API-backed sync.",
+    whatNotToRepeat:
+      "Do not reopen the session with unnecessary detail once things are stable.",
+    recommendedNextStep:
+      "Close the loop, confirm the next follow-up time, and keep the note concise.",
     background:
       "Leanne recently completed a support touchpoint and is currently stable.",
     supportStyle: "Respectful, tidy follow-through",
