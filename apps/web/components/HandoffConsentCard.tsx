@@ -23,19 +23,21 @@ export function HandoffConsentCard({
         </div>
         <div>
           <h2 className="text-sm font-semibold text-ink">
-            Share a short handoff note with your worker?
+            Let your worker read a short note?
           </h2>
           <p className="mt-1 text-sm leading-6 text-slate-600">
-            Mira stays in control. The note only includes what helps the worker
-            understand the situation without asking her to repeat everything.
+            You choose what gets shared. The note is only to help your worker
+            understand what happened without asking you to explain it all again.
           </p>
         </div>
       </div>
       <label className="mt-4 flex cursor-pointer items-center justify-between gap-4 rounded-lg border border-slate-200 bg-mist/40 px-3 py-2">
         <span>
-          <span className="block text-sm font-semibold text-ink">Allow handoff note</span>
+          <span className="block text-sm font-semibold text-ink">
+            I allow my worker to review this note
+          </span>
           <span className="block text-xs leading-5 text-slate-500">
-            Share the prepared note with Mira&apos;s assigned youth worker.
+            You can still choose what to talk about tomorrow.
           </span>
         </span>
         <input
@@ -48,21 +50,25 @@ export function HandoffConsentCard({
       </label>
       {consentGiven ? (
         <p className="mt-3 rounded-lg border border-pine/20 bg-pine/10 px-3 py-2 text-sm font-medium text-pine">
-          Handoff consent saved. SafeNight will prepare a note for the worker to review.
+          Consent saved. Your worker can review the note, and you do not have to repeat everything unless you want to.
         </p>
-      ) : null}
+      ) : (
+        <p className="mt-3 rounded-lg border border-amber/30 bg-amber/10 px-3 py-2 text-sm font-medium text-amber">
+          Not shared yet. Your worker cannot review this note until you allow it.
+        </p>
+      )}
       <div className="mt-4 grid gap-2 text-sm text-slate-600">
         <div className="flex gap-2">
           <CheckCircle2 aria-hidden="true" className="mt-0.5 h-4 w-4 text-pine" />
-          Cyberbullying and school worry context
+          What happened and what feels hard right now
         </div>
         <div className="flex gap-2">
           <CheckCircle2 aria-hidden="true" className="mt-0.5 h-4 w-4 text-pine" />
-          What SafeNight already said
+          What SafeNight already replied
         </div>
         <div className="flex gap-2">
           <FileText aria-hidden="true" className="mt-0.5 h-4 w-4 text-pine" />
-          A suggested first response for the worker
+          A gentle first message your worker can start with
         </div>
       </div>
       {!compact ? (
@@ -73,7 +79,7 @@ export function HandoffConsentCard({
             onClick={() => onConsentChange?.(true)}
             className="rounded-lg bg-pine px-4 py-2 text-sm font-semibold text-white transition hover:bg-pine/90 disabled:cursor-not-allowed disabled:bg-slate-300"
           >
-            {consentGiven ? "Consent saved" : "Allow handoff note"}
+            {consentGiven ? "Worker review allowed" : "Allow worker review"}
           </button>
           <button
             type="button"

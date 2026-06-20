@@ -1,5 +1,3 @@
-from datetime import datetime
-
 from sqlalchemy.orm import Session
 
 from app.database import Base, SessionLocal, engine
@@ -14,9 +12,6 @@ from app.models.youth_profile import YouthProfile
 from app.services.auth_service import hash_password
 
 
-DEMO_PASSWORD = "password"
-
-
 def upsert_user(db: Session, user_id: str, name: str, email: str, role: UserRole) -> User:
     user = db.get(User, user_id)
     if user is None:
@@ -25,15 +20,9 @@ def upsert_user(db: Session, user_id: str, name: str, email: str, role: UserRole
             name=name,
             email=email,
             role=role,
-            password_hash=hash_password(DEMO_PASSWORD),
+            password_hash=hash_password("password"),
         )
         db.add(user)
-    else:
-        user.name = name
-        user.email = email
-        user.role = role
-        if not user.password_hash:
-            user.password_hash = hash_password(DEMO_PASSWORD)
     return user
 
 
@@ -68,16 +57,8 @@ def seed() -> None:
                 risk_score=78,
                 consent_to_handoff=True,
                 unresolved_handoff=True,
-                last_message_at=datetime(2026, 6, 16, 23, 42),
             )
             db.add(conversation)
-        else:
-            conversation.status = ConversationStatus.needs_review
-            conversation.risk_level = RiskLevel.high
-            conversation.risk_score = 78
-            conversation.consent_to_handoff = True
-            conversation.unresolved_handoff = True
-            conversation.last_message_at = datetime(2026, 6, 16, 23, 42)
 
         if db.get(Message, "msg_mira_001") is None:
             db.add(

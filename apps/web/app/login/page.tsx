@@ -7,6 +7,16 @@ import { demoYouthSession, saveYouthSession } from "@/lib/youth-session";
 
 const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
+type LoginResponse = {
+  accessToken: string;
+  user: {
+    id: string;
+    name: string;
+    email: string;
+    role: string;
+  };
+};
+
 export default function LoginPage() {
   const router = useRouter();
   const [email, setEmail] = useState(demoYouthSession.email);
@@ -20,6 +30,11 @@ export default function LoginPage() {
     setIsLoading(true);
 
     try {
+      if (email.trim().toLowerCase() !== demoYouthSession.email || password !== "password") {
+        setError("Use Mira's demo login to open the youth dashboard.");
+        return;
+      }
+
       const response = await fetch(`${apiBaseUrl}/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -27,19 +42,10 @@ export default function LoginPage() {
       });
 
       if (!response.ok) {
-        throw new Error("Use Mira's demo login to open the youth dashboard.");
+        throw new Error("Could not sign in to SignalBridge. Please check that the backend is running.");
       }
 
-      const data = (await response.json()) as {
-        accessToken: string;
-        user: {
-          id: string;
-          name: string;
-          email: string;
-          role: string;
-        };
-      };
-
+      const data = (await response.json()) as LoginResponse;
       if (data.user.role !== "youth") {
         throw new Error("This login is not a youth account.");
       }
@@ -53,7 +59,11 @@ export default function LoginPage() {
       });
       router.push("/youth/chat");
     } catch (loginError) {
-      setError(loginError instanceof Error ? loginError.message : "Could not open Mira's dashboard.");
+      setError(
+        loginError instanceof Error
+          ? loginError.message
+          : "Could not sign in to SignalBridge."
+      );
     } finally {
       setIsLoading(false);
     }
