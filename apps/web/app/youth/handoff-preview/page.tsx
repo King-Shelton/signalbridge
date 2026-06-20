@@ -65,7 +65,7 @@ const demoNote: HandoffNote = {
   emotionalState: "Tired, embarrassed, and reluctant to repeat the story.",
   keyQuote: "I'm so tired of explaining this.",
   whatSafeNightDid:
-    "Acknowledged distress, avoided diagnosis, offered handoff preparation, and asked for consent.",
+    "Acknowledged Mira's message, did not label her feelings, offered handoff preparation, and asked for permission before sharing.",
   whatNotToRepeat:
     "Do not ask Mira to retell the full incident immediately unless she chooses to.",
   suggestedWorkerResponse:
@@ -99,7 +99,7 @@ function buildNote(conversation: Conversation | null): HandoffNote {
       "Mira sounded overwhelmed and wants the worker to understand the situation without asking her to repeat everything.",
     keyQuote: youthMessage?.content ?? demoNote.keyQuote,
     whatSafeNightDid:
-      "Acknowledged the after-hours message, avoided giving counselling advice, and prepared a structured note for human review.",
+      "Acknowledged the after-hours message, avoided counselling advice, and prepared a short note for human review.",
     whatNotToRepeat:
       "Do not ask Mira to retell the full incident at the start. First acknowledge the note and let her choose what to add.",
     suggestedWorkerResponse: demoNote.suggestedWorkerResponse,
@@ -227,9 +227,9 @@ export default function HandoffPreviewPage() {
             <ArrowLeft aria-hidden="true" className="h-4 w-4" />
             Back to chat
           </Link>
-          <h1 className="mt-3 text-2xl font-semibold text-ink">Handoff preview</h1>
+          <h1 className="mt-3 text-2xl font-semibold text-ink">Review note before sharing</h1>
           <p className="mt-1 max-w-2xl text-sm leading-6 text-slate-600">
-            Review what SignalBridge will share before a youth worker sees it.
+            Mira can read the note first, then choose whether her worker may review it.
           </p>
         </div>
         <AfterHoursBadge />
@@ -242,7 +242,32 @@ export default function HandoffPreviewPage() {
         </p>
       ) : null}
 
-      <section className="mt-6 grid gap-5 lg:grid-cols-[1fr_340px]">
+      {!conversation && !error ? (
+        <div className="mt-6">
+          <StatePanel
+            title="No handoff note yet"
+            description="After Mira starts a SafeNight chat, SignalBridge can prepare a short note for her to review before anything is shared."
+            actionHref="/youth/chat"
+            actionLabel="Go to chat"
+            variant="empty"
+          />
+        </div>
+      ) : null}
+
+      {!conversation && error ? (
+        <div className="mt-6">
+          <StatePanel
+            title="Handoff note unavailable"
+            description="SignalBridge could not load the latest note. You can return to chat and try again."
+            actionHref="/youth/chat"
+            actionLabel="Back to chat"
+            variant="error"
+          />
+        </div>
+      ) : null}
+
+      {conversation ? (
+        <section className="mt-6 grid gap-5 lg:grid-cols-[minmax(0,1fr)_320px] xl:grid-cols-[minmax(0,1fr)_340px]">
         <article className="rounded-lg border border-slate-200 bg-white p-5 shadow-panel">
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div className="flex items-center gap-3">
@@ -256,7 +281,7 @@ export default function HandoffPreviewPage() {
             </div>
             <div className="rounded-lg border border-coral/20 bg-coral/10 px-3 py-2 text-right">
               <p className="text-xs font-semibold uppercase tracking-[0.14em] text-coral">
-                {note.riskLevel} risk
+                {note.riskLevel} priority
               </p>
               <p className="text-lg font-semibold text-coral">{note.riskScore}/100</p>
             </div>
@@ -282,10 +307,11 @@ export default function HandoffPreviewPage() {
               </div>
               <div>
                 <h2 className="text-sm font-semibold text-ink">
-                  Allow worker to review this note?
+                  Let your worker review this note?
                 </h2>
                 <p className="mt-1 text-sm leading-6 text-slate-600">
                   Mira stays in control. The worker sees this summary only after she allows it.
+                  She can still choose what to talk about later.
                 </p>
               </div>
             </div>
@@ -297,12 +323,12 @@ export default function HandoffPreviewPage() {
                   Consent saved
                 </div>
                 <p className="mt-1">
-                  You do not have to repeat everything tomorrow. Your worker can review this note.
+                  You do not have to repeat everything tomorrow. Your worker can review this note first.
                 </p>
               </div>
             ) : (
               <div className="mt-4 rounded-lg border border-amber/30 bg-amber/10 p-3 text-sm leading-6 text-amber">
-                No consent has been given yet. The worker cannot review this note until Mira allows it.
+                Not shared yet. The worker cannot review this note until Mira allows it.
               </div>
             )}
 
@@ -316,7 +342,7 @@ export default function HandoffPreviewPage() {
                 {isSavingConsent ? (
                   <Loader2 aria-hidden="true" className="h-4 w-4 animate-spin" />
                 ) : null}
-                {consentGiven ? "Worker review allowed" : "Allow worker to review this note"}
+                {consentGiven ? "Worker review allowed" : "Allow worker review"}
               </button>
               <button
                 type="button"
@@ -336,7 +362,8 @@ export default function HandoffPreviewPage() {
             </p>
           </section>
         </aside>
-      </section>
+        </section>
+      ) : null}
     </section>
   );
 }
