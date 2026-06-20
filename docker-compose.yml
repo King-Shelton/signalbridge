@@ -23,11 +23,37 @@ services:
       SIGNALBRIDGE_ENVIRONMENT: docker
       SIGNALBRIDGE_DATABASE_URL: postgresql+psycopg://signalbridge:signalbridge@postgres:5432/signalbridge
       SIGNALBRIDGE_JWT_SECRET: dev-only-change-me
+      SIGNALBRIDGE_OPENAI_API_KEY: ${SIGNALBRIDGE_OPENAI_API_KEY:-}
+      PORT: 8000
+    command: sh -c "alembic -c /workspace/alembic.ini upgrade head && python seed.py && uvicorn app.main:app --host 0.0.0.0 --port 8000"
     ports:
       - "8000:8000"
     depends_on:
       postgres:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    environment:
+      SIGNALBRIDGE_API_URL: http://api:8000
+      PORT: 3000
+    ports:
+      - "3000:3000"
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:3000/login"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
 
 volumes:
   postgres_data:

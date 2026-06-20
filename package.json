@@ -7,6 +7,10 @@
   "scripts": {
     "dev": "npm --workspace apps/web run dev",
     "build": "npm --workspace apps/web run build",
-    "lint": "npm --workspace apps/web run lint"
+    "lint": "npm --workspace apps/web run lint",
+    "start": "npm --workspace apps/web run start",
+    "check:web": "npm run lint && npm run build",
+    "check:api": "python -m pytest services/api/tests -q",
+    "check:integration": "python services/api/scripts/day2_integration_check.py"
   }
 }

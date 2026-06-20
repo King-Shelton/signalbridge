@@ -37,7 +37,7 @@ type Conversation = {
   signals: ApiSignal[];
 };
 
-const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+const apiBaseUrl = process.env.NEXT_PUBLIC_SIGNALBRIDGE_API_URL ?? process.env.NEXT_PUBLIC_API_URL ?? "/api";
 
 function formatTime(value: string) {
   return new Intl.DateTimeFormat("en-SG", {

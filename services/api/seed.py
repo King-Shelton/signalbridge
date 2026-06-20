@@ -2,6 +2,7 @@ from sqlalchemy.orm import Session
 
 from app.database import Base, SessionLocal, engine
 from app.models.audit_log import AuditLog
+from app.models.ai_run import AiRun
 from app.models.case import Case, CaseStatus
 from app.models.conversation import Conversation, ConversationStatus, RiskLevel
 from app.models.handoff_brief import HandoffBrief, ReviewStatus
@@ -32,7 +33,9 @@ def seed() -> None:
     try:
         mira = upsert_user(db, "user_mira", "Mira Tan", "mira@signalbridge.test", UserRole.youth)
         worker = upsert_user(db, "user_worker_1", "Aisha Rahman", "worker1@signalbridge.test", UserRole.worker)
+        worker_two = upsert_user(db, "user_worker_2", "Marcus Lee", "worker2@signalbridge.test", UserRole.worker)
         upsert_user(db, "user_supervisor", "Daniel Lim", "supervisor@signalbridge.test", UserRole.supervisor)
+        db.flush()
 
         youth = db.get(YouthProfile, "youth_mira")
         if youth is None:
@@ -45,6 +48,7 @@ def seed() -> None:
                 stressors="Cyberbullying, school avoidance, peer group pressure.",
             )
             db.add(youth)
+            db.flush()
 
         conversation = db.get(Conversation, "conv_mira_after_hours")
         if conversation is None:
@@ -59,6 +63,7 @@ def seed() -> None:
                 unresolved_handoff=True,
             )
             db.add(conversation)
+            db.flush()
 
         if db.get(Message, "msg_mira_001") is None:
             db.add(
@@ -120,11 +125,40 @@ def seed() -> None:
                     id="case_mira_001",
                     youth_id="youth_mira",
                     assigned_worker_id=worker.id,
-                    status=CaseStatus.needs_follow_up,
+                    status=CaseStatus.needs_review,
                     priority="high",
                     summary="After-hours cyberbullying handoff for Mira.",
                 )
             )
+
+        fictional_youths = [
+            ("jay", "Jayden Koh", "jay@signalbridge.test", worker.id, "WhatsApp Simulator", "Family tension and sleep disruption", RiskLevel.medium, 67, CaseStatus.in_progress),
+            ("dan", "Danial Aziz", "dan@signalbridge.test", worker.id, "Discord Simulator", "Exam stress and repeated late-night messages", RiskLevel.medium, 58, CaseStatus.needs_review),
+            ("afiq", "Afiq Rahman", "afiq@signalbridge.test", worker.id, "GatherTown Simulator", "Routine check-in", RiskLevel.low, 24, CaseStatus.followed_up),
+            ("leanne", "Leanne Goh", "leanne@signalbridge.test", worker_two.id, "Instagram Simulator", "Peer friendship changes", RiskLevel.low, 18, CaseStatus.new),
+        ]
+        for slug, name, email, assigned_worker, channel, stressors, risk_level, risk_score, case_status in fictional_youths:
+            user = upsert_user(db, f"user_{slug}", name, email, UserRole.youth)
+            db.flush()
+            profile_id = f"youth_{slug}"
+            if db.get(YouthProfile, profile_id) is None:
+                db.add(YouthProfile(id=profile_id, user_id=user.id, assigned_worker_id=assigned_worker,
+                                    preferred_channel=channel, support_style="Prefers short, respectful check-ins.", stressors=stressors))
+                db.flush()
+            conversation_id = f"conv_{slug}_seed"
+            if db.get(Conversation, conversation_id) is None:
+                db.add(Conversation(id=conversation_id, youth_id=profile_id, channel=channel,
+                                    status=ConversationStatus.needs_review if risk_score >= 40 else ConversationStatus.active,
+                                    risk_level=risk_level, risk_score=risk_score,
+                                    consent_to_handoff=risk_score >= 40, unresolved_handoff=risk_score >= 40))
+                db.flush()
+                db.add(Message(id=f"msg_{slug}_seed", conversation_id=conversation_id, sender_type=SenderType.youth,
+                               content=f"I wanted to check in about {stressors.lower()}."))
+                db.add(Signal(id=f"signal_{slug}_seed", conversation_id=conversation_id, youth_id=profile_id,
+                              type="seeded_context", severity=risk_level.value, reason=stressors, source="fictional_seed"))
+            if db.get(Case, f"case_{slug}_seed") is None:
+                db.add(Case(id=f"case_{slug}_seed", youth_id=profile_id, assigned_worker_id=assigned_worker,
+                            status=case_status, priority=risk_level.value, summary=f"Follow-up for {name}: {stressors}."))
 
         if db.get(AuditLog, "audit_seed_001") is None:
             db.add(
@@ -137,6 +171,10 @@ def seed() -> None:
                     details="Day 1 fictional Mira journey seed data loaded.",
                 )
             )
+        if db.get(AiRun, "airun_seed_001") is None:
+            db.add(AiRun(id="airun_seed_001", conversation_id="conv_mira_after_hours", action="generate_handoff",
+                         mode="fallback_rule_based", model_name=None, prompt_version="handoff-v1",
+                         safety_status="fallback_passed", error="Fictional seed demonstrates deterministic fallback traceability"))
 
         db.commit()
     finally:

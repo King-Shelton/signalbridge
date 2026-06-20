@@ -1,0 +1,11 @@
+.git
+.venv
+node_modules
+**/.next
+**/__pycache__
+**/*.pyc
+**/.pytest_cache
+outputs
+ds-bundle
+.design-sync
+.ds-sync
