@@ -1,11 +1,14 @@
 import json
 import re
+from pydantic import BaseModel, Field
 from dataclasses import dataclass
 from datetime import datetime
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.config import get_settings
+from app.models.ai_run import AiRun
 from app.models.audit_log import AuditLog
 from app.models.conversation import Conversation, ConversationStatus, RiskLevel
 from app.models.handoff_brief import HandoffBrief
@@ -16,6 +19,15 @@ from app.models.youth_profile import YouthProfile
 
 
 AI_MODE = "fallback_rule_based"
+
+
+class HandoffDraft(BaseModel):
+    main_concern: str = Field(max_length=800)
+    emotional_state: str = Field(max_length=500)
+    what_ai_did: str = Field(max_length=800)
+    what_not_to_repeat: str = Field(max_length=800)
+    suggested_worker_response: str = Field(max_length=1200)
+    recommended_next_step: str = Field(max_length=800)
 
 @dataclass(frozen=True)
 class RuleSignal:
@@ -43,6 +55,7 @@ RULES: dict[str, dict[str, object]] = {
             "group chat",
             "edited my photo",
             "editing my photos",
+            "edited photos",
             "posting my photo",
             "cyberbully",
             "cyberbullying",
@@ -242,7 +255,9 @@ def persist_signals(
 
 
 def apply_risk_to_conversation(conversation: Conversation, assessment: RiskAssessment) -> None:
-    conversation.risk_level = assessment.risk_level
+    rank = {RiskLevel.low: 1, RiskLevel.medium: 2, RiskLevel.high: 3, RiskLevel.critical: 4}
+    if rank[assessment.risk_level] >= rank[conversation.risk_level]:
+        conversation.risk_level = assessment.risk_level
     conversation.risk_score = max(conversation.risk_score, assessment.risk_score)
     if assessment.handoff_recommended:
         conversation.status = ConversationStatus.needs_review
@@ -294,6 +309,64 @@ def build_handoff_brief(conversation: Conversation, messages: list[Message], ass
         suggested_worker_response=suggested_reply,
         recommended_next_step=next_step,
     )
+
+
+def build_handoff_brief_with_ai(
+    db: Session,
+    conversation: Conversation,
+    messages: list[Message],
+    assessment: RiskAssessment,
+) -> tuple[HandoffBrief, str]:
+    """Use structured model output when configured, with a deterministic safe fallback."""
+    settings = get_settings()
+    fallback = build_handoff_brief(conversation, messages, assessment)
+    if not settings.openai_api_key:
+        db.add(AiRun(conversation_id=conversation.id, action="generate_handoff", mode=AI_MODE,
+                     model_name=None, prompt_version=settings.ai_prompt_version,
+                     safety_status=assessment.safety_status, error="OpenAI key not configured"))
+        return fallback, AI_MODE
+    try:
+        from openai import OpenAI
+
+        client = OpenAI(api_key=settings.openai_api_key, timeout=settings.openai_timeout_seconds)
+        transcript = "\n".join(f"{message.sender_type.value}: {message.content}" for message in messages)[-12000:]
+        response = client.responses.parse(
+            model=settings.openai_model,
+            input=[
+                {"role": "system", "content": (
+                    "Prepare a concise youth-support handoff for a trained human worker. Do not diagnose, counsel, "
+                    "promise confidentiality, or invent facts. Preserve youth agency, avoid clinical labels, and make "
+                    "the first response begin from the approved context without requiring repetition."
+                )},
+                {"role": "user", "content": f"Risk level fixed by safety rules: {assessment.risk_level.value}.\nTranscript:\n{transcript}"},
+            ],
+            text_format=HandoffDraft,
+        )
+        draft = response.output_parsed
+        if draft is None:
+            raise ValueError("Model returned no structured handoff")
+        combined = " ".join([draft.main_concern, draft.emotional_state, draft.suggested_worker_response]).lower()
+        prohibited = ("diagnosed", "you have depression", "you have anxiety", "keep this secret", "professional advice")
+        if any(term in combined for term in prohibited):
+            raise ValueError("Structured output failed safety wording validation")
+        fallback.main_concern = draft.main_concern
+        fallback.emotional_state = draft.emotional_state
+        fallback.what_ai_did = draft.what_ai_did
+        fallback.what_not_to_repeat = draft.what_not_to_repeat
+        fallback.suggested_worker_response = draft.suggested_worker_response
+        fallback.recommended_next_step = draft.recommended_next_step
+        if assessment.risk_level == RiskLevel.critical:
+            fallback.recommended_next_step = "Escalate to the approved crisis protocol and conduct an immediate human safety check."
+            fallback.suggested_worker_response = suggest_worker_reply(assessment)
+        db.add(AiRun(conversation_id=conversation.id, action="generate_handoff", mode="openai_structured",
+                     model_name=settings.openai_model, prompt_version=settings.ai_prompt_version,
+                     safety_status=assessment.safety_status, error=None))
+        return fallback, "openai_structured"
+    except Exception as exc:
+        db.add(AiRun(conversation_id=conversation.id, action="generate_handoff", mode=AI_MODE,
+                     model_name=settings.openai_model, prompt_version=settings.ai_prompt_version,
+                     safety_status=assessment.safety_status, error=str(exc)[:1000]))
+        return fallback, AI_MODE
 
 
 def suggest_worker_reply(assessment: RiskAssessment) -> str:

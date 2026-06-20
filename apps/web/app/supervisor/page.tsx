@@ -1,157 +1,17 @@
-import Link from "next/link";
-import {
-  ArrowRight,
-  BarChart3,
-  ClipboardCheck,
-  GitCompareArrows,
-  ShieldCheck,
-  UsersRound
-} from "lucide-react";
-import { DashboardCard } from "@/components/DashboardCard";
+"use client";
 
-const tiles = [
-  {
-    label: "Worker load",
-    value: "1 team active",
-    detail: "One worker is carrying the heaviest morning queue",
-    icon: UsersRound,
-    tone: "pine" as const
-  },
-  {
-    label: "Open handoffs",
-    value: "2 pending review",
-    detail: "Two handoffs still need supervisor visibility",
-    icon: ClipboardCheck,
-    tone: "amber" as const
-  },
-  {
-    label: "Safety audit",
-    value: "Seed log ready",
-    detail: "Every AI-assisted action is traceable",
-    icon: ShieldCheck,
-    tone: "slate" as const
-  },
-  {
-    label: "Case reassignment",
-    value: "1 recommended",
-    detail: "One medium-risk case should be shifted off the busiest worker",
-    icon: GitCompareArrows,
-    tone: "coral" as const
-  }
-];
+import { useCallback,useEffect,useMemo,useState } from "react";
+import { apiFetch } from "@/lib/api-client";
+import { ConversationItem,label,riskClass } from "@/lib/operations";
+import { OperationsState } from "@/components/OperationsState";
 
-export default function SupervisorPage() {
-  const workerLoads = [
-    { name: "Worker A", cases: "7 active", pressure: "High", nextStep: "Redistribute one medium-risk case" },
-    { name: "Worker B", cases: "4 active", pressure: "Moderate", nextStep: "Keep current queue and review later" }
-  ];
+type Load={workerId:string;workerName:string;activeCases:number;highRiskCases:number;unresolvedHandoffs:number;loadScore:number;pressure:string;recommendation:string};
+type Worker={id:string;name:string;email:string}; type Audit={id:string;eventType:string;entityType:string;details:string;createdAt:string};
+type Analytics={totalConversations:number;openCases:number;unresolvedHandoffs:number;highRiskConversations:number;afterHoursVolume:number;riskBreakdown:Record<string,number>};
 
-  return (
-    <div className="space-y-6">
-      <section className="rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-          <div className="max-w-3xl">
-            <p className="text-xs font-semibold uppercase tracking-[0.22em] text-pine">
-              Supervisor workspace
-            </p>
-            <h2 className="mt-3 text-3xl font-semibold tracking-tight text-ink sm:text-4xl">
-              Morning oversight for after-hours handoffs.
-            </h2>
-            <p className="mt-4 max-w-2xl text-sm leading-7 text-slate-600 sm:text-base">
-              This matching shell gives supervisors a clean landing point for
-              worker load, audit activity, and escalation review while keeping
-              the same visual language as the worker cockpit.
-            </p>
-          </div>
-          <Link
-            href="/worker/cockpit"
-            className="inline-flex items-center gap-2 rounded-2xl border border-pine/20 bg-pine px-4 py-3 text-sm font-semibold text-white transition hover:bg-pine/90"
-          >
-            Review worker cockpit
-            <ArrowRight aria-hidden="true" className="h-4 w-4" />
-          </Link>
-        </div>
-      </section>
-
-      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        {tiles.map((tile) => (
-          <DashboardCard key={tile.label} {...tile} />
-        ))}
-      </section>
-
-      <section className="grid gap-5 xl:grid-cols-[1.15fr_0.85fr]">
-        <article className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm">
-          <div className="flex items-center justify-between gap-3 border-b border-slate-200 pb-4">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
-                Worker load
-              </p>
-              <h3 className="mt-2 text-xl font-semibold text-ink">Supervisor view</h3>
-            </div>
-            <p className="rounded-full bg-mist px-3 py-1 text-xs font-semibold text-slate-600">
-              Same case language, different role
-            </p>
-          </div>
-
-          <div className="mt-4 grid gap-3">
-            {workerLoads.map((worker) => (
-              <article
-                key={worker.name}
-                className="rounded-[24px] border border-slate-200 bg-[linear-gradient(180deg,_rgba(255,255,255,0.98),_rgba(247,250,252,0.96))] p-4"
-              >
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div>
-                    <h4 className="text-lg font-semibold text-ink">{worker.name}</h4>
-                    <p className="mt-1 text-sm text-slate-500">{worker.cases}</p>
-                  </div>
-                  <p
-                    className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${
-                      worker.pressure === "High"
-                        ? "bg-coral/10 text-coral"
-                        : "bg-amber/10 text-amber"
-                    }`}
-                  >
-                    {worker.pressure}
-                  </p>
-                </div>
-                <p className="mt-4 text-sm leading-6 text-slate-700">{worker.nextStep}</p>
-              </article>
-            ))}
-          </div>
-        </article>
-
-        <aside className="grid gap-5">
-          <article className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm">
-            <div className="flex items-center gap-3">
-              <div className="rounded-2xl bg-pine/10 p-3 text-pine">
-                <BarChart3 aria-hidden="true" className="h-5 w-5" />
-              </div>
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
-                  Decision support
-                </p>
-                <h3 className="text-lg font-semibold text-ink">Recommended move</h3>
-              </div>
-            </div>
-            <p className="mt-4 text-sm leading-7 text-slate-600">
-              Shift one medium-risk case away from the busiest worker so the
-              unresolved handoffs can be cleared before the afternoon shift.
-            </p>
-          </article>
-
-          <article className="rounded-[28px] border border-slate-200 bg-[linear-gradient(180deg,_rgba(183,121,31,0.08),_rgba(255,255,255,1))] p-5 shadow-sm">
-            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
-              Why this matters
-            </p>
-            <h3 className="mt-2 text-lg font-semibold text-ink">Worker wellbeing</h3>
-            <p className="mt-3 text-sm leading-7 text-slate-600">
-              The dashboard makes overload visible early, which helps prevent
-              missed follow-ups and keeps the worker from starting the day at
-              full tilt.
-            </p>
-          </article>
-        </aside>
-      </section>
-    </div>
-  );
-}
+export default function SupervisorPage(){const[loads,setLoads]=useState<Load[]>([]);const[workers,setWorkers]=useState<Worker[]>([]);const[cases,setCases]=useState<ConversationItem[]>([]);const[audit,setAudit]=useState<Audit[]>([]);const[analytics,setAnalytics]=useState<Analytics|null>(null);const[loading,setLoading]=useState(true);const[error,setError]=useState("");const[assignments,setAssignments]=useState<Record<string,string>>({});const[channel,setChannel]=useState("WhatsApp Simulator");const[youthId,setYouthId]=useState("");const[message,setMessage]=useState("I do not want to go to school tomorrow. People keep sharing edited photos of me.");const[notice,setNotice]=useState("");
+const load=useCallback(async()=>{setLoading(true);setError("");try{const[l,w,c,a,stats]=await Promise.all([apiFetch<{workers:Load[]}>("/supervisor/load"),apiFetch<{workers:Worker[]}>("/supervisor/workers"),apiFetch<{conversations:ConversationItem[]}>("/worker/cockpit"),apiFetch<{logs:Audit[]}>("/audit/logs?limit=40"),apiFetch<Analytics>("/analytics/summary")]);setLoads(l.workers);setWorkers(w.workers);setCases(c.conversations.filter(i=>i.case));setAudit(a.logs);setAnalytics(stats);setYouthId(current=>current||c.conversations[0]?.youthId||"")}catch(e){setError(e instanceof Error?e.message:"Could not load supervisor data")}finally{setLoading(false)}},[]);useEffect(()=>{void load()},[load]);
+async function reassign(caseId:string){const workerId=assignments[caseId];if(!workerId)return;try{await apiFetch(`/supervisor/cases/${caseId}/assign`,{method:"PATCH",body:JSON.stringify({workerId})});setNotice("Case reassigned and worker notified.");await load()}catch(e){setError(e instanceof Error?e.message:"Reassignment failed")}}
+async function simulate(){try{const result=await apiFetch<{riskLevel:string;riskScore:number}>("/simulator/intake",{method:"POST",body:JSON.stringify({youthId,channel,message})});setNotice(`Simulated intake created at ${result.riskLevel} risk (${result.riskScore}); the assigned worker was alerted.`);await load()}catch(e){setError(e instanceof Error?e.message:"Simulation failed")}}
+const metrics=useMemo(()=>analytics?[["Conversations",analytics.totalConversations],["Open cases",analytics.openCases],["High risk",analytics.highRiskConversations],["Unresolved handoffs",analytics.unresolvedHandoffs],["After-hours",analytics.afterHoursVolume]]:[],[analytics]);
+return <div className="space-y-6"><section className="rounded-[28px] border bg-white p-6"><p className="text-xs font-semibold uppercase tracking-[.2em] text-pine">Operational oversight</p><h2 className="mt-2 text-3xl font-semibold">Protect continuity and worker capacity.</h2>{notice?<p className="mt-3 rounded-xl bg-pine/10 p-3 text-sm text-pine">{notice}</p>:null}</section><OperationsState loading={loading} error={error} retry={load}><section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">{metrics.map(([name,value])=><article key={name} className="rounded-2xl border bg-white p-4"><p className="text-xs font-semibold uppercase text-slate-500">{name}</p><p className="mt-2 text-2xl font-semibold">{value}</p></article>)}</section><section className="grid gap-4 lg:grid-cols-2">{loads.map(worker=><article key={worker.workerId} className="rounded-2xl border bg-white p-5"><div className="flex justify-between"><div><h3 className="text-lg font-semibold">{worker.workerName}</h3><p className="text-sm text-slate-500">{worker.activeCases} active · {worker.highRiskCases} high risk · {worker.unresolvedHandoffs} unresolved</p></div><span className={`h-fit rounded-full px-3 py-1 text-xs font-semibold ${riskClass(worker.pressure==="high"?"high":"medium")}`}>{label(worker.pressure)} · {worker.loadScore}</span></div><p className="mt-3 text-sm text-slate-600">{worker.recommendation}</p></article>)}</section><section className="rounded-2xl border bg-white p-5"><h3 className="text-lg font-semibold">Case reassignment</h3><div className="mt-3 grid gap-3">{cases.map(item=><div key={item.case!.id} className="grid gap-2 rounded-xl bg-slate-50 p-3 sm:grid-cols-[1fr_220px_auto]"><div><strong>{item.youthName}</strong><p className="text-xs text-slate-500">{item.case!.summary}</p></div><select value={assignments[item.case!.id]||""} onChange={e=>setAssignments({...assignments,[item.case!.id]:e.target.value})} className="rounded-xl border px-3 py-2 text-sm"><option value="">Choose worker</option>{workers.map(w=><option key={w.id} value={w.id}>{w.name}</option>)}</select><button onClick={()=>void reassign(item.case!.id)} className="rounded-xl bg-pine px-4 py-2 text-sm font-semibold text-white">Reassign</button></div>)}</div></section><section className="rounded-2xl border bg-white p-5"><h3 className="text-lg font-semibold">Approved-channel simulator</h3><p className="mt-1 text-sm text-slate-500">Creates fictional intake, deterministic signals, a case, and a worker notification.</p><div className="mt-3 grid gap-2 lg:grid-cols-[180px_220px_1fr_auto]"><select value={channel} onChange={e=>setChannel(e.target.value)} className="rounded-xl border px-3 py-2 text-sm">{["WhatsApp Simulator","Instagram Simulator","Discord Simulator","GatherTown Simulator","Web Chat"].map(v=><option key={v}>{v}</option>)}</select><select value={youthId} onChange={e=>setYouthId(e.target.value)} className="rounded-xl border px-3 py-2 text-sm">{Array.from(new Map(cases.map(i=>[i.youthId,i])).values()).map(i=><option key={i.youthId} value={i.youthId}>{i.youthName}</option>)}</select><input value={message} onChange={e=>setMessage(e.target.value)} className="rounded-xl border px-3 py-2 text-sm"/><button onClick={()=>void simulate()} className="rounded-xl bg-ink px-4 py-2 text-sm font-semibold text-white">Simulate</button></div></section><section className="rounded-2xl border bg-white p-5"><h3 className="text-lg font-semibold">Safety audit trail</h3><div className="mt-3 max-h-96 space-y-2 overflow-auto">{audit.map(row=><article key={row.id} className="rounded-xl bg-slate-50 p-3"><div className="flex flex-wrap justify-between gap-2"><strong className="text-sm">{label(row.eventType)}</strong><time className="text-xs text-slate-500">{new Date(row.createdAt).toLocaleString()}</time></div><p className="mt-1 break-words text-xs text-slate-600">{row.entityType} · {row.details}</p></article>)}</div></section></OperationsState></div>}

@@ -2,6 +2,8 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useRouter } from "next/navigation";
+import { clearAuthSession } from "@/lib/auth-session";
 import {
   Activity,
   BarChart3,
@@ -67,6 +69,7 @@ export function DashboardShell({
   children
 }: DashboardShellProps) {
   const pathname = usePathname();
+  const router = useRouter();
 
   return (
     <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(31,111,100,0.14),_transparent_34%),radial-gradient(circle_at_top_right,_rgba(217,95,72,0.1),_transparent_28%),linear-gradient(180deg,_#f6fbf9_0%,_#ffffff_56%,_#f5f8fb_100%)] px-4 py-4 sm:px-6 lg:px-8">
@@ -85,11 +88,14 @@ export function DashboardShell({
                   {description}
                 </p>
               </div>
-              <div className="rounded-2xl border border-pine/15 bg-pine/5 px-4 py-3 text-sm text-slate-600">
+              <div className="flex items-center gap-3 rounded-2xl border border-pine/15 bg-pine/5 px-4 py-3 text-sm text-slate-600">
+                <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.16em] text-pine">
                   Workspace focus
                 </p>
                 <p className="mt-1 font-medium text-ink">{sidebarTitle}</p>
+                </div>
+                <button type="button" onClick={() => { clearAuthSession(); router.push("/login"); }} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-ink">Sign out</button>
               </div>
             </div>
           </div>
