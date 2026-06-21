@@ -1,0 +1,17 @@
+[
+  {
+    "sheet": 1,
+    "components": [
+      "AfterHoursBadge",
+      "ChatBubble",
+      "DashboardCard",
+      "DashboardShell",
+      "HandoffConsentCard",
+      "MessageInput",
+      "RoleGate",
+      "StatePanel",
+      "WorkerConversationPreview",
+      "YouthDashboardShell"
+    ]
+  }
+]

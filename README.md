@@ -14,12 +14,12 @@ Core demo line:
 
 ## Stack
 
-- Frontend: Next.js, Tailwind CSS, shadcn/ui
+- Frontend: Next.js App Router and Tailwind CSS
 - Backend: FastAPI
 - Database: PostgreSQL
 - ORM: SQLAlchemy
 - Auth: JWT-based role-based access
-- AI: OpenAI, Ollama, or local mock fallback
+- AI: OpenAI structured handoffs with deterministic safety fallback
 - DevOps: Docker and Docker Compose
 
 ## Monorepo Shape
@@ -39,7 +39,7 @@ infra/
 
 ## Setup Instructions
 
-Backend and PostgreSQL can run from the Day 1 scaffold.
+The complete web, API, and PostgreSQL stack runs from Docker Compose. Startup applies Alembic migrations and loads idempotent fictional seed data.
 
 Expected local flow:
 
@@ -47,10 +47,11 @@ Expected local flow:
 docker compose up --build
 ```
 
-Expected seed/reset flow:
+Reset and reseed the fictional database:
 
 ```bash
-docker compose run --rm api python seed.py
+docker compose down -v
+docker compose up --build
 ```
 
 Local backend-only flow:
@@ -60,15 +61,26 @@ cd services/api
 python -m venv .venv
 .venv/Scripts/activate
 pip install -r requirements.txt
+alembic -c ../../alembic.ini upgrade head
+python seed.py
 uvicorn app.main:app --reload
 ```
 
-Initial backend endpoints:
+Primary backend endpoints:
 
 ```text
 GET  /health
 GET  /version
 POST /auth/login
+GET  /worker/cockpit
+GET  /signals/radar
+PATCH /worker/cases/{id}/status
+POST /worker/cases/{id}/notes
+GET  /supervisor/load
+PATCH /supervisor/cases/{id}/assign
+GET  /audit/logs
+GET  /analytics/summary
+POST /simulator/intake
 ```
 
 ## Main Fictional Case
@@ -89,7 +101,27 @@ The system should detect cyberbullying, school avoidance, shame or embarrassment
 | --- | --- | --- |
 | mira@signalbridge.test | youth | Youth demo account for the Mira after-hours cyberbullying journey |
 | worker1@signalbridge.test | worker | Youth worker who reviews Mira's handoff brief |
+| worker2@signalbridge.test | worker | Second worker for workload reassignment |
 | supervisor@signalbridge.test | supervisor | Supervisor who reviews worker load and audit activity |
+
+All fictional accounts use password `password`.
+
+## AI Safety and Fallback
+
+Deterministic rules establish risk before any model call. A model can improve handoff wording but cannot lower risk or replace critical escalation guidance. Missing credentials, timeout, refusal, malformed structured output, or prohibited clinical wording automatically uses the deterministic fallback. Configure `SIGNALBRIDGE_OPENAI_API_KEY` and optionally `SIGNALBRIDGE_OPENAI_MODEL`.
+
+## Verification
+
+```powershell
+npm run lint
+npm run build
+$env:PYTHONPATH='services/api'; .\.venv\Scripts\python -m pytest services/api/tests -q
+docker compose config
+```
+
+## Cloud Deployment
+
+`render.yaml` provisions the web service, API, and managed PostgreSQL in Singapore. Apply the Blueprint after merging to `dev`, set `SIGNALBRIDGE_OPENAI_API_KEY` if model-assisted summaries are required, and verify `/login` plus the API `/health` endpoint. `infra/k8s/signalbridge.yaml` provides portable deployment, service, secret, and health-probe definitions for a Kubernetes target.
 
 ## Team Ownership
 

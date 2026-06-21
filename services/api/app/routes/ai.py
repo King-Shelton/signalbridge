@@ -8,7 +8,8 @@ from app.models.conversation import Conversation, RiskLevel
 from app.models.handoff_brief import HandoffBrief
 from app.models.message import Message
 from app.models.signal import Signal
-from app.models.user import User
+from app.models.user import User, UserRole
+from app.models.youth_profile import YouthProfile
 from app.schemas.ai import (
     GenerateHandoffRequest,
     GenerateHandoffResponse,
@@ -25,7 +26,7 @@ from app.services.ai_service import (
     AI_MODE,
     apply_risk_to_conversation,
     analyse_risk,
-    build_handoff_brief,
+    build_handoff_brief_with_ai,
     get_conversation_messages,
     get_youth_name,
     persist_signals,
@@ -167,6 +168,16 @@ def generate_handoff_endpoint(
     db: Session = Depends(get_db),
 ) -> GenerateHandoffResponse:
     conversation = require_conversation(db, payload.conversationId)
+    if not conversation.consent_to_handoff:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Youth consent is required before creating a handoff brief.",
+        )
+    youth = db.get(YouthProfile, conversation.youth_id)
+    if current_user.role == UserRole.youth and (youth is None or youth.user_id != current_user.id):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="This conversation belongs to another youth.")
+    if current_user.role == UserRole.worker and (youth is None or youth.assigned_worker_id != current_user.id):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="This conversation is assigned to another worker.")
     messages = get_conversation_messages(db, conversation.id)
     if not messages:
         raise HTTPException(
@@ -177,7 +188,7 @@ def generate_handoff_endpoint(
     assessment = analyse_risk([message.content for message in messages], messages)
     apply_risk_to_conversation(conversation, assessment)
     persist_signals(db, conversation, assessment)
-    handoff = build_handoff_brief(conversation, messages, assessment)
+    handoff, ai_mode = build_handoff_brief_with_ai(db, conversation, messages, assessment)
     db.add(handoff)
     db.flush()
 
@@ -192,7 +203,7 @@ def generate_handoff_endpoint(
             "youthId": conversation.youth_id,
             "riskLevel": assessment.risk_level.value,
             "riskScore": assessment.risk_score,
-            "aiMode": assessment.ai_mode,
+            "aiMode": ai_mode,
         },
     )
     db.commit()
@@ -200,7 +211,7 @@ def generate_handoff_endpoint(
 
     return GenerateHandoffResponse(
         handoffBrief=serialize_handoff(db, handoff),
-        aiMode=assessment.ai_mode,
+        aiMode=ai_mode,
     )
 
 

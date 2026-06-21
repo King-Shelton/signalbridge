@@ -384,3 +384,18 @@ Returns service health.
 ### GET /version
 
 Returns app version and build metadata.
+## Production Alpha Operations
+
+All routes below require a bearer JWT. Worker routes permit assigned workers and supervisor/admin oversight; supervisor mutations require supervisor/admin.
+
+- `GET /worker/cockpit` — prioritized assigned conversations with case, handoff, signal, and message context.
+- `GET /worker/conversations/{id}` — full assigned conversation.
+- `GET /worker/handoffs/{id}` and `PATCH /worker/handoffs/{id}/review` — consent-gated handoff review.
+- `GET /worker/handoffs/{id}/pdf` — authenticated PDF export.
+- `GET /worker/youths/{id}` — youth memory card, cases, notes, and approved handoffs.
+- `PATCH /worker/cases/{id}/status` and `POST /worker/cases/{id}/notes` — persisted follow-up workflow.
+- `GET /signals/radar` and `GET /signals/youth/{id}` — explainable risk signal views.
+- `GET /supervisor/load`, `GET /supervisor/workers`, and `PATCH /supervisor/cases/{id}/assign` — workload and reassignment.
+- `GET /analytics/summary`, `GET /audit/logs`, and `GET /notifications` — operational visibility.
+- `POST /simulator/intake` — supervisor-only fictional approved-channel simulator.
+- `GET /youth/handoffs` — current youth's consent-approved handoff history.
