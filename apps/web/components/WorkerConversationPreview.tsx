@@ -1,6 +1,11 @@
 import Link from "next/link";
-import { ArrowRight, Clock3, MessageSquareMore } from "lucide-react";
-import type { WorkerYouthCase } from "@/lib/worker-data";
+import { ArrowRight, CheckCircle2, Clock3, MessageSquareMore, ShieldAlert } from "lucide-react";
+import {
+  getCaseVisualState,
+  visualStateLabels,
+  type CaseVisualState,
+  type WorkerYouthCase
+} from "@/lib/worker-data";
 
 const riskStyles: Record<
   WorkerYouthCase["riskLevel"],
@@ -38,15 +43,43 @@ const sourceLabels: Record<WorkerYouthCase["conversationSource"], string> = {
   "api-ready": "API-ready feed"
 };
 
+const visualStateStyles: Record<
+  CaseVisualState,
+  { className: string; panelClassName: string; icon: typeof ShieldAlert }
+> = {
+  "high-priority": {
+    className: "bg-coral/10 text-coral ring-1 ring-coral/20",
+    panelClassName: "border-coral/20 bg-coral/5 text-coral",
+    icon: ShieldAlert
+  },
+  "needs-review": {
+    className: "bg-amber/10 text-amber ring-1 ring-amber/20",
+    panelClassName: "border-amber/20 bg-amber/5 text-amber",
+    icon: Clock3
+  },
+  "followed-up": {
+    className: "bg-pine/10 text-pine ring-1 ring-pine/20",
+    panelClassName: "border-pine/20 bg-pine/5 text-pine",
+    icon: CheckCircle2
+  }
+};
+
 export function WorkerConversationPreview({
   youth
 }: {
   youth: WorkerYouthCase;
 }) {
   const risk = riskStyles[youth.riskLevel];
+  const visualState = getCaseVisualState(youth);
+  const stateStyle = visualStateStyles[visualState];
+  const StateIcon = stateStyle.icon;
 
   return (
-    <article className="overflow-hidden rounded-[24px] border border-slate-200 bg-[linear-gradient(180deg,_rgba(255,255,255,0.99),_rgba(246,249,251,0.97))] shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg">
+    <article
+      className={`overflow-hidden rounded-[24px] border bg-[linear-gradient(180deg,_rgba(255,255,255,0.99),_rgba(246,249,251,0.97))] shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg ${
+        visualState === "high-priority" ? "border-coral/30" : "border-slate-200"
+      }`}
+    >
       <div className="border-b border-slate-200 px-5 py-4 sm:px-6">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="space-y-2">
@@ -61,6 +94,12 @@ export function WorkerConversationPreview({
                 className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${sourceStyles[youth.conversationSource]}`}
               >
                 {sourceLabels[youth.conversationSource]}
+              </span>
+              <span
+                className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold ${stateStyle.className}`}
+              >
+                <StateIcon aria-hidden="true" className="h-3.5 w-3.5" />
+                {visualStateLabels[visualState]}
               </span>
             </div>
             <p className="flex items-center gap-1 text-sm text-slate-500">
@@ -132,6 +171,20 @@ export function WorkerConversationPreview({
             </p>
             <p className="mt-1 text-sm font-semibold text-ink">{youth.status}</p>
           </div>
+        </div>
+
+        <div
+          className={`flex flex-wrap items-center gap-2 rounded-2xl border px-4 py-3 text-sm font-semibold ${stateStyle.panelClassName}`}
+        >
+          <StateIcon aria-hidden="true" className="h-4 w-4" />
+          <span>{visualStateLabels[visualState]}</span>
+          <span className="font-medium text-slate-600">
+            {visualState === "high-priority"
+              ? "Open the brief before lower-risk cases."
+              : visualState === "needs-review"
+                ? "Worker review is still needed."
+                : "The follow-up loop is already recorded."}
+          </span>
         </div>
 
         <div className="flex flex-wrap items-center justify-between gap-3 pt-1">

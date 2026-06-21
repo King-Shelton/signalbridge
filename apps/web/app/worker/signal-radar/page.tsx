@@ -1,13 +1,8 @@
 import Link from "next/link";
 import { ArrowRight, Radar, ShieldAlert, Sparkles, UsersRound } from "lucide-react";
 import { DashboardCard } from "@/components/DashboardCard";
-import { channelLabels, countByRisk, workerYouthCases } from "@/lib/worker-data";
-
-const priorityOrder: Record<"high" | "medium" | "low", number> = {
-  high: 0,
-  medium: 1,
-  low: 2
-};
+import { FilteredWorkerCaseList } from "@/components/FilteredWorkerCaseList";
+import { countByRisk, workerYouthCases } from "@/lib/worker-data";
 
 const radarCards = [
   {
@@ -39,15 +34,6 @@ const radarCards = [
     tone: "amber" as const
   }
 ];
-
-const sortedCases = [...workerYouthCases].sort((a, b) => {
-  const risk = priorityOrder[a.riskLevel] - priorityOrder[b.riskLevel];
-  if (risk !== 0) {
-    return risk;
-  }
-
-  return a.youthName.localeCompare(b.youthName);
-});
 
 const signalChips = [
   "After-hours message",
@@ -105,77 +91,8 @@ export default function WorkerSignalRadarPage() {
             </p>
           </div>
 
-          <div className="mt-4 grid gap-4">
-            {sortedCases.map((youth, index) => (
-              <article
-                key={youth.id}
-                className="rounded-[24px] border border-slate-200 bg-[linear-gradient(180deg,_rgba(255,255,255,0.98),_rgba(247,250,252,0.96))] p-4"
-              >
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div>
-                    <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
-                      Priority {index + 1}
-                    </p>
-                    <h4 className="mt-1 text-lg font-semibold text-ink">{youth.youthName}</h4>
-                  </div>
-                  <p
-                    className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${
-                      youth.riskLevel === "high"
-                        ? "bg-coral/10 text-coral"
-                        : youth.riskLevel === "medium"
-                          ? "bg-amber/10 text-amber"
-                          : "bg-pine/10 text-pine"
-                    }`}
-                  >
-                    {youth.riskLevel} risk
-                  </p>
-                </div>
-
-                <div className="mt-4 grid gap-4 md:grid-cols-3">
-                  <div>
-                    <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
-                      Signals
-                    </p>
-                    <ul className="mt-2 grid gap-2">
-                      {[
-                        `Risk score: ${youth.riskLevel === "high" ? "88" : youth.riskLevel === "medium" ? "62" : "28"}`,
-                        ...youth.signalNotes
-                      ].map((note) => (
-                        <li
-                          key={note}
-                          className="rounded-2xl bg-mist px-3 py-2 text-sm leading-6 text-slate-700"
-                        >
-                          {note}
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                  <div>
-                    <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
-                      Channel
-                    </p>
-                    <p className="mt-2 text-sm font-medium text-ink">
-                      {channelLabels[youth.channel]}
-                    </p>
-                    <p className="mt-2 text-sm text-slate-600">{youth.lastActive}</p>
-                    <p className="mt-3 text-sm leading-6 text-slate-600">{youth.suggestedAction}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
-                      Next worker move
-                    </p>
-                    <p className="mt-2 text-sm leading-7 text-slate-700">{youth.keyQuote}</p>
-                    <Link
-                      href={`/worker/handoffs/${youth.id}`}
-                      className="mt-4 inline-flex items-center gap-2 text-sm font-semibold text-pine hover:text-ink"
-                    >
-                      Open brief
-                      <ArrowRight aria-hidden="true" className="h-4 w-4" />
-                    </Link>
-                  </div>
-                </div>
-              </article>
-            ))}
+          <div className="mt-4">
+            <FilteredWorkerCaseList cases={workerYouthCases} variant="radar" />
           </div>
         </article>
 

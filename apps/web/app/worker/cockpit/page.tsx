@@ -1,6 +1,6 @@
 import { Clock3, Layers3, ShieldAlert, Users } from "lucide-react";
 import { countByRisk, workerYouthCases } from "@/lib/worker-data";
-import { WorkerConversationPreview } from "@/components/WorkerConversationPreview";
+import { FilteredWorkerCaseList } from "@/components/FilteredWorkerCaseList";
 
 const summaryCards = [
   {
@@ -82,23 +82,20 @@ export default function WorkerCockpitPage() {
 
           <div className="grid gap-5 p-4 sm:p-6 lg:grid-cols-[minmax(0,1fr)_320px]">
             <div className="grid gap-4">
-              {workerYouthCases.map((youth) => (
-                <WorkerConversationPreview key={youth.id} youth={youth} />
-              ))}
+              <FilteredWorkerCaseList cases={workerYouthCases} variant="cockpit" />
             </div>
 
             <aside className="rounded-[24px] border border-slate-200 bg-slate-50 p-5">
               <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
-                Day 5 seam
+                Day 6 filter support
               </p>
               <h3 className="mt-2 text-lg font-semibold text-ink">
-                Ready for real conversations later
+                Built for worker triage
               </h3>
               <p className="mt-3 text-sm leading-6 text-slate-600">
-                The cockpit now reads from one shared mock conversation feed. On
-                Day 5, the team can swap that feed for an API response or live
-                backend query while keeping the card layout and worker actions
-                unchanged.
+                Search and filter by risk, channel, and status without changing
+                the card layout. This keeps the worker cockpit usable even as
+                the queue grows.
               </p>
 
               <div className="mt-5 space-y-3">
@@ -119,11 +116,11 @@ export default function WorkerCockpitPage() {
 
               <div className="mt-5 rounded-2xl border border-dashed border-slate-300 bg-white p-4">
                 <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
-                  Feed contract
+                  Visual states
                 </p>
                 <p className="mt-2 text-sm leading-6 text-slate-600">
-                  Keep the worker card shape stable so an API response can be
-                  dropped in later without changing the worker cockpit layout.
+                  High priority, needs review, and followed up are shown as
+                  consistent badges so the queue is scannable at a glance.
                 </p>
               </div>
             </aside>

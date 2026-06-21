@@ -2,6 +2,7 @@ export type RiskLevel = "high" | "medium" | "low";
 
 export type ChannelLabel = "WhatsApp" | "Instagram" | "GatherTown" | "Discord" | "Web Chat";
 export type ConversationSource = "mock-seed" | "api-ready";
+export type CaseVisualState = "high-priority" | "needs-review" | "followed-up";
 
 export const channelLabels: Record<ChannelLabel, string> = {
   WhatsApp: "WhatsApp",
@@ -9,6 +10,18 @@ export const channelLabels: Record<ChannelLabel, string> = {
   GatherTown: "GatherTown",
   Discord: "Discord",
   "Web Chat": "Web Chat"
+};
+
+export const riskLabels: Record<RiskLevel, string> = {
+  high: "High",
+  medium: "Medium",
+  low: "Low"
+};
+
+export const visualStateLabels: Record<CaseVisualState, string> = {
+  "high-priority": "High priority",
+  "needs-review": "Needs review",
+  "followed-up": "Followed up"
 };
 
 export type ConversationTurn = {
@@ -317,4 +330,16 @@ export function getWorkerCaseById(id: string) {
 
 export function countByRisk(risk: RiskLevel) {
   return workerYouthCases.filter((item) => item.riskLevel === risk).length;
+}
+
+export function getCaseVisualState(caseItem: WorkerYouthCase): CaseVisualState {
+  if (caseItem.riskLevel === "high") {
+    return "high-priority";
+  }
+
+  if (caseItem.status === "Stable" || caseItem.status === "Logged") {
+    return "followed-up";
+  }
+
+  return "needs-review";
 }
