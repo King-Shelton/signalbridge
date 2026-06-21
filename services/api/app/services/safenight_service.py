@@ -10,6 +10,12 @@ SAFE_NIGHT_FALLBACK = (
     "immediate danger, please contact emergency services or a trusted adult now."
 )
 
+CRITICAL_FALLBACK = (
+    "Thank you for telling me. I cannot provide emergency support, so a trained human needs to review this now. "
+    "If you may act on these thoughts or are in immediate danger, contact Singapore emergency services at 995, "
+    "Samaritans of Singapore at 1767, or a trusted adult who can stay with you. Are you somewhere physically safe right now?"
+)
+
 
 @dataclass(frozen=True)
 class DetectedSignal:
@@ -43,7 +49,7 @@ def assess_safe_night_message(content: str) -> SafeNightAssessment:
         )
         score += 30
 
-    if any(term in text for term in ["don't want to go school", "do not want to go school", "school tomorrow"]):
+    if any(term in text for term in ["don't want to go school", "do not want to go school", "don't want to go to school", "do not want to go to school", "school tomorrow"]):
         signals.append(
             DetectedSignal(
                 type="school_avoidance",
@@ -63,7 +69,7 @@ def assess_safe_night_message(content: str) -> SafeNightAssessment:
         )
         score += 15
 
-    if any(term in text for term in ["hurt myself", "end it", "suicide", "kill myself"]):
+    if any(term in text for term in ["hurt myself", "harm myself", "end it", "suicide", "kill myself", "want to die", "end my life", "cannot stay alive", "can't stay alive"]):
         signals.append(
             DetectedSignal(
                 type="crisis_language",
@@ -93,8 +99,8 @@ def assess_safe_night_message(content: str) -> SafeNightAssessment:
         risk_level = RiskLevel.low
 
     return SafeNightAssessment(
-        reply=SAFE_NIGHT_FALLBACK,
-        safety_status="fallback_passed",
+        reply=CRITICAL_FALLBACK if risk_level == RiskLevel.critical else SAFE_NIGHT_FALLBACK,
+        safety_status="requires_immediate_human_review" if risk_level == RiskLevel.critical else "fallback_passed",
         signals=signals,
         risk_level=risk_level,
         risk_score=score,

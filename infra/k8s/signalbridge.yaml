@@ -1,0 +1,71 @@
+apiVersion: v1
+kind: Secret
+metadata:
+  name: signalbridge-secrets
+type: Opaque
+stringData:
+  SIGNALBRIDGE_DATABASE_URL: postgresql+psycopg://signalbridge:change-me@postgres:5432/signalbridge
+  SIGNALBRIDGE_JWT_SECRET: change-me
+  SIGNALBRIDGE_OPENAI_API_KEY: ""
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: signalbridge-config
+data:
+  SIGNALBRIDGE_ENVIRONMENT: kubernetes
+  SIGNALBRIDGE_OPENAI_MODEL: gpt-4.1-mini
+  SIGNALBRIDGE_API_URL: http://signalbridge-api:8000
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: signalbridge-api
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: signalbridge-api } }
+  template:
+    metadata: { labels: { app: signalbridge-api } }
+    spec:
+      containers:
+        - name: api
+          image: signalbridge-api:latest
+          ports: [{ containerPort: 8000 }]
+          envFrom:
+            - secretRef: { name: signalbridge-secrets }
+            - configMapRef: { name: signalbridge-config }
+          readinessProbe: { httpGet: { path: /health, port: 8000 }, initialDelaySeconds: 10, periodSeconds: 10 }
+          livenessProbe: { httpGet: { path: /health, port: 8000 }, initialDelaySeconds: 20, periodSeconds: 20 }
+---
+apiVersion: v1
+kind: Service
+metadata: { name: signalbridge-api }
+spec:
+  selector: { app: signalbridge-api }
+  ports: [{ port: 8000, targetPort: 8000 }]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: signalbridge-web
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: signalbridge-web } }
+  template:
+    metadata: { labels: { app: signalbridge-web } }
+    spec:
+      containers:
+        - name: web
+          image: signalbridge-web:latest
+          ports: [{ containerPort: 3000 }]
+          envFrom: [{ configMapRef: { name: signalbridge-config } }]
+          readinessProbe: { httpGet: { path: /login, port: 3000 }, initialDelaySeconds: 10, periodSeconds: 10 }
+          livenessProbe: { httpGet: { path: /login, port: 3000 }, initialDelaySeconds: 20, periodSeconds: 20 }
+---
+apiVersion: v1
+kind: Service
+metadata: { name: signalbridge-web }
+spec:
+  type: LoadBalancer
+  selector: { app: signalbridge-web }
+  ports: [{ port: 80, targetPort: 3000 }]

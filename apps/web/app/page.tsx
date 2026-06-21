@@ -15,11 +15,11 @@ export default function HomePage() {
         SignalBridge
       </p>
       <h1 className="mt-3 max-w-3xl text-4xl font-semibold leading-tight text-ink sm:text-5xl">
-        SafeNight Companion youth flow
+        Human-in-the-loop youth support command centre
       </h1>
       <p className="mt-4 max-w-2xl text-base leading-7 text-slate-600">
-        Day 1 mock screens for Mira&apos;s after-hours cyberbullying journey and
-        youth-approved handoff preview.
+        A working alpha for persistent after-hours support, youth-approved handoffs,
+        worker prioritisation, supervisor workload decisions, and auditable AI assistance.
       </p>
       <div className="mt-8 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         {links.map((link) => (

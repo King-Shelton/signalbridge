@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models.audit_log import AuditLog
 from app.models.conversation import Conversation, ConversationStatus
+from app.models.handoff_brief import HandoffBrief
 from app.models.message import Message, SenderType
 from app.models.signal import Signal
 from app.models.user import User, UserRole
@@ -24,6 +25,8 @@ from app.schemas.youth import (
 )
 from app.services.auth_service import get_current_user
 from app.services.safenight_service import assess_safe_night_message
+from app.services.ai_service import analyse_risk, apply_risk_to_conversation, build_handoff_brief_with_ai, get_conversation_messages, persist_signals
+from app.routes.operations import handoff_payload
 
 router = APIRouter()
 
@@ -188,7 +191,9 @@ def create_youth_message(
         created_signals.append(signal)
 
     conversation.last_message_at = now
-    conversation.risk_level = assessment.risk_level
+    risk_rank = {"low": 1, "medium": 2, "high": 3, "critical": 4}
+    if risk_rank[assessment.risk_level.value] >= risk_rank[conversation.risk_level.value]:
+        conversation.risk_level = assessment.risk_level
     conversation.risk_score = max(conversation.risk_score, assessment.risk_score)
     if assessment.handoff_recommended:
         conversation.status = ConversationStatus.needs_review
@@ -250,6 +255,14 @@ def set_handoff_consent(
     conversation.unresolved_handoff = payload.consentGiven
     if payload.consentGiven:
         conversation.status = ConversationStatus.needs_review
+        existing_handoff = db.scalar(select(HandoffBrief).where(HandoffBrief.conversation_id == conversation.id))
+        if existing_handoff is None:
+            messages = get_conversation_messages(db, conversation.id)
+            assessment = analyse_risk([message.content for message in messages], messages)
+            apply_risk_to_conversation(conversation, assessment)
+            persist_signals(db, conversation, assessment)
+            handoff, _ = build_handoff_brief_with_ai(db, conversation, messages, assessment)
+            db.add(handoff)
 
     write_audit_log(
         db,
@@ -273,3 +286,15 @@ def set_handoff_consent(
         unresolvedHandoff=conversation.unresolved_handoff,
         nextAction="generate_handoff" if conversation.consent_to_handoff else "continue_safenight_chat",
     )
+
+
+@router.get("/handoffs")
+def youth_handoffs(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> dict:
+    youth = require_youth_profile(db, current_user)
+    handoffs = db.query(HandoffBrief).filter(HandoffBrief.youth_id == youth.id).order_by(HandoffBrief.created_at.desc()).all()
+    visible = []
+    for item in handoffs:
+        conversation = db.get(Conversation, item.conversation_id)
+        if conversation is not None and conversation.consent_to_handoff:
+            visible.append(item)
+    return {"handoffs": [handoff_payload(db, item) for item in visible]}

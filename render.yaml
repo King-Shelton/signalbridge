@@ -1,0 +1,57 @@
+services:
+  - type: web
+    name: signalbridge-api
+    runtime: docker
+    plan: free
+    region: singapore
+    repo: https://github.com/King-Shelton/signalbridge
+    branch: dev
+    autoDeploy: true
+    dockerfilePath: ./services/api/Dockerfile
+    dockerContext: .
+    healthCheckPath: /health
+    envVars:
+      - key: SIGNALBRIDGE_ENVIRONMENT
+        value: render
+      - key: SIGNALBRIDGE_DATABASE_URL
+        fromDatabase:
+          name: signalbridge-postgres
+          property: connectionString
+      - key: SIGNALBRIDGE_JWT_SECRET
+        generateValue: true
+      - key: SIGNALBRIDGE_OPENAI_API_KEY
+        sync: false
+      - key: SIGNALBRIDGE_OPENAI_MODEL
+        value: gpt-4.1-mini
+      - key: SIGNALBRIDGE_CORS_ORIGINS
+        value: https://signalbridge-web.onrender.com
+
+  - type: web
+    name: signalbridge-web
+    runtime: docker
+    plan: free
+    region: singapore
+    repo: https://github.com/King-Shelton/signalbridge
+    branch: dev
+    autoDeploy: true
+    dockerfilePath: ./apps/web/Dockerfile
+    dockerContext: .
+    healthCheckPath: /login
+    envVars:
+      - key: SIGNALBRIDGE_API_URL
+        fromService:
+          name: signalbridge-api
+          type: web
+          property: host
+
+databases:
+  - name: signalbridge-postgres
+    databaseName: signalbridge
+    user: signalbridge
+    plan: free
+    region: singapore
+    postgresMajorVersion: "16"
+    ipAllowList: []
+
+previews:
+  generation: manual
