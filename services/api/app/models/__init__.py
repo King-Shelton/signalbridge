@@ -1,5 +1,6 @@
 from app.models.audit_log import AuditLog
 from app.models.case import Case
+from app.models.case_note import CaseNote
 from app.models.conversation import Conversation
 from app.models.handoff_brief import HandoffBrief
 from app.models.message import Message
@@ -10,6 +11,7 @@ from app.models.youth_profile import YouthProfile
 __all__ = [
     "AuditLog",
     "Case",
+    "CaseNote",
     "Conversation",
     "HandoffBrief",
     "Message",
