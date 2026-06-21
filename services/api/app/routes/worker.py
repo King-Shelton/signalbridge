@@ -19,6 +19,9 @@ from app.schemas.worker import (
     CaseStatusUpdate,
     CaseStatusUpdateResponse,
     CockpitItemPublic,
+    SignalEvidencePublic,
+    SignalRadarItemPublic,
+    SignalRadarResponse,
     WorkerCaseNotePublic,
     WorkerCasePublic,
     WorkerCockpitResponse,
@@ -30,6 +33,8 @@ from app.schemas.worker import (
     WorkerMessagePublic,
     WorkerSignalPublic,
     WorkerYouthPublic,
+    WorkerYouthDetailResponse,
+    YouthSignalsResponse,
 )
 from app.services.auth_service import get_current_user
 from app.services.case_service import (
@@ -51,6 +56,7 @@ from app.services.case_service import (
 )
 
 router = APIRouter()
+signals_router = APIRouter()
 
 
 def youth_name(db: Session, youth: YouthProfile | None) -> str:
@@ -88,6 +94,16 @@ def serialize_signal(signal: Signal) -> WorkerSignalPublic:
         type=signal.type,
         severity=signal.severity,
         reason=signal.reason,
+        source=signal.source,
+        createdAt=signal.created_at,
+    )
+
+
+def serialize_signal_evidence(signal: Signal) -> SignalEvidencePublic:
+    return SignalEvidencePublic(
+        label=signal.type.replace("_", " ").title(),
+        detail=signal.reason,
+        severity=signal.severity,
         source=signal.source,
         createdAt=signal.created_at,
     )
@@ -195,6 +211,130 @@ def build_cockpit_item(db: Session, case: Case) -> CockpitItemPublic:
     )
 
 
+def conversations_for_youth(db: Session, youth_id: str) -> list[Conversation]:
+    return db.scalars(
+        select(Conversation)
+        .where(Conversation.youth_id == youth_id)
+        .order_by(Conversation.last_message_at.desc().nullslast(), Conversation.created_at.desc())
+    ).all()
+
+
+def handoffs_for_youth(db: Session, youth_id: str) -> list[HandoffBrief]:
+    return db.scalars(
+        select(HandoffBrief)
+        .where(HandoffBrief.youth_id == youth_id)
+        .order_by(HandoffBrief.created_at.desc())
+    ).all()
+
+
+def signals_for_youth(db: Session, youth_id: str) -> list[Signal]:
+    return db.scalars(
+        select(Signal)
+        .where(Signal.youth_id == youth_id)
+        .order_by(Signal.created_at.desc())
+    ).all()
+
+
+def visible_youth_cases(db: Session, current_user: User) -> list[Case]:
+    return query_visible_cases(db, current_user)
+
+
+def get_visible_youth_context(db: Session, current_user: User, youth_id: str) -> tuple[YouthProfile, Case | None]:
+    require_worker_scope(current_user)
+    youth = db.get(YouthProfile, youth_id)
+    if youth is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Youth profile not found.")
+    case = get_case_for_youth(db, current_user, youth_id)
+    if case is None and current_user.role.value not in {"supervisor", "admin"}:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Youth profile not found.")
+    return youth, case
+
+
+def historical_context_for_youth(youth: YouthProfile, case: Case | None, handoffs: list[HandoffBrief]) -> list[str]:
+    context: list[str] = []
+    if youth.support_style:
+        context.append(f"Support style: {youth.support_style}")
+    if youth.stressors:
+        context.append(f"Known stressors: {youth.stressors}")
+    if case and case.summary:
+        context.append(f"Current case summary: {case.summary}")
+    for handoff in handoffs[:3]:
+        context.append(
+            f"Previous handoff: {handoff.main_concern} | worker guidance: {handoff.recommended_next_step or 'Review with youth at their pace.'}"
+        )
+    return context or ["No historical context has been recorded yet."]
+
+
+def build_radar_item(db: Session, case: Case) -> SignalRadarItemPublic:
+    youth = db.get(YouthProfile, case.youth_id)
+    if youth is None:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Case youth profile missing.")
+    conversation = latest_conversation_for_youth(db, case.youth_id)
+    handoff = latest_handoff_for_youth(db, case.youth_id)
+    signals = signals_for_conversation(db, conversation.id) if conversation else []
+    risk_score = conversation.risk_score if conversation else 0
+    risk_level = conversation.risk_level.value if conversation else "low"
+    unresolved_handoff = bool(conversation and conversation.unresolved_handoff)
+    reasons = reasons_for_case(case, conversation, signals)
+    explanation = [
+        f"Risk score is {risk_score}, read from the latest visible conversation rather than inferred silently.",
+        "Unresolved handoff is prioritised ahead of routine follow-up." if unresolved_handoff else "No unresolved handoff is currently attached to the latest conversation.",
+    ]
+    if signals:
+        explanation.append(
+            "Top signal evidence: "
+            + "; ".join(f"{signal.type.replace('_', ' ')} ({signal.severity}) - {signal.reason}" for signal in signals[:3])
+        )
+    else:
+        explanation.append("No signal rows are attached to the latest conversation.")
+
+    return SignalRadarItemPublic(
+        youthId=youth.id,
+        youthName=youth_name(db, youth),
+        conversationId=conversation.id if conversation else None,
+        caseId=case.id,
+        riskLevel=risk_level,
+        riskScore=risk_score,
+        unresolvedHandoff=unresolved_handoff,
+        lastActivityAt=conversation.last_message_at if conversation else case.updated_at,
+        reasons=reasons,
+        suggestedAction=suggested_action(case, conversation, handoff),
+        explanation=explanation,
+        evidence=[serialize_signal_evidence(signal) for signal in signals],
+    )
+
+
+def sort_radar_items(items: list[SignalRadarItemPublic]) -> list[SignalRadarItemPublic]:
+    return sorted(
+        items,
+        key=lambda item: (
+            not item.unresolvedHandoff,
+            -item.riskScore,
+            -(item.lastActivityAt.timestamp() if item.lastActivityAt else 0),
+        ),
+    )
+
+
+def build_youth_detail(
+    db: Session,
+    youth: YouthProfile,
+    case: Case | None,
+    radar_item: SignalRadarItemPublic | None,
+) -> WorkerYouthDetailResponse:
+    conversations = conversations_for_youth(db, youth.id)
+    handoffs = handoffs_for_youth(db, youth.id)
+    signals = signals_for_youth(db, youth.id)
+    return WorkerYouthDetailResponse(
+        youth=serialize_youth(db, youth),
+        case=serialize_case(db, case, include_notes=True) if case else None,
+        conversations=[serialize_conversation(db, conversation, include_messages=True) for conversation in conversations],
+        signals=[serialize_signal(signal) for signal in signals],
+        previousHandoffs=[serialize_handoff(db, handoff) for handoff in handoffs],
+        historicalContext=historical_context_for_youth(youth, case, handoffs),
+        radarItem=radar_item,
+    )
+
+
 @router.get("/cockpit", response_model=WorkerCockpitResponse)
 def get_worker_cockpit(
     current_user: User = Depends(get_current_user),
@@ -203,6 +343,13 @@ def get_worker_cockpit(
     scope = require_worker_scope(current_user)
     cases = query_visible_cases(db, current_user)
     items = [build_cockpit_item(db, case) for case in cases]
+    items.sort(
+        key=lambda item: (
+            not bool(item.conversation and item.conversation.unresolvedHandoff),
+            -(item.conversation.riskScore if item.conversation else 0),
+            -(item.conversation.lastMessageAt.timestamp() if item.conversation and item.conversation.lastMessageAt else 0),
+        )
+    )
     stats = WorkerCockpitStats(
         activeCases=sum(1 for case in cases if case.status.value != "closed"),
         highRiskCases=sum(1 for item in items if item.conversation and item.conversation.riskScore >= 70),
@@ -210,6 +357,46 @@ def get_worker_cockpit(
         needsFollowUp=sum(1 for case in cases if case.status.value == "needs_follow_up"),
     )
     return WorkerCockpitResponse(workerId=current_user.id, scope=scope, stats=stats, cases=items)
+
+
+@router.get("/youths/{youth_id}", response_model=WorkerYouthDetailResponse)
+def get_worker_youth(
+    youth_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> WorkerYouthDetailResponse:
+    youth, case = get_visible_youth_context(db, current_user, youth_id)
+    radar_item = build_radar_item(db, case) if case else None
+    return build_youth_detail(db, youth, case, radar_item)
+
+
+@signals_router.get("/radar", response_model=SignalRadarResponse)
+def get_signal_radar(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> SignalRadarResponse:
+    require_worker_scope(current_user)
+    items = [build_radar_item(db, case) for case in visible_youth_cases(db, current_user)]
+    return SignalRadarResponse(items=sort_radar_items(items))
+
+
+@signals_router.get("/youth/{youth_id}", response_model=YouthSignalsResponse)
+def get_youth_signals(
+    youth_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> YouthSignalsResponse:
+    youth, case = get_visible_youth_context(db, current_user, youth_id)
+    radar_item = build_radar_item(db, case) if case else None
+    detail = build_youth_detail(db, youth, case, radar_item)
+    return YouthSignalsResponse(
+        youth=detail.youth,
+        radarItem=detail.radarItem,
+        signals=detail.signals,
+        conversations=detail.conversations,
+        previousHandoffs=detail.previousHandoffs,
+        explanation=radar_item.explanation if radar_item else detail.historicalContext,
+    )
 
 
 @router.get("/conversations/{conversation_id}", response_model=WorkerConversationResponse)

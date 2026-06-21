@@ -230,9 +230,9 @@ Returns one visible conversation with messages, signals, youth memory context, r
 
 Returns one visible handoff brief with conversation, youth, and case context. Marks a pending handoff as reviewed and writes a `worker_handoff_reviewed` audit event.
 
-### GET /worker/signal-radar
+### GET /signals/radar
 
-Returns prioritised signals.
+Returns prioritised signals for the current worker scope. Items are sorted with unresolved handoffs first, then by descending risk score, then by latest activity. Each item includes explanation text and signal evidence so the score is auditable rather than a black box.
 
 Response:
 
@@ -242,23 +242,44 @@ Response:
     {
       "youthId": "youth_mira",
       "youthName": "Mira Tan",
+      "conversationId": "conv_mira_after_hours",
+      "caseId": "case_mira_001",
       "riskLevel": "high",
-      "riskScore": 78,
+      "riskScore": 92,
+      "unresolvedHandoff": true,
+      "lastActivityAt": "2026-06-21T01:42:00",
       "reasons": [
-        "After-hours message",
         "Cyberbullying",
         "School avoidance",
         "Unresolved handoff"
       ],
-      "suggestedAction": "Review handoff brief"
+      "suggestedAction": "Review youth-approved handoff brief",
+      "explanation": [
+        "Risk score is 92, read from the latest visible conversation rather than inferred silently.",
+        "Unresolved handoff is prioritised ahead of routine follow-up.",
+        "Top signal evidence: cyberbullying (high) - Youth described edited photos being shared in a class group chat."
+      ],
+      "evidence": [
+        {
+          "label": "Cyberbullying",
+          "detail": "Youth described edited photos being shared in a class group chat.",
+          "severity": "high",
+          "source": "safenight_rule:explicit_peer_harm",
+          "createdAt": "2026-06-21T01:41:00"
+        }
+      ]
     }
   ]
 }
 ```
 
-### GET /worker/youth/{youthId}/memory-card
+### GET /signals/youth/{youthId}
 
-Returns past context, stressors, preferred support style, helpful approaches, and previous handoffs.
+Returns the signal history for one visible youth, including conversations, previous handoffs, and the same explainable radar summary used by `/signals/radar`.
+
+### GET /worker/youths/{youthId}
+
+Returns one visible youth profile with past context, stressors, preferred support style, case notes, conversations, signal history, and previous handoffs.
 
 ### POST /worker/cases/{caseId}/notes
 
