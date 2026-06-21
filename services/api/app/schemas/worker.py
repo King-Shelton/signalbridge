@@ -30,6 +30,14 @@ class WorkerSignalPublic(BaseModel):
     createdAt: datetime
 
 
+class SignalEvidencePublic(BaseModel):
+    label: str
+    detail: str
+    severity: str
+    source: str
+    createdAt: datetime
+
+
 class WorkerConversationPublic(BaseModel):
     id: str
     youthId: str
@@ -97,6 +105,25 @@ class CockpitItemPublic(BaseModel):
     followUpStatus: str
 
 
+class SignalRadarItemPublic(BaseModel):
+    youthId: str
+    youthName: str
+    conversationId: str | None
+    caseId: str | None
+    riskLevel: str
+    riskScore: int
+    unresolvedHandoff: bool
+    lastActivityAt: datetime | None
+    reasons: list[str]
+    suggestedAction: str
+    explanation: list[str]
+    evidence: list[SignalEvidencePublic]
+
+
+class SignalRadarResponse(BaseModel):
+    items: list[SignalRadarItemPublic]
+
+
 class WorkerCockpitStats(BaseModel):
     activeCases: int
     highRiskCases: int
@@ -123,6 +150,25 @@ class WorkerHandoffResponse(BaseModel):
     conversation: WorkerConversationPublic
     youth: WorkerYouthPublic
     case: WorkerCasePublic | None
+
+
+class WorkerYouthDetailResponse(BaseModel):
+    youth: WorkerYouthPublic
+    case: WorkerCasePublic | None
+    conversations: list[WorkerConversationPublic]
+    signals: list[WorkerSignalPublic]
+    previousHandoffs: list[WorkerHandoffPublic]
+    historicalContext: list[str]
+    radarItem: SignalRadarItemPublic | None
+
+
+class YouthSignalsResponse(BaseModel):
+    youth: WorkerYouthPublic
+    radarItem: SignalRadarItemPublic | None
+    signals: list[WorkerSignalPublic]
+    conversations: list[WorkerConversationPublic]
+    previousHandoffs: list[WorkerHandoffPublic]
+    explanation: list[str]
 
 
 class CaseNoteCreate(BaseModel):
