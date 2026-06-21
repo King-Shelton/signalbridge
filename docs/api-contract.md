@@ -220,10 +220,19 @@ Marks a handoff as reviewed or escalated.
 ### GET /worker/cockpit
 
 Returns assigned youth conversations, priority state, suggested action, and follow-up status.
+Workers receive only cases assigned to them. Supervisors and admins receive the full worker review queue.
 
-### GET /worker/signal-radar
+### GET /worker/conversations/{conversationId}
 
-Returns prioritised signals.
+Returns one visible conversation with messages, signals, youth memory context, related case state, and related handoff briefs. Writes a `worker_conversation_reviewed` audit event.
+
+### GET /worker/handoffs/{handoffId}
+
+Returns one visible handoff brief with conversation, youth, and case context. Marks a pending handoff as reviewed and writes a `worker_handoff_reviewed` audit event.
+
+### GET /signals/radar
+
+Returns prioritised signals for the current worker scope. Items are sorted with unresolved handoffs first, then by descending risk score, then by latest activity. Each item includes explanation text and signal evidence so the score is auditable rather than a black box.
 
 Response:
 
@@ -233,31 +242,54 @@ Response:
     {
       "youthId": "youth_mira",
       "youthName": "Mira Tan",
+      "conversationId": "conv_mira_after_hours",
+      "caseId": "case_mira_001",
       "riskLevel": "high",
-      "riskScore": 78,
+      "riskScore": 92,
+      "unresolvedHandoff": true,
+      "lastActivityAt": "2026-06-21T01:42:00",
       "reasons": [
-        "After-hours message",
         "Cyberbullying",
         "School avoidance",
         "Unresolved handoff"
       ],
-      "suggestedAction": "Review handoff brief"
+      "suggestedAction": "Review youth-approved handoff brief",
+      "explanation": [
+        "Risk score is 92, read from the latest visible conversation rather than inferred silently.",
+        "Unresolved handoff is prioritised ahead of routine follow-up.",
+        "Top signal evidence: cyberbullying (high) - Youth described edited photos being shared in a class group chat."
+      ],
+      "evidence": [
+        {
+          "label": "Cyberbullying",
+          "detail": "Youth described edited photos being shared in a class group chat.",
+          "severity": "high",
+          "source": "safenight_rule:explicit_peer_harm",
+          "createdAt": "2026-06-21T01:41:00"
+        }
+      ]
     }
   ]
 }
 ```
 
-### GET /worker/youth/{youthId}/memory-card
+### GET /signals/youth/{youthId}
 
-Returns past context, stressors, preferred support style, helpful approaches, and previous handoffs.
+Returns the signal history for one visible youth, including conversations, previous handoffs, and the same explainable radar summary used by `/signals/radar`.
 
-### PATCH /cases/{caseId}
+### GET /worker/youths/{youthId}
 
-Updates case status, priority, or next follow-up time.
+Returns one visible youth profile with past context, stressors, preferred support style, case notes, conversations, signal history, and previous handoffs.
 
-### POST /cases/{caseId}/notes
+### POST /worker/cases/{caseId}/notes
 
-Adds a worker note.
+Adds a worker note to a visible case and writes a `case_note_added` audit event.
+
+### PATCH /worker/cases/{caseId}/status
+
+Updates case status, priority, or next follow-up time and writes a `case_status_updated` audit event.
+
+Worker users can update only assigned cases; supervisors and admins can update any case.
 
 ## Supervisor
 
