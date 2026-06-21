@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 from app.database import Base, SessionLocal, engine
 from app.models.audit_log import AuditLog
 from app.models.case import Case, CaseStatus
+from app.models.case_note import CaseNote
 from app.models.conversation import Conversation, ConversationStatus, RiskLevel
 from app.models.handoff_brief import HandoffBrief, ReviewStatus
 from app.models.message import Message, SenderType
@@ -123,6 +124,17 @@ def seed() -> None:
                     status=CaseStatus.needs_follow_up,
                     priority="high",
                     summary="After-hours cyberbullying handoff for Mira.",
+                )
+            )
+
+        if db.get(CaseNote, "note_mira_seed_001") is None:
+            db.add(
+                CaseNote(
+                    id="note_mira_seed_001",
+                    case_id="case_mira_001",
+                    author_user_id=worker.id,
+                    content="Initial worker queue note: review Mira's handoff first thing in the morning.",
+                    follow_up_action="Check immediate school safety and agree on next support step.",
                 )
             )
 

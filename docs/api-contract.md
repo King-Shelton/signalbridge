@@ -220,6 +220,15 @@ Marks a handoff as reviewed or escalated.
 ### GET /worker/cockpit
 
 Returns assigned youth conversations, priority state, suggested action, and follow-up status.
+Workers receive only cases assigned to them. Supervisors and admins receive the full worker review queue.
+
+### GET /worker/conversations/{conversationId}
+
+Returns one visible conversation with messages, signals, youth memory context, related case state, and related handoff briefs. Writes a `worker_conversation_reviewed` audit event.
+
+### GET /worker/handoffs/{handoffId}
+
+Returns one visible handoff brief with conversation, youth, and case context. Marks a pending handoff as reviewed and writes a `worker_handoff_reviewed` audit event.
 
 ### GET /worker/signal-radar
 
@@ -251,13 +260,15 @@ Response:
 
 Returns past context, stressors, preferred support style, helpful approaches, and previous handoffs.
 
-### PATCH /cases/{caseId}
+### POST /worker/cases/{caseId}/notes
 
-Updates case status, priority, or next follow-up time.
+Adds a worker note to a visible case and writes a `case_note_added` audit event.
 
-### POST /cases/{caseId}/notes
+### PATCH /worker/cases/{caseId}/status
 
-Adds a worker note.
+Updates case status, priority, or next follow-up time and writes a `case_status_updated` audit event.
+
+Worker users can update only assigned cases; supervisors and admins can update any case.
 
 ## Supervisor
 
