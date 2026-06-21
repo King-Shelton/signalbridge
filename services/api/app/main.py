@@ -4,7 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.config import get_settings
 from app.database import Base, engine
 from app.models import AuditLog, Case, Conversation, HandoffBrief, Message, Signal, User, YouthProfile
-from app.routes import ai, auth, conversations, health, youth
+from app.routes import ai, auth, conversations, health, worker, youth
 
 settings = get_settings()
 
@@ -32,4 +32,5 @@ app.include_router(health.router)
 app.include_router(auth.router, prefix="/auth", tags=["auth"])
 app.include_router(youth.router, prefix="/youth", tags=["youth"])
 app.include_router(ai.router, prefix="/ai", tags=["ai"])
+app.include_router(worker.router)
 app.include_router(conversations.router, tags=["conversations"])

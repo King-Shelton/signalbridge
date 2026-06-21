@@ -1,4 +1,5 @@
 export type RiskLevel = "high" | "medium" | "low";
+export type CaseStatusLabel = "New" | "Needs Review" | "In Progress" | "Followed Up" | "Escalated" | "Closed";
 
 export type ChannelLabel = "WhatsApp" | "Instagram" | "GatherTown" | "Discord" | "Web Chat";
 export type ConversationSource = "mock-seed" | "api-ready";
@@ -20,15 +21,18 @@ export type ConversationTurn = {
 
 export type WorkerYouthCase = {
   id: string;
+  caseId: string;
   youthName: string;
   channel: ChannelLabel;
   riskLevel: RiskLevel;
   riskScore: number;
   lastActive: string;
   suggestedAction: string;
-  status: string;
+  status: CaseStatusLabel;
   handoffId: string;
   conversationSource: ConversationSource;
+  workerNote?: string;
+  workerNoteUpdatedAt?: string;
   concern: string;
   keyQuote: string;
   emotionalState: string;
@@ -46,13 +50,14 @@ export type WorkerYouthCase = {
 export const workerYouthCases: WorkerYouthCase[] = [
   {
     id: "mira",
+    caseId: "case_mira_001",
     youthName: "Mira Tan",
     channel: "Web Chat",
     riskLevel: "high",
     riskScore: 92,
     lastActive: "11:42 PM yesterday",
     suggestedAction: "Open handoff brief and check school safety",
-    status: "Needs follow-up",
+    status: "Needs Review",
     handoffId: "handoff-mira-001",
     conversationSource: "mock-seed",
     concern: "Cyberbullying involving edited photos in a class group chat",
@@ -105,13 +110,14 @@ export const workerYouthCases: WorkerYouthCase[] = [
   },
   {
     id: "jay",
+    caseId: "case_jay_001",
     youthName: "Jay Lim",
     channel: "WhatsApp",
     riskLevel: "medium",
     riskScore: 67,
     lastActive: "Yesterday, 9:10 PM",
     suggestedAction: "Review escalation note and confirm next contact window",
-    status: "Awaiting worker reply",
+    status: "In Progress",
     handoffId: "handoff-jay-001",
     conversationSource: "mock-seed",
     concern: "Peer conflict and stress from repeated late-night messages",
@@ -158,13 +164,14 @@ export const workerYouthCases: WorkerYouthCase[] = [
   },
   {
     id: "dan",
+    caseId: "case_dan_001",
     youthName: "Dan Ng",
     channel: "Instagram",
     riskLevel: "medium",
     riskScore: 58,
     lastActive: "Today, 7:15 AM",
     suggestedAction: "Check on morning mood and whether school support is needed",
-    status: "In queue",
+    status: "New",
     handoffId: "handoff-dan-001",
     conversationSource: "mock-seed",
     concern: "Sleep disruption and rising anxiety after online teasing",
@@ -209,13 +216,14 @@ export const workerYouthCases: WorkerYouthCase[] = [
   },
   {
     id: "afiq",
+    caseId: "case_afiq_001",
     youthName: "Afiq Rahman",
     channel: "GatherTown",
     riskLevel: "low",
     riskScore: 24,
     lastActive: "Today, 8:40 AM",
     suggestedAction: "Send a warm check-in and monitor for changes",
-    status: "Stable",
+    status: "Followed Up",
     handoffId: "handoff-afiq-001",
     conversationSource: "mock-seed",
     concern: "Routine check-in after a quiet evening",
@@ -259,13 +267,14 @@ export const workerYouthCases: WorkerYouthCase[] = [
   },
   {
     id: "leanne",
+    caseId: "case_leanne_001",
     youthName: "Leanne Tan",
     channel: "Discord",
     riskLevel: "low",
     riskScore: 18,
     lastActive: "Yesterday, 6:55 PM",
     suggestedAction: "Close the loop with a supportive follow-up note",
-    status: "Logged",
+    status: "Closed",
     handoffId: "handoff-leanne-001",
     conversationSource: "api-ready",
     concern: "Quiet check-in after a support session",
@@ -315,6 +324,19 @@ export function getWorkerCaseById(id: string) {
   return workerYouthCases.find((item) => item.id === id);
 }
 
+export function getWorkerCaseByHandoffId(handoffId: string) {
+  return workerYouthCases.find((item) => item.handoffId === handoffId);
+}
+
 export function countByRisk(risk: RiskLevel) {
   return workerYouthCases.filter((item) => item.riskLevel === risk).length;
 }
+
+export const caseStatusOptions: CaseStatusLabel[] = [
+  "New",
+  "Needs Review",
+  "In Progress",
+  "Followed Up",
+  "Escalated",
+  "Closed"
+];
