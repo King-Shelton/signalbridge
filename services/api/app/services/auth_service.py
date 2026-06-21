@@ -1,9 +1,9 @@
 from datetime import datetime, timedelta, timezone
 
-from jose import jwt
-from jose.exceptions import JWTError
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from jose import JWTError
+from jose import jwt
 from passlib.context import CryptContext
 from sqlalchemy.orm import Session
 
@@ -41,20 +41,31 @@ def get_current_user(
     credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
     db: Session = Depends(get_db),
 ) -> User:
-    if credentials is None:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Authentication required")
+    auth_error = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Invalid or missing authentication token",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+    if credentials is None or credentials.scheme.lower() != "bearer":
+        raise auth_error
+
+    settings = get_settings()
     try:
         payload = jwt.decode(
             credentials.credentials,
-            get_settings().jwt_secret,
-            algorithms=[get_settings().jwt_algorithm],
+            settings.jwt_secret,
+            algorithms=[settings.jwt_algorithm],
         )
         user_id = payload.get("sub")
     except JWTError as exc:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or expired token") from exc
-    user = db.get(User, user_id) if user_id else None
+        raise auth_error from exc
+
+    if not isinstance(user_id, str):
+        raise auth_error
+
+    user = db.get(User, user_id)
     if user is None:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User no longer exists")
+        raise auth_error
     return user
 
 
@@ -64,3 +75,5 @@ def require_roles(*roles: UserRole):
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="This role cannot perform that action")
         return current_user
     return dependency
+    return user
+>>>>>>> origin/codex/davier-day-5-worker-api
