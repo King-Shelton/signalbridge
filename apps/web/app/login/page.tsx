@@ -3,23 +3,13 @@
 import { useRouter } from "next/navigation";
 import { LockKeyhole, Loader2, UserRound } from "lucide-react";
 import { FormEvent, useState } from "react";
-import { demoYouthSession, saveYouthSession } from "@/lib/youth-session";
-
-const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
-
-type LoginResponse = {
-  accessToken: string;
-  user: {
-    id: string;
-    name: string;
-    email: string;
-    role: string;
-  };
-};
+import { login } from "@/lib/api-client";
+import { getRoleHome, saveAuthSession } from "@/lib/auth-session";
+import { DEMO_ACCOUNTS } from "@/lib/constants";
 
 export default function LoginPage() {
   const router = useRouter();
-  const [email, setEmail] = useState(demoYouthSession.email);
+  const [email, setEmail] = useState(DEMO_ACCOUNTS[0].email);
   const [password, setPassword] = useState("password");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
@@ -30,34 +20,9 @@ export default function LoginPage() {
     setIsLoading(true);
 
     try {
-      if (email.trim().toLowerCase() !== demoYouthSession.email || password !== "password") {
-        setError("Use Mira's demo login to open the youth dashboard.");
-        return;
-      }
-
-      const response = await fetch(`${apiBaseUrl}/auth/login`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: email.trim().toLowerCase(), password })
-      });
-
-      if (!response.ok) {
-        throw new Error("Could not sign in to SignalBridge. Please check that the backend is running.");
-      }
-
-      const data = (await response.json()) as LoginResponse;
-      if (data.user.role !== "youth") {
-        throw new Error("This login is not a youth account.");
-      }
-
-      saveYouthSession({
-        id: data.user.id,
-        name: data.user.name,
-        email: data.user.email,
-        role: "youth",
-        accessToken: data.accessToken
-      });
-      router.push("/youth/chat");
+      const session = await login(email.trim().toLowerCase(), password);
+      saveAuthSession(session);
+      router.push(getRoleHome(session.user.role));
     } catch (loginError) {
       setError(
         loginError instanceof Error
@@ -75,10 +40,27 @@ export default function LoginPage() {
         <p className="text-sm font-semibold uppercase tracking-[0.16em] text-pine">
           SignalBridge
         </p>
-        <h1 className="mt-3 text-2xl font-semibold text-ink">Youth login</h1>
+        <h1 className="mt-3 text-2xl font-semibold text-ink">Demo login</h1>
         <p className="mt-2 text-sm leading-6 text-slate-600">
-          Continue as Mira to open the SafeNight Companion flow.
+          Choose a seeded SignalBridge role and use the shared demo password.
         </p>
+        <div className="mt-5 grid gap-2">
+          {DEMO_ACCOUNTS.map((account) => (
+            <button
+              key={account.email}
+              type="button"
+              onClick={() => setEmail(account.email)}
+              className={`rounded-lg border px-3 py-2 text-left text-sm transition ${
+                email === account.email
+                  ? "border-pine bg-pine/10 text-pine"
+                  : "border-slate-200 bg-white text-slate-600 hover:border-pine/30"
+              }`}
+            >
+              <span className="font-semibold">{account.label}</span>
+              <span className="ml-2 text-xs text-slate-500">{account.email}</span>
+            </button>
+          ))}
+        </div>
         <form className="mt-6 grid gap-4" onSubmit={handleSubmit}>
           <label className="grid gap-2 text-sm font-medium text-slate-700">
             Email
@@ -115,7 +97,7 @@ export default function LoginPage() {
             className="mt-2 inline-flex items-center justify-center gap-2 rounded-lg bg-pine px-4 py-3 text-center text-sm font-semibold text-white transition hover:bg-pine/90 disabled:cursor-not-allowed disabled:bg-pine/60"
           >
             {isLoading ? <Loader2 aria-hidden="true" className="h-4 w-4 animate-spin" /> : null}
-            {isLoading ? "Opening dashboard" : "Continue as Mira"}
+            {isLoading ? "Opening dashboard" : "Continue"}
           </button>
         </form>
       </section>

@@ -39,3 +39,22 @@ export async function fetchHealth(): Promise<{ status: string; service: string; 
   const response = await fetch(`${API_BASE_URL}/health`);
   return parseApiResponse(response);
 }
+
+export type AuditLogItem = {
+  id: string;
+  actorUserId: string | null;
+  actorName: string | null;
+  eventType: string;
+  entityType: string;
+  entityId: string;
+  details: string | null;
+  createdAt: string;
+};
+
+export async function fetchAuditLogs(accessToken: string): Promise<{ logs: AuditLogItem[] }> {
+  const response = await fetch(`${API_BASE_URL}/audit/logs`, {
+    headers: { Authorization: `Bearer ${accessToken}` }
+  });
+
+  return parseApiResponse(response);
+}

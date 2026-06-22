@@ -197,6 +197,28 @@ def add_case_note(
     note.created_at = created_at
 
 
+def upsert_audit_log(
+    db: Session,
+    audit_id: str,
+    actor_user_id: str | None,
+    event_type: str,
+    entity_type: str,
+    entity_id: str,
+    details: str,
+    created_at: datetime,
+) -> None:
+    audit_log = db.get(AuditLog, audit_id)
+    if audit_log is None:
+        audit_log = AuditLog(id=audit_id)
+        db.add(audit_log)
+    audit_log.actor_user_id = actor_user_id
+    audit_log.event_type = event_type
+    audit_log.entity_type = entity_type
+    audit_log.entity_id = entity_id
+    audit_log.details = details
+    audit_log.created_at = created_at
+
+
 def seed() -> None:
     Base.metadata.create_all(bind=engine)
     db = SessionLocal()
@@ -484,17 +506,76 @@ def seed() -> None:
                 updated_at,
             )
 
-        if db.get(AuditLog, "audit_seed_001") is None:
-            db.add(
-                AuditLog(
-                    id="audit_seed_001",
-                    actor_user_id=None,
-                    event_type="seed_data_created",
-                    entity_type="conversation",
-                    entity_id="conv_mira_after_hours",
-                    details="Day 6 fictional worker radar seed data loaded with explainable signals and previous handoffs.",
-                )
-            )
+        day7_audit_rows = [
+            (
+                "audit_day7_001",
+                None,
+                "ai_response_generated",
+                "conversation",
+                "conv_mira_after_hours",
+                "SafeNight generated a safety-bounded first response for Mira's after-hours cyberbullying message.",
+                now - timedelta(hours=9, minutes=3),
+            ),
+            (
+                "audit_day7_002",
+                "user_mira",
+                "handoff_consent_received",
+                "conversation",
+                "conv_mira_after_hours",
+                "Mira approved sharing a short handoff note with her assigned worker.",
+                now - timedelta(hours=9, minutes=2),
+            ),
+            (
+                "audit_day7_003",
+                None,
+                "risk_signal_extracted",
+                "signal",
+                "signal_mira_001",
+                "Cyberbullying and school avoidance signals were extracted from the approved conversation context.",
+                now - timedelta(hours=9, minutes=1),
+            ),
+            (
+                "audit_day7_004",
+                None,
+                "handoff_created",
+                "handoff_brief",
+                "handoff_mira_current",
+                "AI handoff brief created with the youth quote, risk score, and guidance on what not to repeat.",
+                now - timedelta(hours=9),
+            ),
+            (
+                "audit_day7_005",
+                "user_worker_1",
+                "worker_reviewed",
+                "handoff_brief",
+                "handoff_mira_current",
+                "Aisha reviewed the pending handoff before opening the morning worker response.",
+                now - timedelta(hours=1, minutes=20),
+            ),
+            (
+                "audit_day7_006",
+                "user_supervisor",
+                "case_reassigned",
+                "case",
+                "case_jay_001",
+                "Supervisor reassigned one medium-risk case to reduce morning worker load pressure.",
+                now - timedelta(minutes=35),
+            ),
+        ]
+
+        for audit_row in day7_audit_rows:
+            upsert_audit_log(db, *audit_row)
+
+        upsert_audit_log(
+            db,
+            "audit_seed_001",
+            None,
+            "seed_data_created",
+            "conversation",
+            "conv_mira_after_hours",
+            "Day 6 fictional worker radar seed data loaded with explainable signals and previous handoffs.",
+            now - timedelta(days=1),
+        )
 
         db.commit()
     finally:

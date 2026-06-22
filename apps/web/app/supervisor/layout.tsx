@@ -31,6 +31,12 @@ const supervisorNav = [
     label: "Youth Profiles",
     icon: "profiles" as const,
     description: "Continuity context"
+  },
+  {
+    href: "/supervisor/audit",
+    label: "Safety Audit",
+    icon: "audit" as const,
+    description: "AI and handoff trace"
   }
 ];
 
