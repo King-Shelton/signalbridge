@@ -4,7 +4,6 @@ import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { apiFetch } from "@/lib/api-client";
 import { Handoff, label } from "@/lib/operations";
-import { OperationsState } from "@/components/OperationsState";
 
 type Youth = {
   id: string;
@@ -18,23 +17,23 @@ type Youth = {
   notes: Array<{ id: string; content: string }>;
 };
 
+function caseStatusColor(status: string) {
+  if (status === "open" || status === "active") return { bg: "rgba(217,95,72,0.12)", border: "rgba(217,95,72,0.25)", color: "#e88d78" };
+  if (status === "in_progress") return { bg: "rgba(183,121,31,0.12)", border: "rgba(183,121,31,0.25)", color: "#e9c685" };
+  return { bg: "rgba(255,255,255,0.05)", border: "rgba(255,255,255,0.1)", color: "rgba(214,235,230,0.5)" };
+}
+
 export default function YouthPage({ params }: { params: Promise<{ id: string }> }) {
   const [id, setId] = useState("");
   const [data, setData] = useState<Youth | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
-  useEffect(() => {
-    void params.then((value) => setId(value.id));
-  }, [params]);
+  useEffect(() => { void params.then((value) => setId(value.id)); }, [params]);
 
   const load = useCallback(async () => {
-    if (!id) {
-      return;
-    }
-
+    if (!id) return;
     setLoading(true);
-
     try {
       setData(await apiFetch<Youth>(`/worker/youths/${id}`));
       setError("");
@@ -45,146 +44,140 @@ export default function YouthPage({ params }: { params: Promise<{ id: string }> 
     }
   }, [id]);
 
-  useEffect(() => {
-    void load();
-  }, [load]);
+  useEffect(() => { void load(); }, [load]);
+
+  if (loading) {
+    return (
+      <div className="p-6 flex items-center gap-3 text-[rgba(214,235,230,0.5)] text-sm">
+        <div className="w-4 h-4 rounded-full border-2 border-[#6fb8aa] border-t-transparent animate-spin" />
+        Loading memory card…
+      </div>
+    );
+  }
+
+  if (error || !data) {
+    return (
+      <div className="p-6">
+        <div className="text-[13px] text-[#e88d78] bg-[rgba(217,95,72,0.1)] border border-[rgba(217,95,72,0.2)] rounded-xl px-4 py-3 flex items-center gap-3">
+          {error || "Youth not found"}
+          <button onClick={() => void load()} className="underline">Retry</button>
+        </div>
+      </div>
+    );
+  }
+
+  const stressors = data.stressors?.split(",").map((s) => s.trim()).filter(Boolean) ?? [];
 
   return (
-    <OperationsState loading={loading} error={error} empty={!data} retry={load}>
-      {data ? (
-        <div className="space-y-5">
-          <section className="relative overflow-hidden rounded-[32px] border border-slate-200 bg-[radial-gradient(circle_at_top_left,_rgba(31,111,100,0.16),_transparent_34%),radial-gradient(circle_at_top_right,_rgba(217,95,72,0.12),_transparent_30%),linear-gradient(180deg,_#ffffff_0%,_#f7fbf9_100%)] p-6 shadow-sm">
-            <div className="max-w-3xl">
-              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-pine">
-                Youth memory card
-              </p>
-              <h2 className="mt-2 text-3xl font-semibold tracking-tight text-ink sm:text-4xl">
-                {data.name}
-              </h2>
-              <p className="mt-3 text-sm leading-7 text-slate-600 sm:text-base">
-                Keep this card open when a worker needs the youth&apos;s preferred channel, support style,
-                past stressors, previous handoffs, and current notes.
-              </p>
-            </div>
-
-            <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-              {[
-                ["Preferred channel", data.preferredChannel],
-                ["Assigned worker", data.assignedWorker || "Unassigned"],
-                ["Support style", data.supportStyle || "No preference yet"],
-                ["Stressors", data.stressors || "No stressors recorded"]
-              ].map(([title, value]) => (
-                <article
-                  key={title}
-                  className="rounded-2xl border border-white/70 bg-white/85 p-4 shadow-[0_10px_30px_rgba(15,23,42,0.06)] backdrop-blur"
-                >
-                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
-                    {title}
-                  </p>
-                  <p className="mt-2 text-sm leading-6 text-ink">{value}</p>
-                </article>
-              ))}
-            </div>
-          </section>
-
-          <section className="grid gap-4 lg:grid-cols-[1.05fr_0.95fr]">
-            <article className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm">
-              <h3 className="text-lg font-semibold text-ink">Helpful approaches</h3>
-              <p className="mt-2 text-sm leading-6 text-slate-600">
-                The worker should use this tone when opening the next conversation.
-              </p>
-              <p className="mt-4 rounded-2xl bg-pine/5 p-4 text-sm leading-7 text-slate-700">
-                {data.supportStyle}
-              </p>
-            </article>
-
-            <article className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm">
-              <h3 className="text-lg font-semibold text-ink">Past stressors</h3>
-              <p className="mt-2 text-sm leading-6 text-slate-600">
-                These are the recurring pressures the worker should keep in mind.
-              </p>
-              <p className="mt-4 rounded-2xl bg-slate-50 p-4 text-sm leading-7 text-slate-700">
-                {data.stressors}
-              </p>
-            </article>
-          </section>
-
-          <section className="grid gap-4 lg:grid-cols-2">
-            <article className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm">
-              <div className="flex items-center justify-between gap-3">
-                <h3 className="text-lg font-semibold text-ink">Previous handoffs</h3>
-                <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">
-                  {data.handoffs.length} records
-                </span>
-              </div>
-              <div className="mt-4 grid gap-3">
-                {data.handoffs.map((handoff) => (
-                  <Link
-                    key={handoff.id}
-                    href={`/worker/handoffs/${handoff.id}`}
-                    className="rounded-2xl border border-slate-200 p-4 text-sm transition hover:border-pine hover:bg-pine/5"
-                  >
-                    <div className="flex flex-wrap items-start justify-between gap-3">
-                      <p className="font-semibold text-ink">{handoff.mainConcern}</p>
-                      <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-semibold text-slate-700">
-                        {label(handoff.reviewStatus)}
-                      </span>
-                    </div>
-                    <p className="mt-2 text-xs leading-5 text-slate-500">
-                      {new Date(handoff.createdAt).toLocaleString()}
-                    </p>
-                  </Link>
-                ))}
-              </div>
-            </article>
-
-            <article className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm">
-              <div className="flex items-center justify-between gap-3">
-                <h3 className="text-lg font-semibold text-ink">Worker notes</h3>
-                <span className="rounded-full bg-pine/10 px-3 py-1 text-xs font-semibold text-pine">
-                  Keep visible
-                </span>
-              </div>
-              <div className="mt-4 grid gap-3">
-                {data.notes.length ? (
-                  data.notes.map((note) => (
-                    <p key={note.id} className="rounded-2xl bg-slate-50 p-4 text-sm leading-7 text-slate-700">
-                      {note.content}
-                    </p>
-                  ))
-                ) : (
-                  <p className="rounded-2xl bg-slate-50 p-4 text-sm text-slate-500">No notes yet.</p>
-                )}
-              </div>
-            </article>
-          </section>
-
-          <section className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm">
-            <div className="flex items-center justify-between gap-3">
-              <h3 className="text-lg font-semibold text-ink">Cases and follow-up</h3>
-              <Link
-                href="/worker/cases"
-                className="rounded-full border border-slate-200 px-3 py-1 text-xs font-semibold text-ink transition hover:border-pine hover:bg-pine/5"
-              >
-                Open case tracker
-              </Link>
-            </div>
-            <div className="mt-4 grid gap-3">
-              {data.cases.map((caseItem) => (
-                <div key={caseItem.id} className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm">
-                  <div className="flex flex-wrap items-start justify-between gap-3">
-                    <p className="font-semibold text-ink">{caseItem.summary}</p>
-                    <span className="rounded-full bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-700 shadow-sm">
-                      {label(caseItem.status)}
-                    </span>
-                  </div>
-                  <p className="mt-2 text-xs leading-5 text-slate-500">Priority: {label(caseItem.priority)}</p>
-                </div>
-              ))}
-            </div>
-          </section>
+    <div className="p-6 space-y-5 max-w-4xl mx-auto">
+      {/* Header */}
+      <div className="glass-card p-6">
+        <p className="sb-eyebrow mb-2">Youth memory card</p>
+        <h1 className="text-[28px] font-semibold text-[#f1f6f4]" style={{ letterSpacing: "-0.025em" }}>{data.name}</h1>
+        <div className="mt-3 flex flex-wrap gap-3">
+          <span className="px-3 py-1 rounded-full text-[12px] font-medium" style={{ background: "rgba(31,111,100,0.15)", border: "1px solid rgba(31,111,100,0.3)", color: "#6fb8aa" }}>
+            {data.preferredChannel}
+          </span>
+          <span className="px-3 py-1 rounded-full text-[12px] font-medium" style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)", color: "rgba(214,235,230,0.6)" }}>
+            Assigned to {data.assignedWorker ?? "Unassigned"}
+          </span>
         </div>
-      ) : null}
-    </OperationsState>
+      </div>
+
+      {/* Support approach + stressors */}
+      <div className="grid gap-4 lg:grid-cols-2">
+        <div className="glass-card p-5" style={{ borderLeft: "3px solid rgba(111,184,170,0.4)" }}>
+          <p className="sb-eyebrow mb-3">Helpful support approach</p>
+          <p className="text-[14px] text-[rgba(214,235,230,0.8)] leading-relaxed">{data.supportStyle ?? "No style recorded yet."}</p>
+          <div className="mt-4 flex flex-wrap gap-2">
+            {["Listen first", "No rapid-fire questions", "Normalise feelings"].map((tip) => (
+              <span key={tip} className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium" style={{ background: "rgba(31,111,100,0.12)", border: "1px solid rgba(31,111,100,0.25)", color: "#6fb8aa" }}>
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                {tip}
+              </span>
+            ))}
+          </div>
+        </div>
+
+        <div className="glass-card p-5">
+          <p className="sb-eyebrow mb-3">Known stressors</p>
+          {stressors.length > 0 ? (
+            <div className="flex flex-wrap gap-2">
+              {stressors.map((s) => (
+                <span key={s} className="px-3 py-1.5 rounded-full text-[12px] font-medium" style={{ background: "rgba(217,95,72,0.12)", border: "1px solid rgba(217,95,72,0.25)", color: "#e88d78" }}>
+                  {s}
+                </span>
+              ))}
+            </div>
+          ) : (
+            <p className="text-[14px] text-[rgba(214,235,230,0.5)]">{data.stressors ?? "No stressors recorded."}</p>
+          )}
+        </div>
+      </div>
+
+      {/* Cases */}
+      <div className="glass-card p-5">
+        <p className="sb-eyebrow mb-4">Cases and follow-up</p>
+        {data.cases.length > 0 ? (
+          <div className="space-y-2">
+            {data.cases.map((c) => {
+              const colors = caseStatusColor(c.status);
+              return (
+                <div key={c.id} className="p-3 rounded-[12px] flex items-start gap-3" style={{ background: colors.bg, border: `1px solid ${colors.border}` }}>
+                  <span className="text-[11px] font-semibold mt-0.5 flex-shrink-0" style={{ color: colors.color }}>{label(c.status)}</span>
+                  <p className="text-[13px] text-[rgba(214,235,230,0.7)] leading-relaxed">{c.summary}</p>
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <p className="text-[13px] text-[rgba(214,235,230,0.4)]">No cases yet.</p>
+        )}
+      </div>
+
+      {/* Previous handoffs — timeline */}
+      <div className="glass-card p-5">
+        <p className="sb-eyebrow mb-4">Previous approved handoffs</p>
+        {data.handoffs.length > 0 ? (
+          <div className="space-y-3">
+            {data.handoffs.map((h) => (
+              <Link
+                key={h.id}
+                href={`/worker/handoffs/${h.id}`}
+                className="flex items-start gap-4 p-3 rounded-[12px] transition-all hover:bg-white/5"
+                style={{ border: "1px solid rgba(111,184,170,0.15)" }}
+              >
+                <div className="w-1.5 h-1.5 rounded-full bg-[#6fb8aa] mt-2 flex-shrink-0" />
+                <div>
+                  <p className="text-[11.5px] font-mono text-[rgba(214,235,230,0.35)]">{new Date(h.createdAt).toLocaleString("en-SG")}</p>
+                  <p className="text-[13.5px] text-[rgba(214,235,230,0.75)] mt-0.5">{h.mainConcern}</p>
+                </div>
+                <svg className="ml-auto mt-0.5 flex-shrink-0" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="rgba(111,184,170,0.4)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M5 12h14"/><path d="m12 5 7 7-7 7"/>
+                </svg>
+              </Link>
+            ))}
+          </div>
+        ) : (
+          <p className="text-[13px] text-[rgba(214,235,230,0.4)]">No approved handoffs yet.</p>
+        )}
+      </div>
+
+      {/* Worker notes */}
+      <div className="glass-card p-5">
+        <p className="sb-eyebrow mb-4">Worker notes</p>
+        {data.notes.length > 0 ? (
+          <div className="space-y-2">
+            {data.notes.map((n) => (
+              <p key={n.id} className="p-3 rounded-[12px] text-[13px] text-[rgba(214,235,230,0.7)] leading-relaxed" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.07)" }}>
+                {n.content}
+              </p>
+            ))}
+          </div>
+        ) : (
+          <p className="text-[13px] text-[rgba(214,235,230,0.4)]">No notes yet.</p>
+        )}
+      </div>
+    </div>
   );
 }

@@ -2,8 +2,7 @@ from datetime import datetime, timedelta, timezone
 
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from jose import JWTError
-from jose import jwt
+from jose import JWTError, jwt
 from passlib.context import CryptContext
 from sqlalchemy.orm import Session
 
@@ -72,8 +71,9 @@ def get_current_user(
 def require_roles(*roles: UserRole):
     def dependency(current_user: User = Depends(get_current_user)) -> User:
         if current_user.role not in roles:
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="This role cannot perform that action")
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="This role cannot perform that action",
+            )
         return current_user
     return dependency
-    return user
->>>>>>> origin/codex/davier-day-5-worker-api
