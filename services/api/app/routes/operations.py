@@ -154,7 +154,7 @@ def worker_youth(youth_id: str, current_user: User = Depends(worker_required), d
     return {"id": youth.id, "name": user.name, "preferredChannel": youth.preferred_channel, "assignedWorker": worker.name if worker else None,
             "supportStyle": youth.support_style, "stressors": youth.stressors,
             "cases": [{"id": c.id, "status": c.status.value, "priority": c.priority, "summary": c.summary, "updatedAt": c.updated_at.isoformat()} for c in cases],
-            "handoffs": [handoff_payload(db, h) for h in handoffs if db.get(Conversation, h.conversation_id).consent_to_handoff],
+            "handoffs": [handoff_payload(db, h) for h in handoffs if (conv := db.get(Conversation, h.conversation_id)) and conv.consent_to_handoff],
             "notes": [{"id": n.id, "content": n.content, "authorUserId": n.author_user_id, "createdAt": n.created_at.isoformat()} for n in notes]}
 
 

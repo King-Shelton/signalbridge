@@ -3,30 +3,27 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { apiFetch } from "@/lib/api-client";
-import { ConversationItem, label, riskClass } from "@/lib/operations";
-import { OperationsState } from "@/components/OperationsState";
+import { ConversationItem, label } from "@/lib/operations";
 
-function sortByPriority(items: ConversationItem[]) {
-  const riskOrder: Record<ConversationItem["riskLevel"], number> = {
-    critical: 0,
-    high: 1,
-    medium: 2,
-    low: 3
-  };
+function riskBadge(level: string) {
+  if (level === "high" || level === "critical") return "risk-badge-high";
+  if (level === "medium") return "risk-badge-medium";
+  return "risk-badge-low";
+}
 
-  return [...items].sort((a, b) => {
-    const handoffDelta = Number(b.unresolvedHandoff) - Number(a.unresolvedHandoff);
-    if (handoffDelta !== 0) {
-      return handoffDelta;
-    }
+function riskBorderColor(level: string) {
+  if (level === "high" || level === "critical") return "rgba(217,95,72,0.4)";
+  if (level === "medium") return "rgba(183,121,31,0.4)";
+  return "rgba(31,111,100,0.4)";
+}
 
-    const riskDelta = riskOrder[a.riskLevel] - riskOrder[b.riskLevel];
-    if (riskDelta !== 0) {
-      return riskDelta;
-    }
-
-    return new Date(b.lastMessageAt).getTime() - new Date(a.lastMessageAt).getTime();
-  });
+function timeAgo(dateStr: string) {
+  const diff = Date.now() - new Date(dateStr).getTime();
+  const m = Math.floor(diff / 60000);
+  if (m < 60) return `${m}m ago`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h}h ago`;
+  return `${Math.floor(h / 24)}d ago`;
 }
 
 export default function WorkerCockpitPage() {
@@ -37,10 +34,9 @@ export default function WorkerCockpitPage() {
   const load = useCallback(async () => {
     setLoading(true);
     setError("");
-
     try {
       const data = await apiFetch<{ conversations: ConversationItem[] }>("/worker/cockpit");
-      setItems(sortByPriority(data.conversations));
+      setItems(data.conversations);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not load cockpit.");
     } finally {
@@ -48,202 +44,129 @@ export default function WorkerCockpitPage() {
     }
   }, []);
 
+  useEffect(() => { void load(); }, [load]);
+
+  // 5-second polling
   useEffect(() => {
-    void load();
+    const interval = setInterval(() => { void load(); }, 5000);
+    return () => clearInterval(interval);
   }, [load]);
 
-  const metrics = useMemo(
-    () => ({
-      open: items.filter((item) => item.case?.status !== "closed").length,
-      high: items.filter((item) => ["high", "critical"].includes(item.riskLevel)).length,
-      handoffs: items.filter((item) => item.unresolvedHandoff).length,
-      recent: items[0]
-    }),
-    [items]
-  );
+  const metrics = useMemo(() => ({
+    open: items.filter((i) => i.case?.status !== "closed").length,
+    high: items.filter((i) => ["high", "critical"].includes(i.riskLevel)).length,
+    handoffs: items.filter((i) => i.unresolvedHandoff).length,
+  }), [items]);
+
+  const now = new Date().toLocaleString("en-SG", { weekday: "short", hour: "2-digit", minute: "2-digit" });
 
   return (
-    <div className="space-y-5">
-      <section className="relative overflow-hidden rounded-[32px] border border-slate-200 bg-[radial-gradient(circle_at_top_left,_rgba(31,111,100,0.16),_transparent_34%),radial-gradient(circle_at_top_right,_rgba(217,95,72,0.12),_transparent_30%),linear-gradient(180deg,_#ffffff_0%,_#f7fbf9_100%)] p-6 shadow-sm">
-        <div className="max-w-3xl">
-          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-pine">
-            Live worker cockpit
-          </p>
-          <h2 className="mt-2 text-3xl font-semibold tracking-tight text-ink sm:text-4xl">
-            Who needs attention first, and what context do they need?
-          </h2>
-          <p className="mt-3 text-sm leading-7 text-slate-600 sm:text-base">
-            The cockpit ranks unresolved handoffs, recent signal spikes, and follow-up work so the
-            next worker can start with continuity instead of a blank slate.
-          </p>
+    <div className="p-6 space-y-6 max-w-5xl mx-auto">
+      {/* Header */}
+      <div className="flex items-start justify-between gap-4 flex-wrap">
+        <div>
+          <p className="sb-eyebrow mb-2">Live worker cockpit</p>
+          <h1 className="text-[28px] font-semibold text-[#f1f6f4]" style={{ letterSpacing: "-0.025em" }}>
+            Who needs attention first?
+          </h1>
         </div>
+        <div className="text-[12px] font-mono text-[rgba(214,235,230,0.35)] mt-1">{now}</div>
+      </div>
 
-        <div className="mt-5 grid gap-3 sm:grid-cols-3">
-          {[
-            ["Open cases", metrics.open],
-            ["High priority", metrics.high],
-            ["Unresolved handoffs", metrics.handoffs]
-          ].map(([name, value]) => (
-            <article
-              key={name}
-              className="rounded-2xl border border-white/70 bg-white/85 p-4 shadow-[0_10px_30px_rgba(15,23,42,0.06)] backdrop-blur"
-            >
-              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
-                {name}
-              </p>
-              <p className="mt-2 text-2xl font-semibold text-ink">{value}</p>
-            </article>
-          ))}
-        </div>
-
-        {metrics.recent ? (
-          <div className="mt-5 rounded-2xl border border-pine/15 bg-pine/5 px-4 py-3 text-sm text-slate-700">
-            <span className="font-semibold text-pine">Most urgent now:</span>{" "}
-            {metrics.recent.youthName} from {metrics.recent.channel} is showing{" "}
-            {label(metrics.recent.riskLevel).toLowerCase()} risk with{" "}
-            {metrics.recent.unresolvedHandoff ? "an unresolved handoff." : "active follow-up."}
+      {/* Metrics row */}
+      <div className="grid grid-cols-3 gap-3">
+        {([
+          ["Open cases", metrics.open, "#6fb8aa"],
+          ["High priority", metrics.high, "#e88d78"],
+          ["Unresolved handoffs", metrics.handoffs, "#e9c685"],
+        ] as [string, number, string][]).map(([name, value, color]) => (
+          <div key={name} className="glass-card p-4">
+            <p className="sb-eyebrow mb-2">{name}</p>
+            <p className="text-[32px] font-semibold" style={{ color, letterSpacing: "-0.03em" }}>{value}</p>
           </div>
-        ) : null}
-      </section>
+        ))}
+      </div>
 
-      <OperationsState loading={loading} error={error} empty={!items.length} retry={load}>
-        <section className="grid gap-4 xl:grid-cols-[1.25fr_0.75fr]">
-          <div className="grid gap-4">
-            {items.map((item) => (
-              <article
-                key={item.id}
-                className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg"
-              >
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div>
-                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
-                      {item.channel} - {new Date(item.lastMessageAt).toLocaleString()}
-                    </p>
-                    <h3 className="mt-1 text-xl font-semibold text-ink">{item.youthName}</h3>
-                    <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">
-                      {item.suggestedAction}
-                    </p>
-                  </div>
+      {/* Loading / error */}
+      {loading && items.length === 0 && (
+        <div className="flex items-center gap-3 text-[rgba(214,235,230,0.5)] text-sm">
+          <div className="w-4 h-4 rounded-full border-2 border-[#6fb8aa] border-t-transparent animate-spin" />
+          Loading conversations…
+        </div>
+      )}
+      {error && (
+        <div className="text-[13px] text-[#e88d78] bg-[rgba(217,95,72,0.1)] border border-[rgba(217,95,72,0.2)] rounded-xl px-4 py-3 flex items-center gap-3">
+          {error}
+          <button onClick={() => void load()} className="underline text-[#e88d78]">Retry</button>
+        </div>
+      )}
+
+      {/* Conversation cards */}
+      <div className="space-y-3">
+        {items.map((item) => (
+          <article
+            key={item.id}
+            className="glass-card p-5 transition-all duration-200 hover:bg-white/[0.08]"
+            style={{ borderLeft: `3px solid ${riskBorderColor(item.riskLevel)}` }}
+          >
+            <div className="flex flex-wrap items-start justify-between gap-3 mb-3">
+              <div>
+                <h3 className="text-[17px] font-semibold text-[#f1f6f4]" style={{ letterSpacing: "-0.01em" }}>
+                  {item.youthName}
+                </h3>
+                <p className="mt-0.5 text-[12px] font-mono text-[rgba(214,235,230,0.4)]">
+                  {item.channel} · {timeAgo(item.lastMessageAt)}
+                </p>
+              </div>
+              <span className={riskBadge(item.riskLevel)}>
+                {label(item.riskLevel)} · {item.riskScore}
+              </span>
+            </div>
+
+            {item.suggestedAction && (
+              <p className="text-[13px] text-[rgba(214,235,230,0.6)] mb-3 leading-relaxed">{item.suggestedAction}</p>
+            )}
+
+            {item.signals.length > 0 && (
+              <div className="flex flex-wrap gap-2 mb-4">
+                {item.signals.slice(0, 4).map((s) => (
                   <span
-                    className={`rounded-full px-3 py-1 text-xs font-semibold ${riskClass(item.riskLevel)}`}
+                    key={s.id}
+                    className="px-2.5 py-1 rounded-full text-[11px] font-medium"
+                    style={{ background: "rgba(255,255,255,0.07)", color: "rgba(214,235,230,0.6)", border: "1px solid rgba(255,255,255,0.1)" }}
                   >
-                    {label(item.riskLevel)} - {item.riskScore}
+                    {label(s.type)}
                   </span>
-                </div>
-
-                <div className="mt-4 flex flex-wrap gap-2">
-                  {item.signals.slice(0, 4).map((signal) => (
-                    <span
-                      key={signal.id}
-                      className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700"
-                    >
-                      {label(signal.type)}
-                    </span>
-                  ))}
-                  {item.unresolvedHandoff ? (
-                    <span className="rounded-full bg-coral/10 px-3 py-1 text-xs font-semibold text-coral">
-                      Unresolved handoff
-                    </span>
-                  ) : null}
-                </div>
-
-                <div className="mt-4 grid gap-3 rounded-2xl bg-slate-50 p-4 sm:grid-cols-2">
-                  <div>
-                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
-                      Signal evidence
-                    </p>
-                    <ul className="mt-2 space-y-2 text-sm leading-6 text-slate-700">
-                      {item.signals.slice(0, 3).map((signal) => (
-                        <li key={signal.id} className="rounded-xl bg-white px-3 py-2 shadow-sm">
-                          <strong>{label(signal.type)}:</strong> {signal.reason}
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                  <div className="rounded-2xl border border-white bg-white p-4 shadow-sm">
-                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
-                      Recommended move
-                    </p>
-                    <p className="mt-2 text-sm leading-6 text-slate-700">{item.suggestedAction}</p>
-                  </div>
-                </div>
-
-                <div className="mt-4 flex flex-wrap gap-2">
-                  <Link
-                    href={`/worker/youths/${item.youthId}`}
-                    className="inline-flex items-center justify-center rounded-xl border border-slate-200 px-4 py-2 text-xs font-semibold text-ink transition hover:border-pine hover:bg-pine/5"
-                  >
-                    Open memory card
-                  </Link>
-                  {item.handoffId ? (
-                    <Link
-                      href={`/worker/handoffs/${item.handoffId}`}
-                      className="inline-flex items-center justify-center rounded-xl bg-pine px-4 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-pine/90"
-                    >
-                      Open handoff
-                    </Link>
-                  ) : null}
-                </div>
-              </article>
-            ))}
-          </div>
-
-          <aside className="space-y-4">
-            <section className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm">
-              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-pine">
-                Radar console
-              </p>
-              <h3 className="mt-2 text-xl font-semibold text-ink">Current triage stack</h3>
-              <p className="mt-2 text-sm leading-6 text-slate-600">
-                High-risk and unresolved items sit at the top so the worker starts with the strongest
-                continuity cues first.
-              </p>
-              <div className="mt-4 space-y-3">
-                {items.slice(0, 4).map((item, index) => (
-                  <div
-                    key={`${item.id}-stack`}
-                    className="rounded-2xl border border-slate-200 bg-slate-50 p-3"
-                  >
-                    <div className="flex items-center justify-between gap-3">
-                      <p className="text-sm font-semibold text-ink">
-                        {index + 1}. {item.youthName}
-                      </p>
-                      <span
-                        className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${riskClass(item.riskLevel)}`}
-                      >
-                        {label(item.riskLevel)}
-                      </span>
-                    </div>
-                    <p className="mt-1 text-xs leading-5 text-slate-500">
-                      {item.unresolvedHandoff ? "Unresolved handoff" : "Follow-up queue"} -{" "}
-                      {item.channel}
-                    </p>
-                  </div>
                 ))}
               </div>
-            </section>
+            )}
 
-            <section className="rounded-[28px] border border-pine/15 bg-[linear-gradient(180deg,_rgba(31,111,100,0.08),_rgba(255,255,255,1))] p-5 shadow-sm">
-              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-pine">
-                Command centre note
-              </p>
-              <p className="mt-2 text-sm leading-6 text-slate-700">
-                This workspace is meant to feel like an operations board, not a simple table. The
-                priority queue, signal chips, and memory-card links keep the Mira journey visible at
-                every step.
-              </p>
-              <div className="mt-4">
+            <div className="flex flex-wrap gap-2">
+              <Link
+                href={`/worker/youths/${item.youthId}`}
+                className="px-3 py-1.5 rounded-[9px] text-[12px] font-medium transition-all"
+                style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)", color: "rgba(214,235,230,0.7)" }}
+              >
+                Memory Card
+              </Link>
+              {item.handoffId && (
                 <Link
-                  href="/worker/youth-profiles"
-                  className="inline-flex items-center gap-2 rounded-xl bg-white px-4 py-2 text-sm font-semibold text-ink shadow-sm transition hover:bg-mist"
+                  href={`/worker/handoffs/${item.handoffId}`}
+                  className="px-3 py-1.5 rounded-[9px] text-[12px] font-medium transition-all"
+                  style={{ background: "rgba(31,111,100,0.2)", border: "1px solid rgba(111,184,170,0.3)", color: "#6fb8aa" }}
                 >
-                  Browse memory cards
+                  Open Handoff →
                 </Link>
-              </div>
-            </section>
-          </aside>
-        </section>
-      </OperationsState>
+              )}
+            </div>
+          </article>
+        ))}
+        {!loading && !error && items.length === 0 && (
+          <div className="glass-card p-8 text-center">
+            <p className="text-[rgba(214,235,230,0.5)] text-sm">No active conversations. All caught up.</p>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

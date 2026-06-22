@@ -31,11 +31,3 @@ class Case(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
 
 
-class CaseNote(Base):
-    __tablename__ = "case_notes"
-
-    id: Mapped[str] = mapped_column(String, primary_key=True, default=lambda: f"note_{uuid.uuid4().hex}")
-    case_id: Mapped[str] = mapped_column(ForeignKey("cases.id"), nullable=False, index=True)
-    author_user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), nullable=False)
-    content: Mapped[str] = mapped_column(Text, nullable=False)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)

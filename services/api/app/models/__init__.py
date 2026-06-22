@@ -1,6 +1,7 @@
-from app.models.audit_log import AuditLog
 from app.models.ai_run import AiRun
-from app.models.case import Case, CaseNote
+from app.models.audit_log import AuditLog
+from app.models.case import Case
+from app.models.case_note import CaseNote
 from app.models.conversation import Conversation
 from app.models.handoff_brief import HandoffBrief
 from app.models.message import Message
@@ -10,8 +11,8 @@ from app.models.user import User
 from app.models.youth_profile import YouthProfile
 
 __all__ = [
-    "AuditLog",
     "AiRun",
+    "AuditLog",
     "Case",
     "CaseNote",
     "Conversation",

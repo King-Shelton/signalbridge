@@ -33,3 +33,8 @@ app.include_router(signals.router)
 app.include_router(simulator.router)
 app.include_router(worker.signals_router, prefix="/signals", tags=["signals"])
 app.include_router(conversations.router, tags=["conversations"])
+
+
+@app.get("/version", tags=["meta"])
+def version() -> dict:
+    return {"version": "1.0.0-alpha", "service": "SignalBridge API", "status": "ok", "environment": "hackathon"}

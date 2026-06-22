@@ -3,28 +3,150 @@
 @tailwind utilities;
 
 :root {
-  color-scheme: light;
-  background: #f8fbfa;
-  color: #18212f;
+  /* Pine brand */
+  --pine-500: #1f6f64;
+  --pine-400: #3d9484;
+  --pine-300: #6fb8aa;
+  --pine-600: #1a5d54;
+  --pine-700: #164b44;
+
+  /* Risk */
+  --coral-500: #d95f48;
+  --amber-500: #b7791f;
+  --amber-200: #e9c685;
+
+  /* Text dark */
+  --text-dark-primary: #f1f6f4;
+  --text-dark-muted: rgba(214, 235, 230, 0.6);
+  --text-dark-faint: rgba(214, 235, 230, 0.35);
+
+  /* Text light */
+  --ink: #18212f;
 }
 
-* {
-  box-sizing: border-box;
+*, *::before, *::after { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  font-family: 'Inter', ui-sans-serif, system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
 }
 
 body {
-  margin: 0;
-  min-height: 100vh;
-  background:
-    linear-gradient(180deg, rgba(239, 245, 243, 0.75), rgba(255, 255, 255, 0.96)),
-    #f8fbfa;
-  font-family:
-    Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
-    sans-serif;
+  background: #060d0c;
+  color: #f1f6f4;
 }
 
-button,
-input,
-textarea {
-  font: inherit;
+button, input, textarea { font: inherit; }
+
+::selection { background: rgba(111, 184, 170, 0.30); }
+
+/* Custom scrollbar */
+::-webkit-scrollbar { width: 7px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.12); border-radius: 9px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.2); }
+
+/* Animations */
+@keyframes sb-rise {
+  from { opacity: 0; transform: translateY(24px); filter: blur(8px); }
+  to { opacity: 1; transform: translateY(0); filter: blur(0); }
+}
+@keyframes sb-soft {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes sb-pop {
+  from { opacity: 0; transform: translateY(10px) scale(0.97); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes sb-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes sb-ring {
+  0% { transform: scale(0.5); opacity: 0.65; }
+  100% { transform: scale(2.8); opacity: 0; }
+}
+@keyframes sb-core {
+  0%, 100% { opacity: 0.95; transform: scale(1); }
+  50% { opacity: 0.55; transform: scale(0.82); }
+}
+@keyframes sb-drift1 {
+  0% { transform: translate(0,0); }
+  50% { transform: translate(42px, -30px); }
+  100% { transform: translate(0,0); }
+}
+@keyframes sb-drift2 {
+  0% { transform: translate(0,0); }
+  50% { transform: translate(-36px, 26px); }
+  100% { transform: translate(0,0); }
+}
+@keyframes sb-dot {
+  0%, 60%, 100% { opacity: 0.3; transform: translateY(0); }
+  30% { opacity: 1; transform: translateY(-3px); }
+}
+@keyframes sb-scan {
+  0% { transform: translateY(-12vh); opacity: 0; }
+  12% { opacity: 1; }
+  88% { opacity: 1; }
+  100% { transform: translateY(112vh); opacity: 0; }
+}
+
+/* Utility classes */
+.animate-rise { animation: sb-rise 0.8s cubic-bezier(0.2,0,0,1) forwards; }
+.animate-soft { animation: sb-soft 0.7s ease forwards; }
+.animate-pop { animation: sb-pop 0.5s cubic-bezier(0.2,0,0,1) forwards; }
+.animate-fade { animation: sb-fade 0.5s ease forwards; }
+
+.glass-card {
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 18px;
+  backdrop-filter: blur(6px);
+}
+
+.glass-card-strong {
+  background: rgba(255,255,255,0.09);
+  border: 1px solid rgba(255,255,255,0.14);
+  border-radius: 18px;
+  backdrop-filter: blur(10px);
+}
+
+.sb-eyebrow {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: #6fb8aa;
+}
+
+.risk-badge-high {
+  background: rgba(217,95,72,0.15);
+  color: #e88d78;
+  border: 1px solid rgba(217,95,72,0.3);
+  border-radius: 999px;
+  padding: 3px 10px;
+  font-size: 11px;
+  font-weight: 600;
+}
+.risk-badge-medium {
+  background: rgba(183,121,31,0.15);
+  color: #e9c685;
+  border: 1px solid rgba(183,121,31,0.35);
+  border-radius: 999px;
+  padding: 3px 10px;
+  font-size: 11px;
+  font-weight: 600;
+}
+.risk-badge-low {
+  background: rgba(31,111,100,0.15);
+  color: #6fb8aa;
+  border: 1px solid rgba(31,111,100,0.3);
+  border-radius: 999px;
+  padding: 3px 10px;
+  font-size: 11px;
+  font-weight: 600;
 }
