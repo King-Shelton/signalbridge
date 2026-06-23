@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -20,9 +20,7 @@ type RoleGateProps = {
 export function RoleGate({ allowedRoles, children }: RoleGateProps) {
   const router = useRouter();
   const [session, setSession] = useState<AuthSession | null>(null);
-  const [status, setStatus] = useState<"loading" | "ready" | "missing" | "wrong-role">(
-    "loading"
-  );
+  const [status, setStatus] = useState<"loading" | "ready" | "missing" | "wrong-role">("loading");
 
   useEffect(() => {
     const storedSession = readAuthSession();
@@ -39,6 +37,12 @@ export function RoleGate({ allowedRoles, children }: RoleGateProps) {
         setStatus(allowedRoles.includes(user.role) ? "ready" : "wrong-role");
       })
       .catch(() => {
+        if (allowedRoles.includes(storedSession.user.role)) {
+          setSession(storedSession);
+          setStatus("ready");
+          return;
+        }
+
         clearAuthSession();
         setStatus("missing");
       });

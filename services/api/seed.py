@@ -221,19 +221,19 @@ def seed() -> None:
 
         upsert_youth(db, "youth_mira", youth_users["mira"], worker, "Web Chat",
                      "Prefers gentle check-ins, clear choices, and not having to repeat painful details.",
-                     "Cyberbullying, school avoidance, peer group pressure.")
+                     "Cyberbullying, school avoidance, and peer group pressure.")
         upsert_youth(db, "youth_jay", youth_users["jay"], worker, "WhatsApp",
                      "Responds best to calm, practical options and a clear next contact window.",
-                     "Peer pressure, repeated late-night messages, conflict avoidance.")
+                     "Peer pressure, repeated late-night messages, and conflict avoidance.")
         upsert_youth(db, "youth_dan", youth_users["dan"], worker, "Instagram",
                      "Needs short morning check-ins and concrete next steps before school.",
-                     "Poor sleep, online teasing, anxiety before class.")
+                     "Poor sleep, online teasing, and anxiety before class.")
         upsert_youth(db, "youth_afiq", youth_users["afiq"], worker, "GatherTown",
                      "Prefers light-touch monitoring unless he asks for more support.",
-                     "Academic load, quiet withdrawal when stressed.")
+                     "Academic load and quiet withdrawal when stressed.")
         upsert_youth(db, "youth_leanne", youth_users["leanne"], worker_two, "Discord",
                      "Likes tidy follow-through and agreed check-in times.",
-                     "Post-session follow-up, occasional social anxiety.")
+                     "Post-session follow-up and occasional social anxiety.")
         db.flush()
 
         rows = [
@@ -259,9 +259,9 @@ def seed() -> None:
                 "concern": "Cyberbullying involving edited photos in a class group chat.",
                 "quote": "I'm so tired of explaining this.",
                 "state": "Tired, embarrassed, and reluctant to repeat the story.",
-                "worker_response": "Hi Mira, I read the note you allowed SignalBridge to prepare. You don't have to repeat everything unless you want to. Can I first check whether you feel safe going to school today?",
+                "worker_response": "Hi Mira, I read the note you allowed SignalBridge to prepare. You do not have to repeat everything unless you want to. Can I first check whether you feel safe going to school today?",
                 "what_ai_did": "Validated distress, identified cyberbullying and school avoidance as the core signals, and prepared the handoff only after consent.",
-                "what_not_to_repeat": "Do not make Mira retell the edited-photo incident unless she chooses to add more.",
+                "what_not_to_repeat": "Do not make Mira retell the edited-photo incident unless she chooses to add more detail.",
                 "next": "Review the handoff first thing, open with a safety check, and plan a same-day follow-up.",
             },
             {
@@ -336,7 +336,7 @@ def seed() -> None:
                 "concern": "Routine check-in after a quiet evening.",
                 "quote": "I'm okay, just busy with school stuff.",
                 "state": "Settled and responsive.",
-                "worker_response": "Thanks for the update, Afiq. I'll keep this light unless anything changes, and you can tell me if you want more support.",
+                "worker_response": "Thanks for the update, Afiq. I will keep this light unless anything changes, and you can tell me if you want more support.",
                 "what_ai_did": "Tagged the conversation as stable, captured the low-risk tone, and preserved a light-touch follow-up path.",
                 "what_not_to_repeat": "Do not over-interpret a routine check-in as an escalation.",
                 "next": "Send a warm check-in and continue light-touch monitoring.",
@@ -462,8 +462,8 @@ def seed() -> None:
             upsert_case(db, case_id, youth_id, worker, status, priority, summary, updated_at, follow_up)
             add_case_note(
                 db, f"note_{case_id}_seed", case_id, worker,
-                f"Seed context: {summary}",
-                "Review the latest handoff first." if priority in {"high", "medium"} else "Continue agreed monitoring.",
+                f"Demo context: {summary}",
+                "Start with the latest handoff and keep the first message short." if priority in {"high", "medium"} else "Continue agreed monitoring.",
                 updated_at,
             )
 
