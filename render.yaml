@@ -5,7 +5,7 @@ services:
     plan: free
     region: singapore
     repo: https://github.com/King-Shelton/signalbridge
-    branch: dev
+    branch: main
     autoDeploy: true
     dockerfilePath: ./services/api/Dockerfile
     dockerContext: .
@@ -32,7 +32,7 @@ services:
     plan: free
     region: singapore
     repo: https://github.com/King-Shelton/signalbridge
-    branch: dev
+    branch: main
     autoDeploy: true
     dockerfilePath: ./apps/web/Dockerfile
     dockerContext: .

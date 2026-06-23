@@ -73,15 +73,30 @@ Primary backend endpoints:
 GET  /health
 GET  /version
 POST /auth/login
+
+GET  /youth/conversations
+POST /youth/conversations/{id}/messages
+POST /youth/conversations/{id}/handoff-consent
+
+POST /ai/handoff/{conversation_id}
+
 GET  /worker/cockpit
-GET  /signals/radar
+GET  /worker/cases/{id}
 PATCH /worker/cases/{id}/status
 POST /worker/cases/{id}/notes
+GET  /worker/handoffs/{id}
+GET  /worker/youths/{id}
+
+GET  /signals/radar
+
 GET  /supervisor/load
+GET  /supervisor/workers
 PATCH /supervisor/cases/{id}/assign
+
 GET  /audit/logs
 GET  /analytics/summary
 POST /simulator/intake
+GET  /constants
 ```
 
 ## Main Fictional Case
