@@ -1,3 +1,4 @@
+import argparse
 import json
 from datetime import datetime, timedelta
 
@@ -15,6 +16,11 @@ from app.models.signal import Signal
 from app.models.user import User, UserRole
 from app.models.youth_profile import YouthProfile
 from app.services.auth_service import hash_password
+
+
+def reset_database() -> None:
+    Base.metadata.drop_all(bind=engine)
+    Base.metadata.create_all(bind=engine)
 
 
 def upsert_user(db: Session, user_id: str, name: str, email: str, role: UserRole) -> User:
@@ -199,8 +205,13 @@ def add_case_note(
     note.created_at = created_at
 
 
-def seed() -> None:
-    Base.metadata.create_all(bind=engine)
+def seed(reset: bool = False) -> None:
+    if reset:
+        reset_database()
+        print("SignalBridge database reset.")
+    else:
+        Base.metadata.create_all(bind=engine)
+
     db = SessionLocal()
     now = datetime.utcnow().replace(microsecond=0)
 
@@ -518,5 +529,9 @@ def seed() -> None:
 
 
 if __name__ == "__main__":
-    seed()
+    parser = argparse.ArgumentParser(description="Seed SignalBridge fictional demo data.")
+    parser.add_argument("--reset", action="store_true", help="Drop all application tables before reseeding.")
+    args = parser.parse_args()
+
+    seed(reset=args.reset)
     print("Seeded SignalBridge demo data successfully.")
