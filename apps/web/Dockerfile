@@ -26,4 +26,6 @@ COPY --from=builder /app/apps/web ./apps/web
 
 EXPOSE 3000
 
+HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 CMD wget -q --spider "http://127.0.0.1:${PORT:-3000}/login"
+
 CMD ["sh", "-c", "npm --workspace apps/web run start -- --hostname 0.0.0.0 --port ${PORT:-3000}"]

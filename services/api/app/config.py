@@ -18,7 +18,7 @@ class Settings(BaseSettings):
     openai_timeout_seconds: float = 12.0
     ai_prompt_version: str = "handoff-v1"
 
-    model_config = SettingsConfigDict(env_file=".env", env_prefix="SIGNALBRIDGE_")
+    model_config = SettingsConfigDict(env_file=".env", env_prefix="SIGNALBRIDGE_", extra="ignore")
 
     @field_validator("database_url", mode="before")
     @classmethod
