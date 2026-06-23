@@ -14,11 +14,12 @@ class Settings(BaseSettings):
     access_token_minutes: int = 60
     cors_origins: str = "http://localhost:3000,http://127.0.0.1:3000"
     openai_api_key: str | None = None
-    openai_model: str = "gpt-4.1-mini"
-    openai_timeout_seconds: float = 12.0
+    openai_base_url: str = "https://openrouter.ai/api/v1"
+    openai_model: str = "google/gemma-3-12b-it:free"
+    openai_timeout_seconds: float = 30.0
     ai_prompt_version: str = "handoff-v1"
 
-    model_config = SettingsConfigDict(env_file=".env", env_prefix="SIGNALBRIDGE_")
+    model_config = SettingsConfigDict(env_file=".env", env_prefix="SIGNALBRIDGE_", extra="ignore")
 
     @field_validator("database_url", mode="before")
     @classmethod

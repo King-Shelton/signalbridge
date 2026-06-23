@@ -328,22 +328,29 @@ def build_handoff_brief_with_ai(
     try:
         from openai import OpenAI
 
-        client = OpenAI(api_key=settings.openai_api_key, timeout=settings.openai_timeout_seconds)
+        client = OpenAI(
+            api_key=settings.openai_api_key,
+            base_url=settings.openai_base_url,
+            timeout=settings.openai_timeout_seconds,
+        )
         transcript = "\n".join(f"{message.sender_type.value}: {message.content}" for message in messages)[-12000:]
-        response = client.responses.parse(
+        schema = HandoffDraft.model_json_schema()
+        response = client.chat.completions.create(
             model=settings.openai_model,
-            input=[
+            messages=[
                 {"role": "system", "content": (
                     "Prepare a concise youth-support handoff for a trained human worker. Do not diagnose, counsel, "
                     "promise confidentiality, or invent facts. Preserve youth agency, avoid clinical labels, and make "
-                    "the first response begin from the approved context without requiring repetition."
+                    "the first response begin from the approved context without requiring repetition. "
+                    f"Respond ONLY with a JSON object matching this schema: {schema}"
                 )},
                 {"role": "user", "content": f"Risk level fixed by safety rules: {assessment.risk_level.value}.\nTranscript:\n{transcript}"},
             ],
-            text_format=HandoffDraft,
+            response_format={"type": "json_object"},
         )
-        draft = response.output_parsed
-        if draft is None:
+        raw = response.choices[0].message.content or ""
+        draft = HandoffDraft.model_validate_json(raw)
+        if not draft.main_concern:
             raise ValueError("Model returned no structured handoff")
         combined = " ".join([draft.main_concern, draft.emotional_state, draft.suggested_worker_response]).lower()
         prohibited = ("diagnosed", "you have depression", "you have anxiety", "keep this secret", "professional advice")
@@ -367,6 +374,76 @@ def build_handoff_brief_with_ai(
                      model_name=settings.openai_model, prompt_version=settings.ai_prompt_version,
                      safety_status=assessment.safety_status, error=str(exc)[:1000]))
         return fallback, AI_MODE
+
+
+SAFENIGHT_FALLBACK_REPLY = (
+    "I am sorry this is happening. I am not a counsellor, but I can stay with you "
+    "for this moment, help you slow things down, and prepare a short note for your "
+    "worker so you do not have to repeat everything tomorrow. If you feel in "
+    "immediate danger, please contact emergency services or a trusted adult now."
+)
+
+CRITICAL_FALLBACK_REPLY = (
+    "Thank you for telling me. I cannot provide emergency support, so a trained human needs to review this now. "
+    "If you may act on these thoughts or are in immediate danger, contact Singapore emergency services at 995, "
+    "Samaritans of Singapore at 1767, or a trusted adult who can stay with you. Are you somewhere physically safe right now?"
+)
+
+
+def generate_safenight_reply(new_message: str, history: list[Message], assessment: RiskAssessment) -> str:
+    """Generate a contextual SafeNight reply using the AI model, with rule-based fallback."""
+    if assessment.risk_level == RiskLevel.critical:
+        return CRITICAL_FALLBACK_REPLY
+
+    settings = get_settings()
+    if not settings.openai_api_key:
+        return SAFENIGHT_FALLBACK_REPLY
+
+    try:
+        from openai import OpenAI
+
+        client = OpenAI(
+            api_key=settings.openai_api_key,
+            base_url=settings.openai_base_url,
+            timeout=settings.openai_timeout_seconds,
+        )
+
+        prior = "\n".join(
+            f"{m.sender_type.value}: {m.content}"
+            for m in history[-10:]
+        )
+        prompt = (
+            f"Prior conversation:\n{prior}\n\nyouth: {new_message}"
+            if prior else
+            f"youth: {new_message}"
+        )
+
+        response = client.chat.completions.create(
+            model=settings.openai_model,
+            messages=[
+                {"role": "system", "content": (
+                    "You are SafeNight, a compassionate after-hours AI companion for at-risk youth in Singapore. "
+                    "Your role is to acknowledge feelings, keep the youth calm, and help them feel heard — "
+                    "NOT to counsel, diagnose, or provide clinical advice. "
+                    "Never promise confidentiality. Never give medical or psychiatric labels. "
+                    "Always remind the youth that a real worker will follow up. "
+                    "If there is any crisis language, direct them to emergency services (995) immediately. "
+                    "Reply in 2-4 short, warm, conversational sentences. Do not use bullet points or lists."
+                )},
+                {"role": "user", "content": prompt},
+            ],
+        )
+        reply = (response.choices[0].message.content or "").strip()
+        if not reply or len(reply) < 10:
+            return SAFENIGHT_FALLBACK_REPLY
+
+        prohibited = ("you have depression", "you have anxiety", "keep this secret", "i promise", "clinically")
+        if any(term in reply.lower() for term in prohibited):
+            return SAFENIGHT_FALLBACK_REPLY
+
+        return reply
+    except Exception:
+        return SAFENIGHT_FALLBACK_REPLY
 
 
 def suggest_worker_reply(assessment: RiskAssessment) -> str:
