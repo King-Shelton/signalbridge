@@ -13,6 +13,8 @@ from fastapi.testclient import TestClient
 
 from app.database import Base, engine
 from app.main import app
+from app.services.ai_service import CRITICAL_FALLBACK_REPLY, generate_safenight_reply
+from app.services.safenight_service import assess_safe_night_message
 from seed import seed
 
 
@@ -84,6 +86,28 @@ def test_critical_language_cannot_be_downgraded() -> None:
     assert response.json()["aiReply"]["safetyStatus"] == "requires_immediate_human_review"
     follow_up = client.post(f"/youth/conversations/{conversation_id}/messages", headers=youth_headers, json={"content": "Thank you."})
     assert follow_up.json()["conversation"]["riskLevel"] == "critical"
+
+
+def test_safenight_fallback_reply_is_contextual_without_ai_key() -> None:
+    samples = [
+        "hi",
+        "hey i want to stop getting bullied by mruthulan",
+        "hello im scared of the dark",
+        "I am so tired and cannot anymore",
+    ]
+    replies = [
+        generate_safenight_reply(message, [], assess_safe_night_message(message))
+        for message in samples
+    ]
+
+    assert len(set(replies)) == len(samples)
+    assert any("bullying" in reply.lower() for reply in replies)
+    assert any("dark" in reply.lower() for reply in replies)
+    assert CRITICAL_FALLBACK_REPLY == generate_safenight_reply(
+        "I want to die",
+        [],
+        assess_safe_night_message("I want to die"),
+    )
 
 
 def test_supervisor_reassignment_analytics_audit_and_simulator() -> None:

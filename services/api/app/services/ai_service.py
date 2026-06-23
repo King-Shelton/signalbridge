@@ -391,6 +391,47 @@ CRITICAL_FALLBACK_REPLY = (
 )
 
 
+def build_safenight_fallback_reply(new_message: str, assessment: RiskAssessment) -> str:
+    """Return a varied, safety-bounded reply when the model path is unavailable."""
+    text = new_message.strip().lower()
+    signal_types = {signal.type for signal in assessment.signals}
+
+    if any(greeting in text.split()[:3] for greeting in ("hi", "hello", "hey")) and len(text.split()) <= 4:
+        return (
+            "Hi, I am here with you. You can start with one sentence, or just tell me what feels heaviest tonight. "
+            "If you want, I can help prepare a short note for your worker so you do not have to explain everything again."
+        )
+
+    if "cyberbullying" in signal_types:
+        return (
+            "That sounds humiliating and exhausting to carry alone. I am not a counsellor, but I can help you slow this down "
+            "and keep a clear note for your worker about the bullying, so you do not have to retell the whole thing tomorrow."
+        )
+
+    if "school_avoidance" in signal_types:
+        return (
+            "It makes sense that school feels hard to face right now. For tonight, we can focus on one small next step and "
+            "prepare a note for your worker about what is making tomorrow feel unsafe."
+        )
+
+    if "negative_emotional_language" in signal_types or "negative_emotion_spike" in signal_types:
+        return (
+            "I hear that you are feeling overwhelmed. You do not need to explain everything at once; we can keep this simple "
+            "and save the important parts for your worker to read with your permission."
+        )
+
+    if any(term in text for term in ("dark", "scared", "afraid", "fear")):
+        return (
+            "Being scared can feel bigger at night. Try to stay somewhere you feel a little safer if you can, and tell me "
+            "what is making the dark feel hard right now. A real worker can follow up on anything you choose to share."
+        )
+
+    return (
+        "I am here with you. You do not have to make the whole thing clear tonight; one small piece is enough. "
+        "If you want, I can help keep a short note ready for your worker."
+    )
+
+
 def generate_safenight_reply(new_message: str, history: list[Message], assessment: RiskAssessment) -> str:
     """Generate a contextual SafeNight reply using the AI model, with rule-based fallback."""
     if assessment.risk_level == RiskLevel.critical:
@@ -398,7 +439,7 @@ def generate_safenight_reply(new_message: str, history: list[Message], assessmen
 
     settings = get_settings()
     if not settings.openai_api_key:
-        return SAFENIGHT_FALLBACK_REPLY
+        return build_safenight_fallback_reply(new_message, assessment)
 
     try:
         from openai import OpenAI
@@ -435,15 +476,15 @@ def generate_safenight_reply(new_message: str, history: list[Message], assessmen
         )
         reply = (response.choices[0].message.content or "").strip()
         if not reply or len(reply) < 10:
-            return SAFENIGHT_FALLBACK_REPLY
+            return build_safenight_fallback_reply(new_message, assessment)
 
         prohibited = ("you have depression", "you have anxiety", "keep this secret", "i promise", "clinically")
         if any(term in reply.lower() for term in prohibited):
-            return SAFENIGHT_FALLBACK_REPLY
+            return build_safenight_fallback_reply(new_message, assessment)
 
         return reply
     except Exception:
-        return SAFENIGHT_FALLBACK_REPLY
+        return build_safenight_fallback_reply(new_message, assessment)
 
 
 def suggest_worker_reply(assessment: RiskAssessment) -> str:

@@ -39,7 +39,7 @@ def assess_safe_night_message(content: str) -> SafeNightAssessment:
     signals: list[DetectedSignal] = []
     score = 20
 
-    if any(term in text for term in ["edit", "photo", "group chat", "bully", "bullying"]):
+    if any(term in text for term in ["edit", "photo", "group chat", "bully", "bullied", "bullying"]):
         signals.append(
             DetectedSignal(
                 type="cyberbullying",

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import { RoleGate } from "@/components/RoleGate";
 import { clearAuthSession, readAuthSession } from "@/lib/auth-session";
 
 const NAV = [
@@ -70,6 +71,7 @@ export default function SupervisorLayout({ children }: { children: React.ReactNo
   }
 
   return (
+    <RoleGate allowedRoles={["supervisor", "admin"]}>
     <div className="fixed inset-0 flex bg-[#060d0c] font-sans overflow-hidden" style={{ WebkitFontSmoothing: "antialiased" }}>
       {/* Ambient */}
       <div className="pointer-events-none absolute inset-0">
@@ -138,5 +140,6 @@ export default function SupervisorLayout({ children }: { children: React.ReactNo
         {children}
       </main>
     </div>
+    </RoleGate>
   );
 }
