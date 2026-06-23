@@ -6,7 +6,7 @@ services:
     region: singapore
     repo: https://github.com/King-Shelton/signalbridge
     branch: main
-    autoDeploy: true
+    autoDeployTrigger: commit
     dockerfilePath: ./services/api/Dockerfile
     dockerContext: .
     healthCheckPath: /health
@@ -33,7 +33,7 @@ services:
     region: singapore
     repo: https://github.com/King-Shelton/signalbridge
     branch: main
-    autoDeploy: true
+    autoDeployTrigger: commit
     dockerfilePath: ./apps/web/Dockerfile
     dockerContext: .
     healthCheckPath: /login
@@ -43,6 +43,8 @@ services:
           name: signalbridge-api
           type: web
           property: host
+      - key: NEXT_PUBLIC_SIGNALBRIDGE_API_URL
+        value: https://signalbridge-api.onrender.com
 
 databases:
   - name: signalbridge-postgres
@@ -52,6 +54,3 @@ databases:
     region: singapore
     postgresMajorVersion: "16"
     ipAllowList: []
-
-previews:
-  generation: manual
