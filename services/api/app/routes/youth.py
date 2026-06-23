@@ -25,7 +25,7 @@ from app.schemas.youth import (
 )
 from app.services.auth_service import get_current_user
 from app.services.safenight_service import assess_safe_night_message
-from app.services.ai_service import analyse_risk, apply_risk_to_conversation, build_handoff_brief_with_ai, get_conversation_messages, persist_signals
+from app.services.ai_service import analyse_risk, apply_risk_to_conversation, build_handoff_brief_with_ai, generate_safenight_reply, get_conversation_messages, persist_signals
 from app.routes.operations import handoff_payload
 
 router = APIRouter()
@@ -160,6 +160,8 @@ def create_youth_message(
     now = datetime.utcnow()
     assessment = assess_safe_night_message(payload.content)
 
+    history = get_conversation_messages(db, conversation.id)
+
     message = Message(
         conversation_id=conversation.id,
         sender_type=SenderType.youth,
@@ -168,10 +170,11 @@ def create_youth_message(
     db.add(message)
     db.flush()
 
+    reply_content = generate_safenight_reply(payload.content, history, assessment)
     ai_reply = Message(
         conversation_id=conversation.id,
         sender_type=SenderType.ai,
-        content=assessment.reply,
+        content=reply_content,
         safety_status=assessment.safety_status,
     )
     db.add(ai_reply)

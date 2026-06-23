@@ -26,7 +26,7 @@ const DEMOS: Array<{
     sublabel: "Youth | Mira Tan",
     description: "After-hours chat with consent-gated handoff",
     email: "mira@signalbridge.test",
-    password: "password123",
+    password: "password",
     icon: (
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
         <path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z" />
@@ -43,7 +43,7 @@ const DEMOS: Array<{
     sublabel: "Worker | Aisha Rahman",
     description: "Signal Radar, handoff briefs, case workflow",
     email: "worker1@signalbridge.test",
-    password: "password123",
+    password: "password",
     icon: (
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
         <path d="M19.07 4.93A10 10 0 0 0 6.99 3.34" />
@@ -67,7 +67,7 @@ const DEMOS: Array<{
     sublabel: "Supervisor | Daniel Lim",
     description: "Worker load monitor, audit log, case reassignment",
     email: "supervisor@signalbridge.test",
-    password: "password123",
+    password: "password",
     icon: (
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
         <path d="M18 21a8 8 0 0 0-16 0" />
