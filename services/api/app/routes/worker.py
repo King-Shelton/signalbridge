@@ -354,7 +354,7 @@ def get_worker_cockpit(
         activeCases=sum(1 for case in cases if case.status.value != "closed"),
         highRiskCases=sum(1 for item in items if item.conversation and item.conversation.riskScore >= 70),
         unresolvedHandoffs=sum(1 for item in items if item.conversation and item.conversation.unresolvedHandoff),
-        needsFollowUp=sum(1 for case in cases if case.status.value == "needs_follow_up"),
+        needsFollowUp=sum(1 for case in cases if case.status.value == "needs_review"),
     )
     return WorkerCockpitResponse(workerId=current_user.id, scope=scope, stats=stats, cases=items)
 

@@ -71,6 +71,8 @@ export default function SupervisorPage() {
   const [notice, setNotice] = useState("");
   const [assignmentModalCase, setAssignmentModalCase] = useState<ConversationItem | null>(null);
   const [assignmentWorkerId, setAssignmentWorkerId] = useState("");
+  const [busyCaseId, setBusyCaseId] = useState("");
+  const [simulating, setSimulating] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -94,9 +96,8 @@ export default function SupervisorPage() {
     if (a.status === "fulfilled") setAudit(a.value.logs);
     if (stats.status === "fulfilled") setAnalytics(stats.value);
 
-    if ([l, w, c, a, stats].every((result) => result.status === "rejected")) {
-      setError("Could not load supervisor data. Check the API is running.");
-    }
+    const allFailed = [l, w, c, a, stats].every((result) => result.status === "rejected");
+    if (allFailed) setError("Could not load supervisor data. Check the API is running.");
     setLoading(false);
   }, []);
 
@@ -148,6 +149,8 @@ export default function SupervisorPage() {
   async function confirmReassign() {
     if (!assignmentModalCase || !assignmentWorkerId) return;
 
+    setBusyCaseId(assignmentModalCase.case!.id);
+    setError("");
     try {
       await apiFetch(`/supervisor/cases/${assignmentModalCase.case!.id}/assign`, {
         method: "PATCH",
@@ -159,10 +162,16 @@ export default function SupervisorPage() {
       await load();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Reassignment failed");
+    } finally {
+      setBusyCaseId("");
     }
   }
 
   async function simulate() {
+    if (!youthId || simulating) return;
+
+    setSimulating(true);
+    setError("");
     try {
       const result = await apiFetch<{ riskLevel: string; riskScore: number }>("/simulator/intake", {
         method: "POST",
@@ -172,6 +181,8 @@ export default function SupervisorPage() {
       await load();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Simulation failed");
+    } finally {
+      setSimulating(false);
     }
   }
 
@@ -224,7 +235,7 @@ export default function SupervisorPage() {
       {error && (
         <div className="text-[13px] text-[#e88d78] bg-[rgba(217,95,72,0.1)] border border-[rgba(217,95,72,0.2)] rounded-xl px-4 py-3 flex items-center gap-3">
           {error}
-          <button onClick={() => void load()} className="underline">
+          <button type="button" onClick={() => void load()} className="underline">
             Retry
           </button>
         </div>
@@ -464,8 +475,10 @@ export default function SupervisorPage() {
             style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)", color: "rgba(214,235,230,0.8)" }}
           />
           <button
+            type="button"
+            disabled={simulating || !youthId}
             onClick={() => void simulate()}
-            className="px-4 py-2 rounded-[9px] text-[12.5px] font-semibold transition-all"
+            className="px-4 py-2 rounded-[9px] text-[12.5px] font-semibold transition-all disabled:opacity-40"
             style={{ background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.15)", color: "#f1f6f4" }}
           >
             Simulate
@@ -510,6 +523,7 @@ export default function SupervisorPage() {
       {assignmentModalCase && (
         <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
           <button
+            type="button"
             aria-label="Close reassignment modal"
             className="absolute inset-0 bg-black/70"
             onClick={() => {
@@ -529,6 +543,7 @@ export default function SupervisorPage() {
                 </p>
               </div>
               <button
+                type="button"
                 onClick={() => {
                   setAssignmentModalCase(null);
                   setAssignmentWorkerId("");
@@ -596,6 +611,7 @@ export default function SupervisorPage() {
 
             <div className="mt-5 flex flex-wrap items-center justify-end gap-3">
               <button
+                type="button"
                 onClick={() => {
                   setAssignmentModalCase(null);
                   setAssignmentWorkerId("");
@@ -606,8 +622,10 @@ export default function SupervisorPage() {
                 Cancel
               </button>
               <button
+                type="button"
+                disabled={busyCaseId === assignmentModalCase.case!.id || !assignmentWorkerId}
                 onClick={() => void confirmReassign()}
-                className="px-4 py-2 rounded-[10px] text-[12.5px] font-semibold transition-all"
+                className="px-4 py-2 rounded-[10px] text-[12.5px] font-semibold transition-all disabled:opacity-40"
                 style={{ background: "rgba(31,111,100,0.2)", border: "1px solid rgba(111,184,170,0.3)", color: "#6fb8aa" }}
               >
                 Confirm reassignment

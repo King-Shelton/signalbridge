@@ -32,7 +32,9 @@ export default function AuditLogPage() {
     }
   }, []);
 
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    void load();
+  }, [load]);
 
   return (
     <div className="space-y-5">
@@ -49,13 +51,14 @@ export default function AuditLogPage() {
         <section className="space-y-2">
           {logs.map((row) => {
             let details: Record<string, unknown> = {};
-            try { details = JSON.parse(row.details) as Record<string, unknown>; } catch { /* raw string */ }
+            try {
+              details = JSON.parse(row.details) as Record<string, unknown>;
+            } catch {
+              // Keep raw string fallback.
+            }
 
             return (
-              <article
-                key={row.id}
-                className="rounded-2xl border border-slate-200 bg-white p-4"
-              >
+              <article key={row.id} className="rounded-2xl border border-slate-200 bg-white p-4">
                 <div className="flex flex-wrap items-start justify-between gap-2">
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="rounded-full bg-pine/10 px-2.5 py-1 text-xs font-semibold text-pine">
@@ -63,20 +66,20 @@ export default function AuditLogPage() {
                     </span>
                     <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs text-slate-600">
                       {row.entityType}
-                      {row.entityId ? ` · ${row.entityId}` : ""}
+                      {row.entityId ? ` | ${row.entityId}` : ""}
                     </span>
                   </div>
                   <time className="text-xs text-slate-400">
-                    {new Date(row.createdAt).toLocaleString()}
+                    {new Date(row.createdAt).toLocaleString("en-SG")}
                   </time>
                 </div>
 
                 {Object.keys(details).length > 0 && (
                   <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-1 text-xs sm:grid-cols-3">
-                    {Object.entries(details).map(([k, v]) => (
-                      <div key={k} className="flex gap-1">
-                        <dt className="font-semibold text-slate-500">{k}:</dt>
-                        <dd className="text-slate-700">{String(v)}</dd>
+                    {Object.entries(details).map(([key, value]) => (
+                      <div key={key} className="flex gap-1">
+                        <dt className="font-semibold text-slate-500">{key}:</dt>
+                        <dd className="text-slate-700">{String(value)}</dd>
                       </div>
                     ))}
                   </dl>
