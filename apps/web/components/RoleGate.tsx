@@ -37,12 +37,6 @@ export function RoleGate({ allowedRoles, children }: RoleGateProps) {
         setStatus(allowedRoles.includes(user.role) ? "ready" : "wrong-role");
       })
       .catch(() => {
-        if (allowedRoles.includes(storedSession.user.role)) {
-          setSession(storedSession);
-          setStatus("ready");
-          return;
-        }
-
         clearAuthSession();
         setStatus("missing");
       });
