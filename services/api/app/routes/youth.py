@@ -181,8 +181,19 @@ def create_youth_message(
     db.add(ai_reply)
     db.flush()
 
+    # Only record each signal type once per conversation — otherwise low-risk
+    # messages keep appending duplicate "after_hours_support" rows that pile up
+    # in the worker view and the youth's support-signals card.
+    existing_types = {
+        signal_type
+        for (signal_type,) in db.execute(
+            select(Signal.type).where(Signal.conversation_id == conversation.id)
+        ).all()
+    }
     created_signals: list[Signal] = []
     for detected_signal in assessment.signals:
+        if detected_signal.type in existing_types:
+            continue
         signal = Signal(
             conversation_id=conversation.id,
             youth_id=youth.id,
@@ -193,6 +204,7 @@ def create_youth_message(
         )
         db.add(signal)
         created_signals.append(signal)
+        existing_types.add(detected_signal.type)
 
     conversation.last_message_at = now
     risk_rank = {"low": 1, "medium": 2, "high": 3, "critical": 4}
