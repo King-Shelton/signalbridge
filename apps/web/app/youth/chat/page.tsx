@@ -107,15 +107,17 @@ export default function YouthChatPage() {
   // 5-second polling
   useEffect(() => {
     if (!session?.accessToken || !conversation) return;
+    const conversationId = conversation.id;
     const interval = setInterval(async () => {
       if (isSending) return;
       try {
         const data = await apiFetch<{ conversations: Conversation[] }>("/youth/conversations");
-        if (data.conversations[0]) setConversation(data.conversations[0]);
+        const updated = data.conversations.find((item) => item.id === conversationId) ?? data.conversations[0];
+        if (updated) setConversation(updated);
       } catch { /* silent */ }
     }, 5000);
     return () => clearInterval(interval);
-  }, [session, conversation?.id, isSending]);
+  }, [session?.accessToken, conversation, isSending]);
 
   // Auto-scroll
   useEffect(() => {
@@ -184,7 +186,7 @@ export default function YouthChatPage() {
       <div className="fixed inset-0 bg-[#060d0c] flex items-center justify-center">
         <div className="flex flex-col items-center gap-4">
           <div className="w-10 h-10 rounded-full border-2 border-[#6fb8aa] border-t-transparent animate-spin" />
-          <p className="text-[rgba(214,235,230,0.5)] text-sm">Loading your conversation…</p>
+          <p className="text-[rgba(214,235,230,0.5)] text-sm">Loading your conversation...</p>
         </div>
       </div>
     );
@@ -346,7 +348,7 @@ export default function YouthChatPage() {
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
             onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); void sendMessage(); } }}
-            placeholder="What's on your mind tonight…"
+            placeholder="What's on your mind tonight..."
             rows={1}
             disabled={isSending}
             className="flex-1 bg-transparent text-[14px] text-[#f1f6f4] placeholder-[rgba(214,235,230,0.3)] resize-none outline-none leading-relaxed"

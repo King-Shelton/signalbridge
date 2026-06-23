@@ -1,9 +1,20 @@
-﻿import type { AuthSession, AuthUser } from "@/lib/auth-session";
-import { getDemoDownloadText, tryDemoApiResponse } from "@/lib/demo-api";
-import { getDemoRoleFromToken, getDemoSessionForCredentials, getDemoUserForRole, isDemoAccessToken } from "@/lib/demo-auth";
+import type { AuthSession, AuthUser } from "@/lib/auth-session";
 
 export const API_BASE_URL =
   process.env.NEXT_PUBLIC_SIGNALBRIDGE_API_URL ?? process.env.NEXT_PUBLIC_API_URL ?? "/api";
+
+/**
+ * Thrown when the API responds with an error status. Carries the HTTP status so
+ * callers can distinguish auth failures (401/403) from genuine outages.
+ */
+export class ApiError extends Error {
+  status: number;
+  constructor(message: string, status: number) {
+    super(message);
+    this.name = "ApiError";
+    this.status = status;
+  }
+}
 
 async function parseApiResponse<T>(response: Response): Promise<T> {
   const body = (await response.json().catch(() => null)) as T | { detail?: string } | null;
@@ -11,16 +22,12 @@ async function parseApiResponse<T>(response: Response): Promise<T> {
   if (!response.ok) {
     const message =
       body && typeof body === "object" && "detail" in body && body.detail
-        ? body.detail
+        ? String(body.detail)
         : "SignalBridge API request failed.";
-    throw new Error(message);
+    throw new ApiError(message, response.status);
   }
 
   return body as T;
-}
-
-async function tryFetchDemoResponse<T>(path: string, init: RequestInit = {}): Promise<T | null> {
-  return await tryDemoApiResponse<T>(path, init);
 }
 
 export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise<T> {
@@ -35,52 +42,25 @@ export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise
     headers.set("Content-Type", "application/json");
   }
 
-  if (isDemoAccessToken(token)) {
-    const demoResponse = await tryFetchDemoResponse<T>(path, { ...init, headers });
-    if (demoResponse !== null) {
-      return demoResponse;
-    }
-  }
-
+  let response: Response;
   try {
-    const response = await fetch(`${API_BASE_URL}${path}`, { ...init, headers, cache: "no-store" });
-    return parseApiResponse<T>(response);
+    response = await fetch(`${API_BASE_URL}${path}`, { ...init, headers, cache: "no-store" });
   } catch {
-    const demoResponse = await tryFetchDemoResponse<T>(path, { ...init, headers });
-    if (demoResponse !== null) {
-      return demoResponse;
-    }
-    throw new Error("SignalBridge API request failed.");
+    throw new ApiError("Can't reach the SignalBridge service. Check your connection and try again.", 0);
   }
+  return parseApiResponse<T>(response);
 }
 
 export async function downloadAuthenticated(path: string, filename: string) {
   const { readAuthSession } = await import("@/lib/auth-session");
   const token = readAuthSession()?.accessToken;
 
-  if (isDemoAccessToken(token)) {
-    const blob = new Blob([getDemoDownloadText(path)], { type: "text/plain" });
-    const url = URL.createObjectURL(blob);
-    const anchor = document.createElement("a");
-    anchor.href = url;
-    anchor.download = filename;
-    anchor.click();
-    URL.revokeObjectURL(url);
-    return;
-  }
-
   const response = await fetch(`${API_BASE_URL}${path}`, {
-    headers: token ? { Authorization: `Bearer ${token}` } : {}
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+    cache: "no-store"
   });
   if (!response.ok) {
-    const blob = new Blob([getDemoDownloadText(path)], { type: "text/plain" });
-    const url = URL.createObjectURL(blob);
-    const anchor = document.createElement("a");
-    anchor.href = url;
-    anchor.download = filename;
-    anchor.click();
-    URL.revokeObjectURL(url);
-    return;
+    throw new ApiError("Download failed.", response.status);
   }
   const url = URL.createObjectURL(await response.blob());
   const anchor = document.createElement("a");
@@ -91,32 +71,25 @@ export async function downloadAuthenticated(path: string, filename: string) {
 }
 
 export async function login(email: string, password: string): Promise<AuthSession> {
-  const demoSession = getDemoSessionForCredentials(email, password);
-  if (demoSession) {
-    return demoSession;
-  }
-
+  let response: Response;
   try {
-    const response = await fetch(`${API_BASE_URL}/auth/login`, {
+    response = await fetch(`${API_BASE_URL}/auth/login`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email, password })
+      body: JSON.stringify({ email, password }),
+      cache: "no-store"
     });
-
-    return parseApiResponse<AuthSession>(response);
   } catch {
-    throw new Error("Could not connect to the SignalBridge API.");
+    throw new ApiError("Can't reach the SignalBridge service. Make sure the API is running.", 0);
   }
+
+  return parseApiResponse<AuthSession>(response);
 }
 
 export async function fetchCurrentUser(accessToken: string): Promise<AuthUser> {
-  const demoRole = getDemoRoleFromToken(accessToken);
-  if (demoRole) {
-    return getDemoUserForRole(demoRole);
-  }
-
   const response = await fetch(`${API_BASE_URL}/auth/me`, {
-    headers: { Authorization: `Bearer ${accessToken}` }
+    headers: { Authorization: `Bearer ${accessToken}` },
+    cache: "no-store"
   });
 
   return parseApiResponse<AuthUser>(response);
