@@ -1,6 +1,8 @@
 import uuid
 from datetime import datetime
 
+from app.timeutil import naive_utcnow
+
 from sqlalchemy import DateTime, ForeignKey, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -15,4 +17,4 @@ class CaseNote(Base):
     author_user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), nullable=False)
     content: Mapped[str] = mapped_column(Text, nullable=False)
     follow_up_action: Mapped[str | None] = mapped_column(Text, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=naive_utcnow, nullable=False)

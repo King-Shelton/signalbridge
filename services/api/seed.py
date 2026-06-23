@@ -5,6 +5,7 @@ from datetime import datetime, timedelta
 from sqlalchemy.orm import Session
 
 from app.database import Base, SessionLocal, engine
+from app.timeutil import naive_utcnow
 from app.models.audit_log import AuditLog
 from app.models.ai_run import AiRun
 from app.models.case import Case, CaseStatus
@@ -213,7 +214,7 @@ def seed(reset: bool = False) -> None:
         Base.metadata.create_all(bind=engine)
 
     db = SessionLocal()
-    now = datetime.utcnow().replace(microsecond=0)
+    now = naive_utcnow().replace(microsecond=0)
 
     try:
         worker = upsert_user(db, "user_worker_1", "Aisha Rahman", "worker1@signalbridge.test", UserRole.worker)

@@ -3,7 +3,10 @@ import { NextRequest } from "next/server";
 export const dynamic = "force-dynamic";
 
 const DEFAULT_API_URL = "https://signalbridge-api-6wc6.onrender.com";
-const REQUEST_TIMEOUT_MS = 15000;
+// Render's free tier spins the API down after ~15 min idle; a cold start can take
+// 30-50s. Keep this above that window so the first request after idle waits for the
+// service to wake instead of failing with a 502.
+const REQUEST_TIMEOUT_MS = 55000;
 
 function normalizeBaseUrl(target: string) {
   const trimmed = target.trim().replace(/\/$/, "");

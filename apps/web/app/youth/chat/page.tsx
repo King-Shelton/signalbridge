@@ -143,15 +143,15 @@ export default function YouthChatPage() {
     setConversation({ ...conversation, messages: [...conversation.messages, optimisticMessage] });
 
     try {
-      const data = await apiFetch<{ conversation?: Conversation; userMessage?: ApiMessage; aiMessage?: ApiMessage }>(
+      const data = await apiFetch<{ conversation?: Conversation; message?: ApiMessage; aiReply?: ApiMessage }>(
         `/youth/conversations/${conversation.id}/messages`,
         { method: "POST", body: JSON.stringify({ content }) }
       );
       if (data.conversation) {
         setConversation(data.conversation);
-      } else if (data.aiMessage) {
+      } else if (data.aiReply) {
         setConversation((current) =>
-          current ? { ...current, messages: [...current.messages.filter((m) => m.id !== optimisticMessage.id), { ...optimisticMessage, id: data.userMessage?.id ?? optimisticMessage.id }, data.aiMessage!] } : current
+          current ? { ...current, messages: [...current.messages.filter((m) => m.id !== optimisticMessage.id), { ...optimisticMessage, id: data.message?.id ?? optimisticMessage.id }, data.aiReply!] } : current
         );
       }
     } catch (sendError) {
@@ -289,6 +289,40 @@ export default function YouthChatPage() {
           <div className="flex justify-start">
             <div className="px-4 py-3" style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "20px 20px 20px 6px", backdropFilter: "blur(6px)" }}>
               <TypingDots />
+            </div>
+          </div>
+        )}
+
+        {/* Support signals — transparency for the youth about what was noticed */}
+        {conversation.signals.length > 0 && (
+          <div className="glass-card p-4 mt-2">
+            <p className="sb-eyebrow mb-1">Support signals</p>
+            <p className="text-[12px] text-[rgba(214,235,230,0.5)] leading-relaxed mb-3">
+              These help your worker notice what may need care. They are not a diagnosis.
+            </p>
+            <div className="space-y-2">
+              {conversation.signals.slice(0, 4).map((signal) => {
+                const sev = signal.severity.toLowerCase();
+                const tone =
+                  sev === "critical" || sev === "high"
+                    ? { fg: "#e88d78", soft: "rgba(217,95,72,0.15)" }
+                    : sev === "medium"
+                      ? { fg: "#e9c685", soft: "rgba(183,121,31,0.15)" }
+                      : { fg: "rgba(214,235,230,0.6)", soft: "rgba(255,255,255,0.06)" };
+                return (
+                  <div key={signal.id} className="rounded-[12px] px-3 py-2.5" style={{ border: "1px solid rgba(255,255,255,0.1)" }}>
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-[13px] font-semibold text-[#f1f6f4]">
+                        {signal.type.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())}
+                      </span>
+                      <span className="text-[10.5px] font-semibold px-2 py-0.5 rounded-full" style={{ background: tone.soft, color: tone.fg }}>
+                        {signal.severity.replace(/\b\w/g, (c) => c.toUpperCase())}
+                      </span>
+                    </div>
+                    <p className="mt-1 text-[12px] leading-relaxed text-[rgba(214,235,230,0.5)]">{signal.reason}</p>
+                  </div>
+                );
+              })}
             </div>
           </div>
         )}

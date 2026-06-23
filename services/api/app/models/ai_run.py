@@ -1,6 +1,8 @@
 import uuid
 from datetime import datetime
 
+from app.timeutil import naive_utcnow
+
 from sqlalchemy import DateTime, ForeignKey, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -18,4 +20,4 @@ class AiRun(Base):
     prompt_version: Mapped[str] = mapped_column(String(40), nullable=False)
     safety_status: Mapped[str] = mapped_column(String(80), nullable=False)
     error: Mapped[str | None] = mapped_column(Text, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=naive_utcnow, nullable=False)

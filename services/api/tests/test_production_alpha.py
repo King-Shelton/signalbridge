@@ -7,7 +7,10 @@ API_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(API_ROOT))
 
 os.environ["SIGNALBRIDGE_DATABASE_URL"] = f"sqlite:///{DB_PATH.as_posix()}"
-os.environ.pop("SIGNALBRIDGE_OPENAI_API_KEY", None)
+# Force the deterministic (no-model) path during tests. Popping the var is not
+# enough because pydantic-settings still reads the key from the .env file; an
+# explicit empty string overrides the .env value so no live model call is made.
+os.environ["SIGNALBRIDGE_OPENAI_API_KEY"] = ""
 
 from fastapi.testclient import TestClient
 from jose import jwt

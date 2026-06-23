@@ -12,6 +12,7 @@ from app.models.handoff_brief import HandoffBrief
 from app.models.signal import Signal
 from app.models.user import User, UserRole
 from app.models.youth_profile import YouthProfile
+from app.timeutil import naive_utcnow
 
 
 SUPERVISOR_ROLES = {UserRole.supervisor, UserRole.admin}
@@ -134,7 +135,7 @@ def follow_up_status(case: Case) -> str:
         return "closed"
     if case.next_follow_up_at is None:
         return "not_scheduled"
-    return "overdue" if case.next_follow_up_at < datetime.utcnow() else "scheduled"
+    return "overdue" if case.next_follow_up_at < naive_utcnow() else "scheduled"
 
 
 def reasons_for_case(case: Case, conversation: Conversation | None, signals: list[Signal]) -> list[str]:

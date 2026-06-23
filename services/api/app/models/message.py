@@ -2,6 +2,8 @@ import enum
 import uuid
 from datetime import datetime
 
+from app.timeutil import naive_utcnow
+
 from sqlalchemy import DateTime, Enum, ForeignKey, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -23,6 +25,6 @@ class Message(Base):
     sender_type: Mapped[SenderType] = mapped_column(Enum(SenderType), nullable=False)
     content: Mapped[str] = mapped_column(Text, nullable=False)
     safety_status: Mapped[str | None] = mapped_column(String(80), nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=naive_utcnow, nullable=False)
 
     conversation: Mapped["Conversation"] = relationship(back_populates="messages")

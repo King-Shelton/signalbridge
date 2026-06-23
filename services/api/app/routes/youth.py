@@ -27,6 +27,7 @@ from app.services.auth_service import get_current_user
 from app.services.safenight_service import assess_safe_night_message
 from app.services.ai_service import analyse_risk, apply_risk_to_conversation, build_handoff_brief_with_ai, generate_safenight_reply, get_conversation_messages, persist_signals
 from app.routes.operations import handoff_payload
+from app.timeutil import naive_utcnow
 
 router = APIRouter()
 
@@ -157,7 +158,7 @@ def create_youth_message(
 ) -> YouthMessageCreateResponse:
     youth = require_youth_profile(db, current_user)
     conversation = get_owned_conversation(db, youth.id, conversation_id)
-    now = datetime.utcnow()
+    now = naive_utcnow()
     assessment = assess_safe_night_message(payload.content)
 
     history = get_conversation_messages(db, conversation.id)

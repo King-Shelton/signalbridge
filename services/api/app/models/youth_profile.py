@@ -1,6 +1,8 @@
 import uuid
 from datetime import datetime
 
+from app.timeutil import naive_utcnow
+
 from sqlalchemy import DateTime, ForeignKey, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -16,7 +18,7 @@ class YouthProfile(Base):
     preferred_channel: Mapped[str] = mapped_column(String(80), default="Web Chat", nullable=False)
     support_style: Mapped[str | None] = mapped_column(Text, nullable=True)
     stressors: Mapped[str | None] = mapped_column(Text, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=naive_utcnow, nullable=False)
 
     user: Mapped["User"] = relationship(
         back_populates="youth_profile",

@@ -12,6 +12,7 @@ from app.models.message import SenderType
 from app.models.user import UserRole
 from app.services.ai_service import analyse_risk, apply_risk_to_conversation, persist_signals
 from app.services.auth_service import require_roles
+from app.timeutil import naive_utcnow
 
 router = APIRouter(prefix="/simulator", tags=["simulator"])
 supervisor_required = require_roles(UserRole.supervisor, UserRole.admin)
@@ -28,7 +29,7 @@ def simulate_intake(payload: IntakeRequest, _: User = Depends(supervisor_require
     youth = db.get(YouthProfile, payload.youthId)
     if youth is None:
         raise HTTPException(status_code=404, detail="Youth not found")
-    conversation = Conversation(youth_id=youth.id, channel=payload.channel, status=ConversationStatus.needs_review, last_message_at=datetime.utcnow())
+    conversation = Conversation(youth_id=youth.id, channel=payload.channel, status=ConversationStatus.needs_review, last_message_at=naive_utcnow())
     db.add(conversation); db.flush()
     message = Message(conversation_id=conversation.id, sender_type=SenderType.youth, content=payload.message)
     db.add(message); db.flush()

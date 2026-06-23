@@ -53,7 +53,7 @@ function Scene1() {
         </div>
         <div className={styles.youthBubble}>
           <AnimatedWords
-            text="People in my class group chat keep editing my photos. I don't want to go school tomorrow."
+            text="People in my class group chat keep editing my photos. I don't want to go school tomorrow. I'm so tired of explaining this."
             startMs={300}
             stepMs={75}
             dur="0.6s"
@@ -88,7 +88,7 @@ function Scene2() {
           </svg>
         </div>
         <h1 className={styles.wordmark}><span>Signal</span>Bridge</h1>
-        <p className={styles.lead}>An after-hours support layer for youth workers, built around consent and handoff.</p>
+        <p className={styles.lead}>An after-hours command centre for youth workers. Not a chatbot - a bridge.</p>
       </div>
     </div>
   );
@@ -102,7 +102,7 @@ function Scene3() {
         <div className={styles.eyebrow}>The promise</div>
         <h2>
           <AnimatedWords
-            text="What happened at night reaches the right worker in the morning, with consent and context intact."
+            text="The youth does not have to repeat their pain twice. The worker does not have to start from zero."
             startMs={250}
             stepMs={95}
             dur="0.7s"
@@ -142,7 +142,7 @@ function Scene4() {
               </svg>
             </div>
             <h3>Detect the signals</h3>
-            <p>Cyberbullying, school avoidance, and after-hours risk are surfaced without pretending to know the whole story.</p>
+            <p>Cyberbullying, school avoidance, after-hours risk - surfaced, never assumed.</p>
           </div>
 
           <div
@@ -175,7 +175,7 @@ function Scene5({ onEnter }: { onEnter: (label: string, href: string) => void })
       <div className={`${styles.atmosphere} ${styles.atmosphere5}`} />
       <div className={styles.morning}>
         <div className={styles.eyebrow}>7:08 AM - the morning after</div>
-        <h2>A worker starts with the context Mira chose to share.</h2>
+        <h2>A worker picks up - with the full story already there.</h2>
         <p className={styles.morningLead}>
           Choose where to step in. The context, the consent, and the care carry over.
         </p>

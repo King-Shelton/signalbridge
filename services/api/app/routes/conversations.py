@@ -10,6 +10,7 @@ from app.models.conversation import Conversation, ConversationStatus, RiskLevel
 from app.models.message import Message, SenderType
 from app.models.signal import Signal
 from app.models.youth_profile import YouthProfile
+from app.timeutil import naive_utcnow
 from app.schemas.conversation import (
     ConversationPublic,
     ConversationResponse,
@@ -126,7 +127,7 @@ def send_message(
     db: Session = Depends(get_db),
 ) -> SendMessageResponse:
     conversation = get_conversation_or_404(db, conversation_id)
-    now = datetime.utcnow()
+    now = naive_utcnow()
     content = payload.content.strip()
     if not content:
         raise HTTPException(
