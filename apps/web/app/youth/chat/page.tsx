@@ -69,7 +69,7 @@ export default function YouthChatPage() {
         id: "after-hours-banner",
         conversationId: conversation.id,
         senderType: "system" as const,
-        content: "It may be after your worker's usual hours. SafeNight can stay with you and help prepare a note only if you allow it.",
+        content: "It may be after your worker's usual hours. SafeNight can stay with you, keep the response bounded, and prepare a note only if you allow it.",
         createdAt: new Date().toISOString(),
       },
       ...conversation.messages,
@@ -88,7 +88,7 @@ export default function YouthChatPage() {
       }
 
       if (!currentSession?.accessToken) {
-        setError("Please log in again to continue your conversation.");
+        setError("Please log in again so SignalBridge can load the saved SafeNight chat.");
         setIsLoading(false);
         return;
       }
@@ -97,11 +97,11 @@ export default function YouthChatPage() {
         const response = await fetch(`${apiBaseUrl}/youth/conversations`, {
           headers: { Authorization: `Bearer ${currentSession.accessToken}` },
         });
-        if (!response.ok) throw new Error("Could not load your chat history.");
+        if (!response.ok) throw new Error("Could not load the SafeNight chat history.");
         const data = (await response.json()) as { conversations: Conversation[] };
         setConversation(data.conversations[0] ?? null);
       } catch (loadError) {
-        setError(loadError instanceof Error ? loadError.message : "Could not load chat.");
+        setError(loadError instanceof Error ? loadError.message : "Could not load the chat.");
       } finally {
         setIsLoading(false);
       }
@@ -111,7 +111,7 @@ export default function YouthChatPage() {
 
   // 5-second polling
   useEffect(() => {
-    if (!session?.accessToken || !conversation) return;
+    if (!session?.accessToken || !conversation?.id) return;
     const interval = setInterval(async () => {
       if (isSending) return;
       try {
@@ -163,7 +163,12 @@ export default function YouthChatPage() {
       setConversation((current) =>
         current ? { ...current, messages: current.messages.filter((m) => m.id !== optimisticMessage.id) } : current
       );
-      setError(sendError instanceof Error ? sendError.message : "Message could not be sent.");
+      setDraft(content);
+      setError(
+        sendError instanceof Error
+          ? sendError.message
+          : "Message could not be sent. Your text is still in the box so you can try again."
+      );
     } finally {
       setIsSending(false);
     }
@@ -205,7 +210,7 @@ export default function YouthChatPage() {
       <div className="fixed inset-0 bg-[#060d0c] flex items-center justify-center px-6">
         <div className="glass-card p-8 max-w-sm w-full text-center">
           <p className="text-[#f1f6f4] font-semibold mb-2">{error ? "Chat unavailable" : "No conversation yet"}</p>
-          <p className="text-[rgba(214,235,230,0.55)] text-sm mb-5">{error || "Start a SafeNight conversation to see your messages here."}</p>
+          <p className="text-[rgba(214,235,230,0.55)] text-sm mb-5">{error || "Start a SafeNight conversation to see your messages and consent choices here."}</p>
           {error && (
             <a href="/login" className="inline-block px-5 py-2.5 rounded-[11px] bg-[rgba(31,111,100,0.2)] border border-[rgba(111,184,170,0.25)] text-[#6fb8aa] text-sm font-medium">
               Return to login
@@ -310,6 +315,18 @@ export default function YouthChatPage() {
                 <p className="text-[13px] text-[rgba(214,235,230,0.6)] leading-relaxed">
                   Allow SafeNight to prepare a brief for your worker? You stay in control.
                 </p>
+                <p
+                  className="mt-3 rounded-[11px] px-3 py-2 text-[12.5px] font-medium"
+                  style={{
+                    background: conversation.consentToHandoff ? "rgba(31,111,100,0.16)" : "rgba(183,121,31,0.12)",
+                    border: conversation.consentToHandoff ? "1px solid rgba(111,184,170,0.24)" : "1px solid rgba(183,121,31,0.24)",
+                    color: conversation.consentToHandoff ? "#6fb8aa" : "#e9c685",
+                  }}
+                >
+                  {conversation.consentToHandoff
+                    ? "Consent saved. Your worker can review the note first."
+                    : "Consent not given. Your worker cannot review a handoff note yet."}
+                </p>
               </div>
               <div className="flex gap-2 flex-shrink-0">
                 <button
@@ -322,7 +339,7 @@ export default function YouthChatPage() {
                     color: !conversation.consentToHandoff ? "#e88d78" : "rgba(214,235,230,0.5)",
                   }}
                 >
-                  No thanks
+                  Keep private
                 </button>
                 <button
                   disabled={isSavingConsent}
@@ -356,7 +373,7 @@ export default function YouthChatPage() {
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
             onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); void sendMessage(); } }}
-            placeholder="What's on your mind tonight…"
+            placeholder="Start with one sentence..."
             rows={1}
             disabled={isSending}
             className="flex-1 bg-transparent text-[14px] text-[#f1f6f4] placeholder-[rgba(214,235,230,0.3)] resize-none outline-none leading-relaxed"
@@ -384,9 +401,10 @@ export default function YouthChatPage() {
           </button>
         </div>
         <p className="mt-2 text-center text-[10.5px] text-[rgba(214,235,230,0.25)]">
-          SafeNight · Fictional seed data · Only you control what your worker sees
+          SafeNight is a support bridge, not a counsellor. Only you control what your worker sees.
         </p>
       </div>
     </div>
   );
 }
+

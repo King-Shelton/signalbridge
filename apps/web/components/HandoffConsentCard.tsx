@@ -1,6 +1,7 @@
 "use client";
 
-import { CheckCircle2, FileText, ShieldCheck } from "lucide-react";
+import { CheckCircle2, FileText, Loader2, ShieldCheck } from "lucide-react";
+import { cn } from "@/components/cn";
 
 type HandoffConsentCardProps = {
   compact?: boolean;
@@ -31,12 +32,17 @@ export function HandoffConsentCard({
           </p>
         </div>
       </div>
-      <label className="mt-4 flex cursor-pointer items-center justify-between gap-4 rounded-lg border border-slate-200 bg-mist/40 px-3 py-2">
+      <label
+        className={cn(
+          "mt-4 flex cursor-pointer items-center justify-between gap-4 rounded-lg border border-slate-200 bg-mist/40 px-3 py-2 transition",
+          disabled && "cursor-not-allowed opacity-70"
+        )}
+      >
         <span>
           <span className="block text-sm font-semibold text-ink">
             I allow my worker to review this note
           </span>
-          <span className="block text-xs leading-5 text-slate-500">
+          <span className="mt-0.5 block text-xs leading-5 text-slate-500">
             You can still choose what to talk about tomorrow.
           </span>
         </span>
@@ -77,15 +83,18 @@ export function HandoffConsentCard({
             type="button"
             disabled={disabled || consentGiven}
             onClick={() => onConsentChange?.(true)}
-            className="rounded-lg bg-pine px-4 py-2 text-sm font-semibold text-white transition hover:bg-pine/90 disabled:cursor-not-allowed disabled:bg-slate-300"
+            className="inline-flex items-center justify-center gap-2 rounded-lg bg-pine px-4 py-2 text-sm font-semibold text-white transition hover:bg-pine/90 focus:outline-none focus:ring-2 focus:ring-pine/20 disabled:cursor-not-allowed disabled:bg-slate-300"
           >
+            {disabled && !consentGiven ? (
+              <Loader2 aria-hidden="true" className="h-4 w-4 animate-spin" />
+            ) : null}
             {consentGiven ? "Worker review allowed" : "Allow worker review"}
           </button>
           <button
             type="button"
             disabled={disabled}
             onClick={() => onConsentChange?.(false)}
-            className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-300 disabled:cursor-not-allowed disabled:bg-slate-50"
+            className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-300 focus:outline-none focus:ring-2 focus:ring-pine/20 disabled:cursor-not-allowed disabled:bg-slate-50"
           >
             Not now
           </button>
