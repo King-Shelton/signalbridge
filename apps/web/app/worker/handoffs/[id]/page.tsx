@@ -17,17 +17,13 @@ function riskScore(level: string) {
   return "#6fb8aa";
 }
 
-export default function HandoffPage({ params }: { params: Promise<{ id: string }> }) {
-  const [id, setId] = useState("");
+export default function HandoffPage({ params }: { params: { id: string } }) {
+  const id = params.id;
   const [data, setData] = useState<Handoff | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
   const [copied, setCopied] = useState(false);
-
-  useEffect(() => {
-    void params.then((value) => setId(value.id));
-  }, [params]);
 
   const load = useCallback(async () => {
     if (!id) return;
