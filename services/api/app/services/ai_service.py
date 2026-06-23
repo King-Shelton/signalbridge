@@ -8,6 +8,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.config import get_settings
+from app.timeutil import to_sgt
 from app.models.ai_run import AiRun
 from app.models.audit_log import AuditLog
 from app.models.conversation import Conversation, ConversationStatus, RiskLevel
@@ -153,7 +154,9 @@ def _matched_terms(text: str, terms: list[str]) -> list[str]:
 
 
 def _is_late_night(created_at: datetime) -> bool:
-    return created_at.hour >= 22 or created_at.hour < 6
+    # Stored timestamps are naive UTC; "late night" is judged in Singapore time.
+    hour = to_sgt(created_at).hour
+    return hour >= 22 or hour < 6
 
 
 def _risk_level(score: int) -> RiskLevel:
@@ -304,7 +307,7 @@ def build_handoff_brief(conversation: Conversation, messages: list[Message], ass
         risk_level=assessment.risk_level,
         risk_score=assessment.risk_score,
         key_quote=extract_key_quote(messages),
-        what_ai_did="Used deterministic fallback rules to identify support signals, avoid diagnosis, and prepare a human-review handoff.",
+        what_ai_did="Stayed with the youth, reflected back what they shared without judging or diagnosing, noted the key support signals, and only prepared this brief after they gave consent.",
         what_not_to_repeat="Do not ask the youth to retell the full story immediately; begin from the approved handoff and let them choose what to add.",
         suggested_worker_response=suggested_reply,
         recommended_next_step=next_step,
@@ -434,9 +437,6 @@ def _is_off_topic_or_insult_prompt(text: str) -> bool:
             "make fun of",
             "roast",
             "joke about",
-            "is he gay",
-            "is she gay",
-            "is mruthulan gay",
         )
     )
 
@@ -542,25 +542,38 @@ def build_safenight_fallback_reply(
     )
 
 
+SAFENIGHT_SYSTEM_PROMPT = (
+    "You are SafeNight, a warm after-hours companion for a young person in Singapore who has "
+    "messaged you late at night. Reply the way a calm, caring human would text back — natural, "
+    "present, and specific to what they just said.\n\n"
+    "Style:\n"
+    "- 2 to 4 short sentences. No bullet points, no lists, no headings.\n"
+    "- Reflect their actual words and feelings before anything else. Vary how you open each reply; "
+    "do not start every message the same way.\n"
+    "- Ask at most one gentle question, and only when it helps.\n"
+    "- Do not offer to 'prepare a note for your worker' in every message — mention it occasionally, "
+    "only when it genuinely fits.\n\n"
+    "Boundaries (never break these):\n"
+    "- You are not a counsellor. Do not diagnose, label, or give clinical or medical advice.\n"
+    "- Never promise secrecy or confidentiality. It is fine to remind them, gently and occasionally, "
+    "that a real youth worker can follow up.\n"
+    "- Never mock, judge, or comment on anyone's body, identity, or appearance.\n"
+    "- If they mention self-harm, suicide, or being in danger, do not try to handle it yourself: tell "
+    "them a trained person needs to help right now and point them to 995 or Samaritans of Singapore on 1767."
+)
+
+
 def generate_safenight_reply(new_message: str, history: list[Message], assessment: RiskAssessment) -> str:
-    """Generate a contextual SafeNight reply using the AI model, with rule-based fallback."""
+    """Generate SafeNight's reply.
+
+    The conversation is handled by the model so it feels genuine. Safety stays
+    deterministic around it: crisis-level messages always get the scripted crisis
+    response (the model never handles those), the model's output is screened for
+    prohibited wording, and any missing key / error / empty reply falls back to the
+    deterministic, context-aware reply.
+    """
     if assessment.risk_level == RiskLevel.critical:
         return CRITICAL_FALLBACK_REPLY
-
-    text = new_message.strip().lower()
-    history_text = "\n".join(message.content.lower() for message in history)
-    if (
-        _is_short_greeting(text)
-        or _asks_about_safenight_identity(text)
-        or _is_off_topic_or_insult_prompt(text)
-        or "dark" in text
-        or _has_cyberbullying_context(text)
-        or (
-            _has_cyberbullying_context(history_text)
-            and any(term in text for term in ("scared", "afraid", "fear", "him", "her", "them"))
-        )
-    ):
-        return build_safenight_fallback_reply(new_message, assessment, history)
 
     settings = get_settings()
     if not settings.openai_api_key:
@@ -575,29 +588,25 @@ def generate_safenight_reply(new_message: str, history: list[Message], assessmen
             timeout=settings.openai_timeout_seconds,
         )
 
-        prior = "\n".join(
-            f"{m.sender_type.value}: {m.content}"
-            for m in history[-6:]
-        )
-        prompt = (
-            f"Prior conversation:\n{prior}\n\nyouth: {new_message}"
-            if prior else
-            f"youth: {new_message}"
-        )
+        conversation: list[dict[str, str]] = [{"role": "system", "content": SAFENIGHT_SYSTEM_PROMPT}]
+        for message in history[-10:]:
+            role = "assistant" if message.sender_type in (SenderType.ai, SenderType.worker) else "user"
+            conversation.append({"role": role, "content": message.content})
+        conversation.append({"role": "user", "content": new_message})
+
+        # Give the model the deterministic signals as quiet context, not as script.
+        signal_summary = ", ".join(sorted({signal.type.replace("_", " ") for signal in assessment.signals}))
+        if signal_summary:
+            conversation.insert(1, {
+                "role": "system",
+                "content": f"Context only (do not read this back to them): possible signals noticed so far — {signal_summary}.",
+            })
 
         response = client.chat.completions.create(
             model=settings.openai_model,
-            max_tokens=200,
-            messages=[
-                {"role": "system", "content": (
-                    "You are SafeNight, an after-hours AI companion for at-risk youth in Singapore. "
-                    "Acknowledge feelings and keep the youth calm. Do NOT counsel, diagnose, or give clinical advice. "
-                    "Never promise confidentiality. Always say a real worker will follow up. "
-                    "For crisis language, direct to 995 immediately. "
-                    "Reply in 2-3 warm, conversational sentences. No bullet points."
-                )},
-                {"role": "user", "content": prompt},
-            ],
+            temperature=0.7,
+            max_tokens=220,
+            messages=conversation,
         )
         reply = (response.choices[0].message.content or "").strip()
         if not reply or len(reply) < 10:

@@ -2,6 +2,8 @@ import enum
 import uuid
 from datetime import datetime
 
+from app.timeutil import naive_utcnow
+
 from sqlalchemy import DateTime, Enum, ForeignKey, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -31,4 +33,4 @@ class HandoffBrief(Base):
     suggested_worker_response: Mapped[str | None] = mapped_column(Text, nullable=True)
     recommended_next_step: Mapped[str | None] = mapped_column(Text, nullable=True)
     review_status: Mapped[ReviewStatus] = mapped_column(Enum(ReviewStatus), default=ReviewStatus.pending)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=naive_utcnow, nullable=False)
