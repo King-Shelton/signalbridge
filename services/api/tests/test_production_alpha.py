@@ -84,14 +84,17 @@ def test_critical_language_cannot_be_downgraded() -> None:
 
 def test_supervisor_reassignment_analytics_audit_and_simulator() -> None:
     headers = auth("supervisor@signalbridge.test")
+    worker_headers = auth("worker1@signalbridge.test")
     workers = client.get("/supervisor/workers", headers=headers).json()["workers"]
     cockpit = client.get("/worker/cockpit", headers=headers).json()["conversations"]
     case_id = next(row["case"]["id"] for row in cockpit if row["case"])
     target = next(worker for worker in workers if worker["id"] == "user_worker_2")
+    assert client.patch(f"/supervisor/cases/{case_id}/assign", headers=worker_headers, json={"workerId": target["id"]}).status_code == 403
     assert client.patch(f"/supervisor/cases/{case_id}/assign", headers=headers, json={"workerId": target["id"]}).status_code == 200
     assert client.get("/analytics/summary", headers=headers).status_code == 200
     audit_rows = client.get("/audit/logs", headers=headers)
     assert audit_rows.status_code == 200
+    assert any(row["eventType"] == "case_reassigned" and target["id"] in row["details"] for row in audit_rows.json()["logs"])
     assert any(row["entityType"] == "ai_run" and "promptVersion" in row["details"] for row in audit_rows.json()["logs"])
     simulated = client.post("/simulator/intake", headers=headers, json={"youthId": "youth_mira", "channel": "Discord Simulator", "message": "I do not want to go to school because they keep editing my photos."})
     assert simulated.status_code == 201

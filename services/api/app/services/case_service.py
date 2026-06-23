@@ -120,7 +120,7 @@ def suggested_action(case: Case, conversation: Conversation | None, handoff: Han
         return "Review youth-approved handoff brief"
     if conversation and conversation.unresolved_handoff:
         return "Resolve unresolved handoff"
-    if case.status == CaseStatus.needs_follow_up:
+    if case.status == CaseStatus.needs_review:
         return "Follow up with youth"
     if case.status == CaseStatus.escalated:
         return "Coordinate escalation follow-up"
@@ -150,7 +150,7 @@ def reasons_for_case(case: Case, conversation: Conversation | None, signals: lis
         label = signal.type.replace("_", " ").title()
         if label not in reasons:
             reasons.append(label)
-    if case.status == CaseStatus.needs_follow_up:
+    if case.status == CaseStatus.needs_review:
         reasons.append("Needs follow-up")
     if case.status == CaseStatus.escalated:
         reasons.append("Escalated case")
