@@ -406,6 +406,59 @@ export async function tryDemoApiResponse<T>(path: string, init: RequestInit = {}
     return buildAnalytics() as T;
   }
 
+  if (pathname === "/youth/conversations") {
+    const mira = state.conversations.find((item) => item.youthId === "demo-youth-001") ?? state.conversations[0];
+    const demoConv = {
+      id: mira?.id ?? "conv-mira-demo",
+      youthName: mira?.youthName ?? "Mira Tan",
+      riskLevel: mira?.riskLevel ?? "high",
+      riskScore: mira?.riskScore ?? 92,
+      consentToHandoff: mira?.consentToHandoff ?? false,
+      messages: (mira?.messages ?? []).map((m, i) => ({
+        id: m.id ?? `msg-${i}`,
+        conversationId: mira?.id ?? "conv-mira-demo",
+        senderType: m.senderType,
+        content: m.content,
+        createdAt: m.createdAt ?? new Date().toISOString()
+      })),
+      signals: (mira?.signals ?? []).map((s) => ({
+        id: s.id,
+        type: s.type,
+        severity: s.severity,
+        reason: s.reason,
+        source: s.source,
+        createdAt: s.createdAt
+      }))
+    };
+    return { conversations: [demoConv] } as T;
+  }
+
+  const youthConvMessageMatch = pathname.match(/^\/youth\/conversations\/([^/]+)\/messages$/);
+  if (youthConvMessageMatch && method === "POST") {
+    const content = typeof body?.content === "string" ? body.content : "";
+    const convId = youthConvMessageMatch[1];
+    const mira = state.conversations.find((item) => item.id === convId) ?? state.conversations[0];
+    const reply = "Thank you for sharing that. You don't have to carry this alone tonight.";
+    if (mira) {
+      mira.messages.push(
+        { id: `msg-${Date.now()}-youth`, senderType: "youth", content, createdAt: new Date().toISOString() },
+        { id: `msg-${Date.now()}-ai`, senderType: "ai", content: reply, createdAt: new Date().toISOString() }
+      );
+    }
+    return {
+      userMessage: { id: `msg-${Date.now()}`, conversationId: convId, senderType: "youth", content, createdAt: new Date().toISOString() },
+      aiMessage: { id: `msg-${Date.now() + 1}`, conversationId: convId, senderType: "ai", content: reply, createdAt: new Date().toISOString() }
+    } as T;
+  }
+
+  const youthConsentMatch = pathname.match(/^\/youth\/conversations\/([^/]+)\/consent$/);
+  if (youthConsentMatch && method === "PATCH") {
+    const convId = youthConsentMatch[1];
+    const mira = state.conversations.find((item) => item.id === convId);
+    if (mira) mira.consentToHandoff = true;
+    return { success: true } as T;
+  }
+
   if (pathname === "/youth/handoffs") {
     return { handoffs: state.conversations.filter((item) => item.handoffId).map((item) => buildHandoff(item)) } as T;
   }

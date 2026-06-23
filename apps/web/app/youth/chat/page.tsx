@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { apiFetch } from "@/lib/api-client";
 import { readYouthSession, type YouthSession } from "@/lib/youth-session";
 
 type ApiMessage = {
@@ -30,8 +31,6 @@ type Conversation = {
   messages: ApiMessage[];
   signals: ApiSignal[];
 };
-
-const apiBaseUrl = process.env.NEXT_PUBLIC_SIGNALBRIDGE_API_URL ?? process.env.NEXT_PUBLIC_API_URL ?? "/api";
 
 function formatTime(value: string) {
   return new Intl.DateTimeFormat("en-SG", { hour: "numeric", minute: "2-digit", hour12: true }).format(new Date(value));
@@ -94,11 +93,7 @@ export default function YouthChatPage() {
       }
 
       try {
-        const response = await fetch(`${apiBaseUrl}/youth/conversations`, {
-          headers: { Authorization: `Bearer ${currentSession.accessToken}` },
-        });
-        if (!response.ok) throw new Error("Could not load your chat history.");
-        const data = (await response.json()) as { conversations: Conversation[] };
+        const data = await apiFetch<{ conversations: Conversation[] }>("/youth/conversations");
         setConversation(data.conversations[0] ?? null);
       } catch (loadError) {
         setError(loadError instanceof Error ? loadError.message : "Could not load chat.");
@@ -115,13 +110,8 @@ export default function YouthChatPage() {
     const interval = setInterval(async () => {
       if (isSending) return;
       try {
-        const response = await fetch(`${apiBaseUrl}/youth/conversations`, {
-          headers: { Authorization: `Bearer ${session.accessToken}` },
-        });
-        if (response.ok) {
-          const data = (await response.json()) as { conversations: Conversation[] };
-          if (data.conversations[0]) setConversation(data.conversations[0]);
-        }
+        const data = await apiFetch<{ conversations: Conversation[] }>("/youth/conversations");
+        if (data.conversations[0]) setConversation(data.conversations[0]);
       } catch { /* silent */ }
     }, 5000);
     return () => clearInterval(interval);
@@ -151,14 +141,17 @@ export default function YouthChatPage() {
     setConversation({ ...conversation, messages: [...conversation.messages, optimisticMessage] });
 
     try {
-      const response = await fetch(`${apiBaseUrl}/youth/conversations/${conversation.id}/messages`, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${session.accessToken}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ content }),
-      });
-      if (!response.ok) throw new Error("Message could not be sent. Please try again.");
-      const data = (await response.json()) as { conversation: Conversation };
-      setConversation(data.conversation);
+      const data = await apiFetch<{ conversation?: Conversation; userMessage?: ApiMessage; aiMessage?: ApiMessage }>(
+        `/youth/conversations/${conversation.id}/messages`,
+        { method: "POST", body: JSON.stringify({ content }) }
+      );
+      if (data.conversation) {
+        setConversation(data.conversation);
+      } else if (data.aiMessage) {
+        setConversation((current) =>
+          current ? { ...current, messages: [...current.messages.filter((m) => m.id !== optimisticMessage.id), { ...optimisticMessage, id: data.userMessage?.id ?? optimisticMessage.id }, data.aiMessage!] } : current
+        );
+      }
     } catch (sendError) {
       setConversation((current) =>
         current ? { ...current, messages: current.messages.filter((m) => m.id !== optimisticMessage.id) } : current
@@ -384,7 +377,7 @@ export default function YouthChatPage() {
           </button>
         </div>
         <p className="mt-2 text-center text-[10.5px] text-[rgba(214,235,230,0.25)]">
-          SafeNight · Fictional seed data · Only you control what your worker sees
+          SafeNight is an after-hours companion, not a counsellor. You decide what your worker sees.
         </p>
       </div>
     </div>
