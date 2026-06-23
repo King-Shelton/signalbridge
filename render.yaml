@@ -14,7 +14,9 @@ services:
       - key: SIGNALBRIDGE_ENVIRONMENT
         value: render
       - key: SIGNALBRIDGE_DATABASE_URL
-        sync: false
+        fromDatabase:
+          name: signalbridge-postgres
+          property: connectionString
       - key: SIGNALBRIDGE_JWT_SECRET
         generateValue: true
       - key: SIGNALBRIDGE_OPENAI_API_KEY
@@ -43,3 +45,12 @@ services:
           property: host
       - key: NEXT_PUBLIC_SIGNALBRIDGE_API_URL
         value: https://signalbridge-api.onrender.com
+
+databases:
+  - name: signalbridge-postgres
+    databaseName: signalbridge
+    user: signalbridge
+    plan: free
+    region: singapore
+    postgresMajorVersion: "16"
+    ipAllowList: []
