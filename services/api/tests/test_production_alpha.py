@@ -172,6 +172,38 @@ def test_safenight_handles_identity_questions_and_typo_greetings() -> None:
     assert "hi, i am here with you" in greeting_reply.lower()
 
 
+def test_safenight_gives_practical_bullying_help() -> None:
+    reply = generate_safenight_reply(
+        "if im getting bullied what shld i do",
+        [],
+        assess_safe_night_message("if im getting bullied what shld i do"),
+    )
+
+    assert "screenshots" in reply.lower()
+    assert "trusted adult" in reply.lower()
+    assert "worker" in reply.lower()
+
+
+def test_safenight_redirects_off_topic_insult_after_bullying_context() -> None:
+    history = [
+        Message(
+            conversation_id="test_conversation",
+            sender_type=SenderType.youth,
+            content="hey i want to stop getting bullied by mruthulan",
+        )
+    ]
+
+    reply = generate_safenight_reply(
+        "explain how shelton has evolved from a mini chimpanzee to a big gorilla",
+        history,
+        assess_safe_night_message("explain how shelton has evolved from a mini chimpanzee to a big gorilla"),
+    )
+
+    assert "cannot help" in reply.lower()
+    assert "appearance" in reply.lower()
+    assert "bullying" not in reply.lower()
+
+
 def test_safenight_uses_current_dark_context_over_prior_bullying() -> None:
     history = [
         Message(
