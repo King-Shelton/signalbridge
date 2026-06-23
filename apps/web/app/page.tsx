@@ -49,7 +49,7 @@ function Scene1() {
       <div className={styles.conversation}>
         <div className={styles.incoming}>
           <span />
-          11:43 PM · incoming
+          11:43 PM - incoming
         </div>
         <div className={styles.youthBubble}>
           <AnimatedWords
@@ -88,7 +88,7 @@ function Scene2() {
           </svg>
         </div>
         <h1 className={styles.wordmark}><span>Signal</span>Bridge</h1>
-        <p className={styles.lead}>An after-hours command centre for youth workers. Not a chatbot — a bridge.</p>
+        <p className={styles.lead}>An after-hours command centre for youth workers. Not a chatbot - a bridge.</p>
       </div>
     </div>
   );
@@ -142,7 +142,7 @@ function Scene4() {
               </svg>
             </div>
             <h3>Detect the signals</h3>
-            <p>Cyberbullying, school avoidance, after-hours risk — surfaced, never assumed.</p>
+            <p>Cyberbullying, school avoidance, after-hours risk - surfaced, never assumed.</p>
           </div>
 
           <div
@@ -174,8 +174,8 @@ function Scene5({ onEnter }: { onEnter: (label: string, href: string) => void })
     <div className={styles.scene}>
       <div className={`${styles.atmosphere} ${styles.atmosphere5}`} />
       <div className={styles.morning}>
-        <div className={styles.eyebrow}>7:08 AM · the morning after</div>
-        <h2>A worker picks up — with the full story already there.</h2>
+        <div className={styles.eyebrow}>7:08 AM - the morning after</div>
+        <h2>A worker picks up - with the full story already there.</h2>
         <p className={styles.morningLead}>
           Choose where to step in. The context, the consent, and the care carry over.
         </p>
@@ -353,7 +353,7 @@ export default function IntroPage() {
         </div>
         {scene < 5 && !entering && (
           <p onClick={(e) => { e.stopPropagation(); next(); }}>
-            {scene === 0 ? "Scroll, click, or press →" : "Continue"}
+            {scene === 0 ? "Scroll, click, or press ->" : "Continue"}
           </p>
         )}
       </div>
