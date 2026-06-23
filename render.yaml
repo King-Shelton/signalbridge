@@ -39,10 +39,7 @@ services:
     healthCheckPath: /login
     envVars:
       - key: SIGNALBRIDGE_API_URL
-        fromService:
-          name: signalbridge-api
-          type: web
-          property: hostport
+        value: https://signalbridge-api.onrender.com
       - key: NEXT_PUBLIC_SIGNALBRIDGE_API_URL
         value: /api
 

@@ -170,7 +170,7 @@ export default function LoginPage() {
             <span style={{ color: "#6fb8aa" }}>Signal</span>Bridge
           </h1>
           <p className="mt-3 max-w-[32ch] text-base text-[rgba(214,235,230,0.6)]" style={{ lineHeight: 1.6, opacity: 0, animation: "sb-soft 1s ease 1s forwards" }}>
-            Proactive youth support command centre. Not a chatbot - a bridge.
+            After-hours support, consent-based handoff, and worker context in one place.
           </p>
         </div>
 
@@ -217,7 +217,7 @@ export default function LoginPage() {
         )}
 
         <p className="mt-5 text-center text-[11px] uppercase tracking-[0.14em] text-[rgba(214,235,230,0.34)]">
-          Fictional seed data - Simulated approved channels - Production-grade alpha
+          Fictional seed data | Simulated approved channels | Production-grade alpha
         </p>
       </div>
     </div>

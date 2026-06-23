@@ -259,7 +259,7 @@ def seed(reset: bool = False) -> None:
                 "unresolved": True,
                 "last": now - timedelta(hours=9),
                 "messages": [
-                    ("youth", "People in my class group chat keep editing my photos. I don't want to go school tomorrow. I'm so tired of explaining this."),
+                    ("youth", "People in my class group chat keep editing my photos. I don't want to go school tomorrow."),
                     ("ai", "I am sorry this is happening. I can help prepare a short note for your worker so you do not have to repeat everything tomorrow."),
                 ],
                 "signals": [
@@ -268,8 +268,8 @@ def seed(reset: bool = False) -> None:
                     ("handoff_requested", "high", "Youth consented to share a short handoff note with the assigned worker.", "consent_event:youth_approved"),
                 ],
                 "concern": "Cyberbullying involving edited photos in a class group chat.",
-                "quote": "I'm so tired of explaining this.",
-                "state": "Tired, embarrassed, and reluctant to repeat the story.",
+                "quote": "I don't want to go school tomorrow.",
+                "state": "Embarrassed, worried about school, and reluctant to repeat the story.",
                 "worker_response": "Hi Mira, I read the note you allowed SignalBridge to prepare. You do not have to repeat everything unless you want to. Can I first check whether you feel safe going to school today?",
                 "what_ai_did": "Validated distress, identified cyberbullying and school avoidance as the core signals, and prepared the handoff only after consent.",
                 "what_not_to_repeat": "Do not make Mira retell the edited-photo incident unless she chooses to add more detail.",
@@ -518,7 +518,7 @@ def seed(reset: bool = False) -> None:
             db.add(AiRun(id="airun_seed_001", conversation_id="conv_mira_after_hours",
                          action="generate_handoff", mode="fallback_rule_based", model_name=None,
                          prompt_version="handoff-v1", safety_status="fallback_passed",
-                         error="Deterministic fallback — no OpenAI key required for seed demo"))
+                         error="Deterministic fallback - no OpenAI key required for seed demo"))
 
         db.commit()
         print("SignalBridge seed data loaded.")

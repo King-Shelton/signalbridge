@@ -47,7 +47,7 @@
 
   <!-- ===================== SCENES ===================== -->
 
-  <!-- S0 — After hours -->
+  <!-- S0 - After hours -->
   <sc-if value="{{ isS0 }}" hint-placeholder-val="{{ true }}">
     <div style="position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 6vw;">
       <div style="position: absolute; inset: 0; opacity: 0; animation: sb-atmos 1.6s ease forwards; background: radial-gradient(70% 55% at 50% 42%, rgba(31,111,100,0.16), transparent 62%);"></div>
@@ -62,7 +62,7 @@
     </div>
   </sc-if>
 
-  <!-- S1 — A message arrives -->
+  <!-- S1 - A message arrives -->
   <sc-if value="{{ isS1 }}" hint-placeholder-val="{{ true }}">
     <div style="position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 7vw;">
       <div style="position: absolute; inset: 0; opacity: 0; animation: sb-atmos 1.4s ease forwards; background: radial-gradient(60% 50% at 50% 50%, rgba(217,95,72,0.12), transparent 60%);"></div>
@@ -88,7 +88,7 @@
     </div>
   </sc-if>
 
-  <!-- S2 — Brand reveal -->
+  <!-- S2 - Brand reveal -->
   <sc-if value="{{ isS2 }}" hint-placeholder-val="{{ true }}">
     <div style="position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 6vw;">
       <div style="position: absolute; inset: 0; opacity: 0; animation: sb-atmos 1.5s ease forwards; background: radial-gradient(66% 56% at 50% 44%, rgba(31,111,100,0.2), transparent 64%);"></div>
@@ -98,11 +98,11 @@
         </div>
       </div>
       <div style="position: relative; margin-top: 30px; font-size: clamp(38px, 7vw, 88px); font-weight: 600; letter-spacing: -0.04em; opacity: 0; animation: sb-rise 1.1s cubic-bezier(0.2,0,0,1) 0.5s forwards;"><span style="color: #6fb8aa;">Signal</span><span style="color: #f3f8f6;">Bridge</span></div>
-      <p style="position: relative; margin: 20px 0 0; font-size: clamp(15px, 1.9vw, 21px); color: rgba(214,235,230,0.66); max-width: 34ch; line-height: 1.55; opacity: 0; animation: sb-rise-soft 1.1s ease 1.1s forwards;">An after-hours command centre for youth workers. Not a chatbot — a bridge.</p>
+      <p style="position: relative; margin: 20px 0 0; font-size: clamp(15px, 1.9vw, 21px); color: rgba(214,235,230,0.66); max-width: 34ch; line-height: 1.55; opacity: 0; animation: sb-rise-soft 1.1s ease 1.1s forwards;">An after-hours support layer for youth workers, built around consent and handoff.</p>
     </div>
   </sc-if>
 
-  <!-- S3 — The promise -->
+  <!-- S3 - The promise -->
   <sc-if value="{{ isS3 }}" hint-placeholder-val="{{ true }}">
     <div style="position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 7vw;">
       <div style="position: absolute; inset: 0; opacity: 0; animation: sb-atmos 1.6s ease forwards; background: radial-gradient(80% 60% at 50% 50%, rgba(31,111,100,0.13), transparent 66%);"></div>
@@ -113,7 +113,7 @@
     </div>
   </sc-if>
 
-  <!-- S4 — How it holds -->
+  <!-- S4 - How it holds -->
   <sc-if value="{{ isS4 }}" hint-placeholder-val="{{ true }}">
     <div style="position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 6vw;">
       <div style="position: absolute; inset: 0; opacity: 0; animation: sb-atmos 1.4s ease forwards; background: radial-gradient(90% 60% at 50% 50%, rgba(31,111,100,0.14), transparent 68%);"></div>
@@ -137,7 +137,7 @@
             <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#d6a64c" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
           </div>
           <div style="font-size: 19px; font-weight: 600; color: #eef4f2; letter-spacing: -0.01em;">Detect the signals</div>
-          <p style="margin: 10px 0 0; font-size: 14px; line-height: 1.55; color: rgba(214,235,230,0.58);">Cyberbullying, school avoidance, after-hours risk — surfaced, never assumed.</p>
+          <p style="margin: 10px 0 0; font-size: 14px; line-height: 1.55; color: rgba(214,235,230,0.58);">Cyberbullying, school avoidance, and after-hours risk are surfaced without pretending to know the whole story.</p>
         </div>
         <div style="flex: 1 1 0; height: 1px; margin-top: 32px; background: linear-gradient(90deg, rgba(183,121,31,0.4), rgba(111,184,170,0.4)); transform: scaleX(0); transform-origin: left; animation: sb-line 0.7s ease 2s forwards;"></div>
         <!-- node 3 -->
@@ -152,13 +152,13 @@
     </div>
   </sc-if>
 
-  <!-- S5 — Morning / enter -->
+  <!-- S5 - Morning / enter -->
   <sc-if value="{{ isS5 }}" hint-placeholder-val="{{ true }}">
     <div style="position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 5vw;">
       <div style="position: absolute; inset: 0; animation: sb-atmos 1.8s ease forwards; background: radial-gradient(circle at top left, rgba(31,111,100,0.14), transparent 34%), radial-gradient(circle at top right, rgba(217,95,72,0.1), transparent 28%), linear-gradient(180deg, #f6fbf9 0%, #ffffff 56%, #f5f8fb 100%);"></div>
       <div style="position: relative; width: 100%; max-width: 940px; display: flex; flex-direction: column; align-items: center;">
         <div style="font-size: 12px; letter-spacing: 0.3em; text-transform: uppercase; color: #1f6f64; font-weight: 600; opacity: 0; animation: sb-rise-soft 0.9s ease 0.3s forwards;">7:08 AM · the morning after</div>
-        <h2 style="margin: 16px 0 0; font-size: clamp(26px, 4vw, 50px); line-height: 1.14; font-weight: 600; letter-spacing: -0.03em; color: #18212f; max-width: 18ch; opacity: 0; animation: sb-rise 1s cubic-bezier(0.2,0,0,1) 0.5s forwards;">A worker picks up — with the full story already there.</h2>
+        <h2 style="margin: 16px 0 0; font-size: clamp(26px, 4vw, 50px); line-height: 1.14; font-weight: 600; letter-spacing: -0.03em; color: #18212f; max-width: 18ch; opacity: 0; animation: sb-rise 1s cubic-bezier(0.2,0,0,1) 0.5s forwards;">A worker starts with the context Mira chose to share.</h2>
         <p style="margin: 18px 0 0; font-size: clamp(15px, 1.7vw, 18px); line-height: 1.6; color: #475569; max-width: 40ch; opacity: 0; animation: sb-rise-soft 1s ease 0.9s forwards;">Choose where to step in. The context, the consent, and the care carry over.</p>
 
         <div style="margin-top: 44px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; width: 100%; opacity: 0; animation: sb-rise 1s ease 1.2s forwards;">
@@ -349,8 +349,8 @@ class Component extends DCLogic {
       dots,
       showHint: scene < 5 && !isEntering,
       hintText: scene === 0 ? "Scroll, click, or press →" : "Continue",
-      messageWords: words("People in my class group chat keep editing my photos. I don't want to go school tomorrow. I'm so tired of explaining this.", 300, 75, "0.6s"),
-      promiseWords: words("The youth does not have to repeat their pain twice. The worker does not have to start from zero.", 250, 95, "0.7s"),
+      messageWords: words("People in my class group chat keep editing my photos. I don't want to go school tomorrow.", 300, 75, "0.6s"),
+      promiseWords: words("What happened at night reaches the right worker in the morning, with consent and context intact.", 250, 95, "0.7s"),
       entering: isEntering,
       enteringLabel: isEntering ? labels[this.state.entering] : "",
       onStage: () => { if (!this.state.entering) this.next(); },
