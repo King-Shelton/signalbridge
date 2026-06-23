@@ -37,6 +37,12 @@ class AssignmentUpdate(BaseModel):
     workerId: str
 
 
+LOAD_CASE_WEIGHT = 10
+LOAD_HIGH_RISK_WEIGHT = 18
+LOAD_UNRESOLVED_HANDOFF_WEIGHT = 12
+LOAD_OVERDUE_FOLLOW_UP_WEIGHT = 8
+
+
 def audit(db: Session, actor: str, event: str, entity_type: str, entity_id: str, details: dict) -> None:
     db.add(AuditLog(actor_user_id=actor, event_type=event, entity_type=entity_type, entity_id=entity_id, details=json.dumps(details)))
 
@@ -87,6 +93,51 @@ def handoff_payload(db: Session, handoff: HandoffBrief) -> dict:
         "whatNotToRepeat": handoff.what_not_to_repeat, "suggestedWorkerResponse": handoff.suggested_worker_response,
         "recommendedNextStep": handoff.recommended_next_step, "reviewStatus": handoff.review_status.value,
         "createdAt": handoff.created_at.isoformat(),
+    }
+
+
+def latest_conversation_for_youth(db: Session, youth_id: str) -> Conversation | None:
+    return db.query(Conversation).filter(Conversation.youth_id == youth_id).order_by(
+        Conversation.last_message_at.desc().nullslast(),
+        Conversation.created_at.desc(),
+    ).first()
+
+
+def active_cases_for_worker(db: Session, worker_id: str) -> list[Case]:
+    return db.query(Case).filter(Case.assigned_worker_id == worker_id, Case.status != CaseStatus.closed).all()
+
+
+def worker_load_payload(db: Session, worker: User) -> dict:
+    cases = active_cases_for_worker(db, worker.id)
+    latest_conversations = [conversation for case_item in cases if (conversation := latest_conversation_for_youth(db, case_item.youth_id))]
+    high_risk_cases = sum(conversation.risk_level.value in {"high", "critical"} for conversation in latest_conversations)
+    unresolved_handoffs = sum(conversation.unresolved_handoff for conversation in latest_conversations)
+    overdue_follow_ups = sum(bool(case_item.next_follow_up_at and case_item.next_follow_up_at < datetime.utcnow()) for case_item in cases)
+    score = (
+        len(cases) * LOAD_CASE_WEIGHT
+        + high_risk_cases * LOAD_HIGH_RISK_WEIGHT
+        + unresolved_handoffs * LOAD_UNRESOLVED_HANDOFF_WEIGHT
+        + overdue_follow_ups * LOAD_OVERDUE_FOLLOW_UP_WEIGHT
+    )
+    if score >= 70:
+        pressure = "high"
+        recommendation = "Redistribute one active case to protect worker response time."
+    elif score >= 35:
+        pressure = "moderate"
+        recommendation = "Monitor closely before assigning additional high-risk cases."
+    else:
+        pressure = "steady"
+        recommendation = "Capacity is healthy for routine assignment."
+    return {
+        "workerId": worker.id,
+        "workerName": worker.name,
+        "activeCases": len(cases),
+        "highRiskCases": high_risk_cases,
+        "unresolvedHandoffs": unresolved_handoffs,
+        "overdueFollowUps": overdue_follow_ups,
+        "loadScore": score,
+        "pressure": pressure,
+        "recommendation": recommendation,
     }
 
 
@@ -215,23 +266,23 @@ def handoff_pdf(handoff_id: str, current_user: User = Depends(worker_required), 
 @router.get("/supervisor/workers")
 def supervisor_workers(_: User = Depends(supervisor_required), db: Session = Depends(get_db)) -> dict:
     workers = db.query(User).filter(User.role == UserRole.worker).order_by(User.name).all()
-    return {"workers": [{"id": w.id, "name": w.name, "email": w.email} for w in workers]}
+    return {
+        "workers": [
+            {
+                "id": worker.id,
+                "name": worker.name,
+                "email": worker.email,
+                "activeCases": len(active_cases_for_worker(db, worker.id)),
+            }
+            for worker in workers
+        ]
+    }
 
 
 @router.get("/supervisor/load")
 def supervisor_load(_: User = Depends(supervisor_required), db: Session = Depends(get_db)) -> dict:
-    rows = []
-    workers = db.query(User).filter(User.role == UserRole.worker).all()
-    for worker in workers:
-        cases = db.query(Case).filter(Case.assigned_worker_id == worker.id, Case.status != CaseStatus.closed).all()
-        youth_ids = [c.youth_id for c in cases]
-        conversations = db.query(Conversation).filter(Conversation.youth_id.in_(youth_ids)).all() if youth_ids else []
-        high = sum(c.risk_level.value in {"high", "critical"} for c in conversations)
-        unresolved = sum(c.unresolved_handoff for c in conversations)
-        score = len(cases) * 10 + high * 18 + unresolved * 12
-        rows.append({"workerId": worker.id, "workerName": worker.name, "activeCases": len(cases), "highRiskCases": high,
-                     "unresolvedHandoffs": unresolved, "loadScore": score, "pressure": "high" if score >= 70 else "moderate" if score >= 35 else "steady",
-                     "recommendation": "Redistribute one medium-risk case" if score >= 70 else "Maintain current allocation"})
+    workers = db.query(User).filter(User.role == UserRole.worker).order_by(User.name).all()
+    rows = [worker_load_payload(db, worker) for worker in workers]
     return {"workers": sorted(rows, key=lambda row: row["loadScore"], reverse=True)}
 
 
@@ -243,14 +294,37 @@ def assign_case(case_id: str, payload: AssignmentUpdate, current_user: User = De
         raise HTTPException(status_code=404, detail="Case not found")
     if worker is None or worker.role != UserRole.worker:
         raise HTTPException(status_code=422, detail="A valid worker is required")
+    previous_worker = db.get(User, item.assigned_worker_id) if item.assigned_worker_id else None
     previous = item.assigned_worker_id
     item.assigned_worker_id = worker.id
+    item.updated_at = datetime.utcnow()
     youth = db.get(YouthProfile, item.youth_id)
-    if youth: youth.assigned_worker_id = worker.id
-    audit(db, current_user.id, "case_reassigned", "case", item.id, {"fromWorkerId": previous, "toWorkerId": worker.id})
+    if youth:
+        youth.assigned_worker_id = worker.id
+    audit(
+        db,
+        current_user.id,
+        "case_reassigned",
+        "case",
+        item.id,
+        {
+            "caseId": item.id,
+            "youthId": item.youth_id,
+            "fromWorkerId": previous,
+            "fromWorkerName": previous_worker.name if previous_worker else None,
+            "toWorkerId": worker.id,
+            "toWorkerName": worker.name,
+        },
+    )
     db.add(Notification(recipient_user_id=worker.id, title="Case assigned", message=f"{item.summary or 'A youth case'} was assigned to you.", severity="info"))
     db.commit()
-    return {"caseId": item.id, "assignedWorkerId": worker.id, "assignedWorkerName": worker.name}
+    return {
+        "caseId": item.id,
+        "youthId": item.youth_id,
+        "assignedWorkerId": worker.id,
+        "assignedWorkerName": worker.name,
+        "previousWorkerId": previous,
+    }
 
 
 @router.get("/audit/logs")
