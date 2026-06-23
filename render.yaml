@@ -39,7 +39,7 @@ services:
     healthCheckPath: /login
     envVars:
       - key: SIGNALBRIDGE_API_URL
-        value: https://signalbridge-api.onrender.com
+        value: https://signalbridge-api-6wc6.onrender.com
       - key: NEXT_PUBLIC_SIGNALBRIDGE_API_URL
         value: /api
 

@@ -1,4 +1,4 @@
-import type { AuthSession, AuthUser } from "@/lib/auth-session";
+import { clearAuthSession, type AuthSession, type AuthUser } from "@/lib/auth-session";
 
 export const API_BASE_URL =
   process.env.NEXT_PUBLIC_SIGNALBRIDGE_API_URL ?? process.env.NEXT_PUBLIC_API_URL ?? "/api";
@@ -48,7 +48,15 @@ export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise
   } catch {
     throw new ApiError("Can't reach the SignalBridge service. Check your connection and try again.", 0);
   }
-  return parseApiResponse<T>(response);
+  try {
+    return await parseApiResponse<T>(response);
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 401) {
+      clearAuthSession();
+      throw new ApiError("Your session expired. Please sign in again.", 401);
+    }
+    throw error;
+  }
 }
 
 export async function downloadAuthenticated(path: string, filename: string) {
@@ -92,7 +100,15 @@ export async function fetchCurrentUser(accessToken: string): Promise<AuthUser> {
     cache: "no-store"
   });
 
-  return parseApiResponse<AuthUser>(response);
+  try {
+    return await parseApiResponse<AuthUser>(response);
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 401) {
+      clearAuthSession();
+      throw new ApiError("Your session expired. Please sign in again.", 401);
+    }
+    throw error;
+  }
 }
 
 export async function fetchHealth(): Promise<{ status: string; service: string; database: string }> {

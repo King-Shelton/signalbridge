@@ -2,7 +2,7 @@ import { NextRequest } from "next/server";
 
 export const dynamic = "force-dynamic";
 
-const DEFAULT_API_URL = "https://signalbridge-api.onrender.com";
+const DEFAULT_API_URL = "https://signalbridge-api-6wc6.onrender.com";
 const REQUEST_TIMEOUT_MS = 15000;
 
 function normalizeBaseUrl(target: string) {
