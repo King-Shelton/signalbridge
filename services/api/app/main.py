@@ -48,7 +48,7 @@ async def log_requests(request: Request, call_next):
 
 
 app.include_router(health.router)
-app.include_router(constants.router, prefix="/constants", tags=["constants"])
+app.include_router(constants.router)
 app.include_router(auth.router, prefix="/auth", tags=["auth"])
 app.include_router(youth.router, prefix="/youth", tags=["youth"])
 app.include_router(ai.router, prefix="/ai", tags=["ai"])

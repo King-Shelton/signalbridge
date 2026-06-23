@@ -14,8 +14,8 @@ class Settings(BaseSettings):
     access_token_minutes: int = 60
     cors_origins: str = "http://localhost:3000,http://127.0.0.1:3000"
     openai_api_key: str | None = None
-    openai_base_url: str = "https://openrouter.ai/api/v1"
-    openai_model: str = "google/gemma-3-12b-it:free"
+    openai_base_url: str | None = None
+    openai_model: str = "gpt-4.1-mini"
     openai_timeout_seconds: float = 30.0
     ai_prompt_version: str = "handoff-v1"
 

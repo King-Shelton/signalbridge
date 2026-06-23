@@ -330,21 +330,22 @@ def build_handoff_brief_with_ai(
 
         client = OpenAI(
             api_key=settings.openai_api_key,
-            base_url=settings.openai_base_url,
+            base_url=settings.openai_base_url or None,
             timeout=settings.openai_timeout_seconds,
         )
-        transcript = "\n".join(f"{message.sender_type.value}: {message.content}" for message in messages)[-12000:]
+        transcript = "\n".join(f"{message.sender_type.value}: {message.content}" for message in messages)[-5000:]
         schema = HandoffDraft.model_json_schema()
         response = client.chat.completions.create(
             model=settings.openai_model,
+            max_tokens=700,
             messages=[
                 {"role": "system", "content": (
-                    "Prepare a concise youth-support handoff for a trained human worker. Do not diagnose, counsel, "
-                    "promise confidentiality, or invent facts. Preserve youth agency, avoid clinical labels, and make "
-                    "the first response begin from the approved context without requiring repetition. "
-                    f"Respond ONLY with a JSON object matching this schema: {schema}"
+                    "Write a concise youth-support handoff for a trained worker. "
+                    "No diagnosis, no clinical labels, no invented facts, no promises of confidentiality. "
+                    "Preserve youth agency. The worker must not need the youth to repeat themselves. "
+                    f"Respond ONLY with JSON matching this schema: {schema}"
                 )},
-                {"role": "user", "content": f"Risk level fixed by safety rules: {assessment.risk_level.value}.\nTranscript:\n{transcript}"},
+                {"role": "user", "content": f"Risk level (fixed by safety rules): {assessment.risk_level.value}.\nTranscript:\n{transcript}"},
             ],
             response_format={"type": "json_object"},
         )
@@ -404,13 +405,13 @@ def generate_safenight_reply(new_message: str, history: list[Message], assessmen
 
         client = OpenAI(
             api_key=settings.openai_api_key,
-            base_url=settings.openai_base_url,
+            base_url=settings.openai_base_url or None,
             timeout=settings.openai_timeout_seconds,
         )
 
         prior = "\n".join(
             f"{m.sender_type.value}: {m.content}"
-            for m in history[-10:]
+            for m in history[-6:]
         )
         prompt = (
             f"Prior conversation:\n{prior}\n\nyouth: {new_message}"
@@ -420,15 +421,14 @@ def generate_safenight_reply(new_message: str, history: list[Message], assessmen
 
         response = client.chat.completions.create(
             model=settings.openai_model,
+            max_tokens=200,
             messages=[
                 {"role": "system", "content": (
-                    "You are SafeNight, a compassionate after-hours AI companion for at-risk youth in Singapore. "
-                    "Your role is to acknowledge feelings, keep the youth calm, and help them feel heard — "
-                    "NOT to counsel, diagnose, or provide clinical advice. "
-                    "Never promise confidentiality. Never give medical or psychiatric labels. "
-                    "Always remind the youth that a real worker will follow up. "
-                    "If there is any crisis language, direct them to emergency services (995) immediately. "
-                    "Reply in 2-4 short, warm, conversational sentences. Do not use bullet points or lists."
+                    "You are SafeNight, an after-hours AI companion for at-risk youth in Singapore. "
+                    "Acknowledge feelings and keep the youth calm. Do NOT counsel, diagnose, or give clinical advice. "
+                    "Never promise confidentiality. Always say a real worker will follow up. "
+                    "For crisis language, direct to 995 immediately. "
+                    "Reply in 2-3 warm, conversational sentences. No bullet points."
                 )},
                 {"role": "user", "content": prompt},
             ],

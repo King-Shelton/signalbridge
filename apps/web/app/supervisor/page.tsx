@@ -410,7 +410,7 @@ export default function SupervisorPage() {
           <div className="grid gap-3">
             {topRiskCases.map((item) => (
               <div
-                key={item.case!.id}
+                key={item.id}
                 className="grid gap-3 rounded-[16px] border border-[rgba(255,255,255,0.07)] bg-[rgba(255,255,255,0.03)] p-4 md:grid-cols-[1.2fr_1fr_auto]"
               >
                 <div>
