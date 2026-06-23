@@ -391,18 +391,83 @@ CRITICAL_FALLBACK_REPLY = (
 )
 
 
-def build_safenight_fallback_reply(new_message: str, assessment: RiskAssessment) -> str:
+def _has_cyberbullying_context(text: str) -> bool:
+    return any(
+        term in text
+        for term in (
+            "group chat",
+            "edited my photo",
+            "editing my photos",
+            "edited photos",
+            "posting my photo",
+            "cyberbully",
+            "cyberbullying",
+            "bully",
+            "bullied",
+            "bullying",
+            "mean comments",
+            "screenshots",
+        )
+    )
+
+
+def _is_short_greeting(text: str) -> bool:
+    words = text.split()
+    if len(words) > 4:
+        return False
+
+    first_word = words[0].strip("?!.,") if words else ""
+    return first_word in {"hi", "hello", "hey"} or bool(re.fullmatch(r"h+e+l+o+", first_word))
+
+
+def _asks_about_safenight_identity(text: str) -> bool:
+    compact = re.sub(r"[^a-z0-9]+", " ", text).strip()
+    return any(
+        phrase in compact
+        for phrase in (
+            "are you gay",
+            "are u gay",
+            "r u gay",
+            "are you a bot",
+            "are u a bot",
+            "are you real",
+            "are u real",
+            "who are you",
+            "what are you",
+        )
+    )
+
+
+def build_safenight_fallback_reply(
+    new_message: str,
+    assessment: RiskAssessment,
+    history: list[Message] | None = None,
+) -> str:
     """Return a varied, safety-bounded reply when the model path is unavailable."""
     text = new_message.strip().lower()
+    history_text = "\n".join(message.content.lower() for message in (history or []))
+    conversation_text = "\n".join(part for part in (history_text, text) if part)
     signal_types = {signal.type for signal in assessment.signals}
 
-    if any(greeting in text.split()[:3] for greeting in ("hi", "hello", "hey")) and len(text.split()) <= 4:
+    if _is_short_greeting(text):
         return (
             "Hi, I am here with you. You can start with one sentence, or just tell me what feels heaviest tonight. "
             "If you want, I can help prepare a short note for your worker so you do not have to explain everything again."
         )
 
-    if "cyberbullying" in signal_types:
+    if _asks_about_safenight_identity(text):
+        return (
+            "I am SafeNight, an AI after-hours companion, so I do not have a sexuality or personal life. "
+            "I am here to focus on what is making tonight hard for you, and a real worker can follow up on anything you choose to share."
+        )
+
+    if "dark" in text:
+        return (
+            "Being scared can feel bigger at night. Try to stay somewhere you feel a little safer if you can, and tell me "
+            "what is making the dark feel hard right now. A real worker can follow up on anything you choose to share."
+        )
+
+    if "cyberbullying" in signal_types or _has_cyberbullying_context(conversation_text):
         return (
             "That sounds humiliating and exhausting to carry alone. I am not a counsellor, but I can help you slow this down "
             "and keep a clear note for your worker about the bullying, so you do not have to retell the whole thing tomorrow."
@@ -420,10 +485,10 @@ def build_safenight_fallback_reply(new_message: str, assessment: RiskAssessment)
             "and save the important parts for your worker to read with your permission."
         )
 
-    if any(term in text for term in ("dark", "scared", "afraid", "fear")):
+    if any(term in text for term in ("scared", "afraid", "fear")):
         return (
-            "Being scared can feel bigger at night. Try to stay somewhere you feel a little safer if you can, and tell me "
-            "what is making the dark feel hard right now. A real worker can follow up on anything you choose to share."
+            "That fear sounds real, and you do not have to carry it by yourself tonight. If you can, stay near a trusted adult "
+            "or a safer place, and tell me one small thing that would help you feel less alone right now."
         )
 
     return (
@@ -437,9 +502,20 @@ def generate_safenight_reply(new_message: str, history: list[Message], assessmen
     if assessment.risk_level == RiskLevel.critical:
         return CRITICAL_FALLBACK_REPLY
 
+    text = new_message.strip().lower()
+    history_text = "\n".join(message.content.lower() for message in history)
+    conversation_text = "\n".join(part for part in (history_text, text) if part)
+    if (
+        _is_short_greeting(text)
+        or _asks_about_safenight_identity(text)
+        or "dark" in text
+        or _has_cyberbullying_context(conversation_text)
+    ):
+        return build_safenight_fallback_reply(new_message, assessment, history)
+
     settings = get_settings()
     if not settings.openai_api_key:
-        return build_safenight_fallback_reply(new_message, assessment)
+        return build_safenight_fallback_reply(new_message, assessment, history)
 
     try:
         from openai import OpenAI
@@ -476,15 +552,15 @@ def generate_safenight_reply(new_message: str, history: list[Message], assessmen
         )
         reply = (response.choices[0].message.content or "").strip()
         if not reply or len(reply) < 10:
-            return build_safenight_fallback_reply(new_message, assessment)
+            return build_safenight_fallback_reply(new_message, assessment, history)
 
         prohibited = ("you have depression", "you have anxiety", "keep this secret", "i promise", "clinically")
         if any(term in reply.lower() for term in prohibited):
-            return build_safenight_fallback_reply(new_message, assessment)
+            return build_safenight_fallback_reply(new_message, assessment, history)
 
         return reply
     except Exception:
-        return build_safenight_fallback_reply(new_message, assessment)
+        return build_safenight_fallback_reply(new_message, assessment, history)
 
 
 def suggest_worker_reply(assessment: RiskAssessment) -> str:

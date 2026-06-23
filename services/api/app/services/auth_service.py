@@ -23,7 +23,8 @@ def verify_password(password: str, password_hash: str) -> bool:
 
 
 def authenticate_user(db: Session, email: str, password: str) -> User | None:
-    user = db.query(User).filter(User.email == email).one_or_none()
+    normalized_email = email.strip().lower()
+    user = db.query(User).filter(User.email == normalized_email).one_or_none()
     if user is None or not verify_password(password, user.password_hash):
         return None
     return user
@@ -56,14 +57,18 @@ def get_current_user(
             algorithms=[settings.jwt_algorithm],
         )
         user_id = payload.get("sub")
+        token_email = payload.get("email")
+        token_role = payload.get("role")
     except JWTError as exc:
         raise auth_error from exc
 
-    if not isinstance(user_id, str):
+    if not isinstance(user_id, str) or not isinstance(token_email, str) or not isinstance(token_role, str):
         raise auth_error
 
     user = db.get(User, user_id)
     if user is None:
+        raise auth_error
+    if user.email != token_email.strip().lower() or user.role.value != token_role:
         raise auth_error
     return user
 
