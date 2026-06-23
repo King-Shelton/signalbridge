@@ -513,6 +513,7 @@ def seed(reset: bool = False) -> None:
                             details=json.dumps({"previous": {"status": "open"}, "current": {"status": "needs_follow_up"}}),
                             created_at=now - timedelta(hours=8)))
 
+        db.flush()
         if db.get(AiRun, "airun_seed_001") is None:
             db.add(AiRun(id="airun_seed_001", conversation_id="conv_mira_after_hours",
                          action="generate_handoff", mode="fallback_rule_based", model_name=None,

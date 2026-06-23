@@ -97,7 +97,7 @@
 .morning h2 { opacity: 0; animation: rise 1s cubic-bezier(.2,0,0,1) .5s forwards; }
 .morningLead { max-width: 42ch; margin-top: 18px; color: #475569; font-size: clamp(15px,1.7vw,18px); line-height: 1.6; opacity: 0; animation: riseSoft 1s ease .9s forwards; }
 .entryGrid { display: grid; width: 100%; margin-top: 44px; grid-template-columns: repeat(3,1fr); gap: 16px; text-align: left; opacity: 0; animation: rise 1s ease 1.2s forwards; }
-.entryCard { padding: 24px; border: 1px solid #e2e8f0; border-radius: 24px; background: linear-gradient(180deg,rgba(241,245,249,.92),rgba(255,255,255,.98)); transition: transform .2s,box-shadow .2s; }
+.entryCard { padding: 24px; border: 1px solid #e2e8f0; border-radius: 24px; background: linear-gradient(180deg,rgba(241,245,249,.92),rgba(255,255,255,.98)); transition: transform .2s,box-shadow .2s; cursor: pointer; }
 .entryCard:hover { transform: translateY(-4px); box-shadow: 0 18px 50px rgba(24,33,47,.12); }
 .entryCard:first-child { border-color: rgba(31,111,100,.2); background: linear-gradient(180deg,rgba(31,111,100,.08),rgba(255,255,255,.98)); }
 .entryIcon { width: 44px; height: 44px; margin-bottom: 18px; border: 0; border-radius: 13px; }
