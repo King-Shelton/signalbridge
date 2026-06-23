@@ -411,6 +411,36 @@ def _has_cyberbullying_context(text: str) -> bool:
     )
 
 
+def _asks_for_bullying_help(text: str) -> bool:
+    return _has_cyberbullying_context(text) and any(
+        phrase in text
+        for phrase in (
+            "what should i do",
+            "what shld i do",
+            "what do i do",
+            "how do i stop",
+            "how to stop",
+            "need help",
+            "help me",
+        )
+    )
+
+
+def _is_off_topic_or_insult_prompt(text: str) -> bool:
+    return any(
+        phrase in text
+        for phrase in (
+            "explain how",
+            "make fun of",
+            "roast",
+            "joke about",
+            "is he gay",
+            "is she gay",
+            "is mruthulan gay",
+        )
+    )
+
+
 def _is_short_greeting(text: str) -> bool:
     words = text.split()
     if len(words) > 4:
@@ -446,8 +476,9 @@ def build_safenight_fallback_reply(
     """Return a varied, safety-bounded reply when the model path is unavailable."""
     text = new_message.strip().lower()
     history_text = "\n".join(message.content.lower() for message in (history or []))
-    conversation_text = "\n".join(part for part in (history_text, text) if part)
     signal_types = {signal.type for signal in assessment.signals}
+    current_has_cyberbullying = "cyberbullying" in signal_types or _has_cyberbullying_context(text)
+    prior_has_cyberbullying = _has_cyberbullying_context(history_text)
 
     if _is_short_greeting(text):
         return (
@@ -461,13 +492,27 @@ def build_safenight_fallback_reply(
             "I am here to focus on what is making tonight hard for you, and a real worker can follow up on anything you choose to share."
         )
 
+    if _is_off_topic_or_insult_prompt(text):
+        return (
+            "I cannot help make comments about another person's body, identity, or appearance. "
+            "I can stay focused on what is happening to you and help keep a clear note for your worker."
+        )
+
     if "dark" in text:
         return (
             "Being scared can feel bigger at night. Try to stay somewhere you feel a little safer if you can, and tell me "
             "what is making the dark feel hard right now. A real worker can follow up on anything you choose to share."
         )
 
-    if "cyberbullying" in signal_types or _has_cyberbullying_context(conversation_text):
+    if _asks_for_bullying_help(text):
+        return (
+            "If you are being bullied, try not to answer them alone tonight. Save screenshots if it is safe, block or mute the chat "
+            "for now, and tell a trusted adult or school staff member as soon as you can. I can help prepare a short note for your worker."
+        )
+
+    if current_has_cyberbullying or (
+        prior_has_cyberbullying and any(term in text for term in ("scared", "afraid", "fear", "him", "her", "them"))
+    ):
         return (
             "That sounds humiliating and exhausting to carry alone. I am not a counsellor, but I can help you slow this down "
             "and keep a clear note for your worker about the bullying, so you do not have to retell the whole thing tomorrow."
@@ -504,12 +549,16 @@ def generate_safenight_reply(new_message: str, history: list[Message], assessmen
 
     text = new_message.strip().lower()
     history_text = "\n".join(message.content.lower() for message in history)
-    conversation_text = "\n".join(part for part in (history_text, text) if part)
     if (
         _is_short_greeting(text)
         or _asks_about_safenight_identity(text)
+        or _is_off_topic_or_insult_prompt(text)
         or "dark" in text
-        or _has_cyberbullying_context(conversation_text)
+        or _has_cyberbullying_context(text)
+        or (
+            _has_cyberbullying_context(history_text)
+            and any(term in text for term in ("scared", "afraid", "fear", "him", "her", "them"))
+        )
     ):
         return build_safenight_fallback_reply(new_message, assessment, history)
 
