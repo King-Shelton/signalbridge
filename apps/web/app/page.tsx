@@ -241,7 +241,7 @@ function Scene5({ onEnter }: { onEnter: (label: string, href: string) => void })
 
         <button
           className={styles.enterButton}
-          onClick={(e) => { e.stopPropagation(); onEnter("SignalBridge", "/login"); }}
+          onClick={(e) => { e.stopPropagation(); onEnter("SignalBridge", "/worker/cockpit"); }}
         >
           Enter SignalBridge
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">

@@ -10,6 +10,7 @@ import type { Role } from "@/lib/constants";
 const DEMOS: Array<{
   role: Role;
   label: string;
+  sublabel: string;
   description: string;
   email: string;
   password: string;
@@ -21,8 +22,9 @@ const DEMOS: Array<{
 }> = [
   {
     role: "youth",
-    label: "Talk to SafeNight",
-    description: "Private. After hours. Here with you tonight.",
+    label: "SafeNight Companion",
+    sublabel: "Youth - Mira Tan",
+    description: "After-hours chat with consent-gated handoff.",
     email: "mira@signalbridge.test",
     password: "password",
     icon: (
@@ -37,8 +39,9 @@ const DEMOS: Array<{
   },
   {
     role: "worker",
-    label: "Youth worker",
-    description: "Your morning queue and case handoffs.",
+    label: "Worker Cockpit",
+    sublabel: "Worker - Aisha Rahman",
+    description: "Signal Radar, handoff briefs, and case workflow.",
     email: "worker1@signalbridge.test",
     password: "password",
     icon: (
@@ -61,7 +64,8 @@ const DEMOS: Array<{
   {
     role: "supervisor",
     label: "Supervisor",
-    description: "Team load and case oversight.",
+    sublabel: "Supervisor - Daniel Lim",
+    description: "Worker load monitor, audit log, and reassignment.",
     email: "supervisor@signalbridge.test",
     password: "password",
     icon: (
@@ -137,6 +141,9 @@ export default function LoginPage() {
 
       <div className="relative z-10 flex min-h-screen flex-col items-center justify-center px-6 py-12">
         <div className="mb-14 flex flex-col items-center text-center" style={{ opacity: 0, animation: "sb-rise 1s cubic-bezier(0.2,0,0,1) 0.1s forwards" }}>
+          <div className="mb-5 rounded-full border border-[rgba(111,184,170,0.22)] bg-[rgba(111,184,170,0.08)] px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-[rgba(214,235,230,0.62)]">
+            Dell InnovateDash 2026
+          </div>
           <div className="relative mb-8 flex h-[88px] w-[88px] items-center justify-center">
             <div className="absolute h-[26px] w-[26px] rounded-full border border-[rgba(111,184,170,0.7)]" style={{ animation: "sb-ring 3.4s ease-out infinite" }} />
             <div className="absolute h-[26px] w-[26px] rounded-full border border-[rgba(111,184,170,0.5)]" style={{ animation: "sb-ring 3.4s ease-out 1.7s infinite" }} />
@@ -163,7 +170,7 @@ export default function LoginPage() {
             <span style={{ color: "#6fb8aa" }}>Signal</span>Bridge
           </h1>
           <p className="mt-3 max-w-[32ch] text-base text-[rgba(214,235,230,0.6)]" style={{ lineHeight: 1.6, opacity: 0, animation: "sb-soft 1s ease 1s forwards" }}>
-            After-hours support for young people. And a space for the workers who show up for them.
+            Proactive youth support command centre. Not a chatbot - a bridge.
           </p>
         </div>
 
@@ -188,6 +195,9 @@ export default function LoginPage() {
               <div className="text-[17px] font-semibold leading-tight text-[#f1f6f4]" style={{ letterSpacing: "-0.01em" }}>
                 {demo.label}
               </div>
+              <div className="mt-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-[rgba(214,235,230,0.42)]">
+                {demo.sublabel}
+              </div>
               <p className="mt-3 text-[13px] leading-relaxed text-[rgba(214,235,230,0.55)]">{demo.description}</p>
               <div className="mt-4 flex items-center gap-2 text-[12.5px] font-semibold text-[rgba(214,235,230,0.5)] transition-colors group-hover:text-[rgba(214,235,230,0.8)]">
                 Enter
@@ -206,6 +216,9 @@ export default function LoginPage() {
           </div>
         )}
 
+        <p className="mt-5 text-center text-[11px] uppercase tracking-[0.14em] text-[rgba(214,235,230,0.34)]">
+          Fictional seed data - Simulated approved channels - Production-grade alpha
+        </p>
       </div>
     </div>
   );
