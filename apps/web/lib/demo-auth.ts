@@ -63,7 +63,7 @@ export function getDemoSessionForRole(role: Role): AuthSession {
 }
 
 export function getDemoSessionForCredentials(email: string, password: string): AuthSession | null {
-  if (password !== "password123") {
+  if (password !== "password") {
     return null;
   }
 

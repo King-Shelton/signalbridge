@@ -60,15 +60,15 @@ export const workerYouthCases: WorkerYouthCase[] = [
     status: "Needs Review",
     handoffId: "handoff-mira-001",
     conversationSource: "mock-seed",
-    concern: "Cyberbullying involving edited photos in a class group chat",
-    keyQuote: "I'm so tired of explaining this.",
+    concern: "Photos edited and shared without consent in a class group chat.",
+    keyQuote: "I really don't want to face school tomorrow.",
     emotionalState: "Tired, embarrassed, and reluctant to repeat the story",
     workerResponse:
       "Hi Mira, I read the note you allowed SignalBridge to prepare. You don't have to repeat everything unless you want to. I'm here now. Can I first check whether you feel safe going to school today?",
     whatAiDid:
       "Validated the distress, identified cyberbullying and school avoidance as the core signals, and prepared the handoff only after consent.",
     whatNotToRepeat:
-      "Do not make Mira retell the edited-photo incident unless she chooses to add more.",
+      "Don't ask Mira to retell the photo incident unless she brings it up herself.",
     recommendedNextStep:
       "Review the handoff first thing, open with a safety check, and plan a same-day follow-up.",
     background:
@@ -96,14 +96,14 @@ export const workerYouthCases: WorkerYouthCase[] = [
         sender: "youth",
         author: "Mira",
         message:
-          "People in my class group chat keep editing my photos. I don't want to go school tomorrow.",
+          "Someone in my class keeps editing photos of me and sharing them around. I really don't want to face school tomorrow.",
         timestamp: "11:42 PM"
       },
       {
         sender: "worker",
         author: "SafeNight",
         message:
-          "You do not need to repeat everything. We can start with whether school feels safe tomorrow.",
+          "That sounds really hard. You don't have to go over all of it right now. How are you feeling about school tomorrow?",
         timestamp: "11:42 PM"
       }
     ]

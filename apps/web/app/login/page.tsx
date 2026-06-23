@@ -10,7 +10,6 @@ import type { Role } from "@/lib/constants";
 const DEMOS: Array<{
   role: Role;
   label: string;
-  sublabel: string;
   description: string;
   email: string;
   password: string;
@@ -22,9 +21,8 @@ const DEMOS: Array<{
 }> = [
   {
     role: "youth",
-    label: "SafeNight Companion",
-    sublabel: "Youth | Mira Tan",
-    description: "After-hours chat with consent-gated handoff",
+    label: "Talk to SafeNight",
+    description: "Private. After hours. Here with you tonight.",
     email: "mira@signalbridge.test",
     password: "password",
     icon: (
@@ -39,9 +37,8 @@ const DEMOS: Array<{
   },
   {
     role: "worker",
-    label: "Worker Cockpit",
-    sublabel: "Worker | Aisha Rahman",
-    description: "Signal Radar, handoff briefs, case workflow",
+    label: "Youth worker",
+    description: "Your morning queue and case handoffs.",
     email: "worker1@signalbridge.test",
     password: "password",
     icon: (
@@ -64,8 +61,7 @@ const DEMOS: Array<{
   {
     role: "supervisor",
     label: "Supervisor",
-    sublabel: "Supervisor | Daniel Lim",
-    description: "Worker load monitor, audit log, case reassignment",
+    description: "Team load and case oversight.",
     email: "supervisor@signalbridge.test",
     password: "password",
     icon: (
@@ -163,14 +159,11 @@ export default function LoginPage() {
             </div>
           </div>
 
-          <div className="sb-eyebrow mb-4" style={{ opacity: 0, animation: "sb-soft 0.8s ease 0.4s forwards" }}>
-            Dell InnovateDash 2026
-          </div>
           <h1 className="text-[clamp(32px,5vw,60px)] font-semibold text-[#f1f6f4]" style={{ letterSpacing: "-0.03em", opacity: 0, animation: "sb-rise 1s cubic-bezier(0.2,0,0,1) 0.6s forwards" }}>
             <span style={{ color: "#6fb8aa" }}>Signal</span>Bridge
           </h1>
           <p className="mt-3 max-w-[32ch] text-base text-[rgba(214,235,230,0.6)]" style={{ lineHeight: 1.6, opacity: 0, animation: "sb-soft 1s ease 1s forwards" }}>
-            Proactive youth support command centre. Not a chatbot - a bridge.
+            After-hours support for young people. And a space for the workers who show up for them.
           </p>
         </div>
 
@@ -195,7 +188,6 @@ export default function LoginPage() {
               <div className="text-[17px] font-semibold leading-tight text-[#f1f6f4]" style={{ letterSpacing: "-0.01em" }}>
                 {demo.label}
               </div>
-              <div className="mt-1 text-[12px] font-medium text-[rgba(214,235,230,0.5)]">{demo.sublabel}</div>
               <p className="mt-3 text-[13px] leading-relaxed text-[rgba(214,235,230,0.55)]">{demo.description}</p>
               <div className="mt-4 flex items-center gap-2 text-[12.5px] font-semibold text-[rgba(214,235,230,0.5)] transition-colors group-hover:text-[rgba(214,235,230,0.8)]">
                 Enter
@@ -214,9 +206,6 @@ export default function LoginPage() {
           </div>
         )}
 
-        <p className="mt-10 max-w-[40ch] text-center text-[11px] text-[rgba(214,235,230,0.3)]" style={{ letterSpacing: "0.02em", opacity: 0, animation: "sb-soft 0.8s ease 1.6s forwards" }}>
-          Fictional seed data | Simulated approved channels | Production-grade alpha
-        </p>
       </div>
     </div>
   );
