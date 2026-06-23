@@ -167,13 +167,10 @@ export default function YouthChatPage() {
     setError("");
     setIsSavingConsent(true);
     try {
-      const response = await fetch(`${apiBaseUrl}/youth/conversations/${conversation.id}/handoff-consent`, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${session.accessToken}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ consentGiven }),
-      });
-      if (!response.ok) throw new Error("Consent could not be saved. Please try again.");
-      const data = (await response.json()) as { conversation: Conversation };
+      const data = await apiFetch<{ conversation: Conversation }>(
+        `/youth/conversations/${conversation.id}/handoff-consent`,
+        { method: "POST", body: JSON.stringify({ consentGiven }) }
+      );
       setConversation(data.conversation);
     } catch (consentError) {
       setError(consentError instanceof Error ? consentError.message : "Consent could not be saved.");
