@@ -10,9 +10,12 @@ os.environ["SIGNALBRIDGE_DATABASE_URL"] = f"sqlite:///{DB_PATH.as_posix()}"
 os.environ.pop("SIGNALBRIDGE_OPENAI_API_KEY", None)
 
 from fastapi.testclient import TestClient
+from jose import jwt
 
+from app.config import get_settings
 from app.database import Base, engine
 from app.main import app
+from app.models.message import Message, SenderType
 from app.services.ai_service import CRITICAL_FALLBACK_REPLY, generate_safenight_reply
 from app.services.safenight_service import assess_safe_night_message
 from seed import seed
@@ -44,10 +47,24 @@ def auth(email: str) -> dict[str, str]:
 
 def test_health_login_and_role_isolation() -> None:
     assert client.get("/health").status_code == 200
+    assert client.post("/auth/login", json={"email": " WORKER1@SIGNALBRIDGE.TEST ", "password": "password"}).status_code == 200
     worker_headers = auth("worker1@signalbridge.test")
     assert client.get("/auth/me", headers=worker_headers).json()["role"] == "worker"
     assert client.get("/supervisor/load", headers=worker_headers).status_code == 403
     assert client.get("/worker/cockpit").status_code == 401
+
+
+def test_auth_rejects_token_with_stale_role_claim() -> None:
+    settings = get_settings()
+    tampered_token = jwt.encode(
+        {"sub": "user_worker_1", "email": "worker1@signalbridge.test", "role": "supervisor"},
+        settings.jwt_secret,
+        algorithm=settings.jwt_algorithm,
+    )
+
+    response = client.get("/auth/me", headers={"Authorization": f"Bearer {tampered_token}"})
+
+    assert response.status_code == 401
 
 
 def test_cockpit_handoff_pdf_case_note_and_status() -> None:
@@ -108,6 +125,70 @@ def test_safenight_fallback_reply_is_contextual_without_ai_key() -> None:
         [],
         assess_safe_night_message("I want to die"),
     )
+
+
+def test_safenight_keeps_bullying_context_when_youth_says_scared_of_person() -> None:
+    history = [
+        Message(
+            conversation_id="test_conversation",
+            sender_type=SenderType.youth,
+            content="hey i want to stop getting bullied by mruthulan",
+        )
+    ]
+
+    reply = generate_safenight_reply(
+        "im so scared of mruthulan",
+        history,
+        assess_safe_night_message("im so scared of mruthulan"),
+    )
+
+    assert "bullying" in reply.lower()
+    assert "dark" not in reply.lower()
+
+
+def test_safenight_handles_identity_questions_and_typo_greetings() -> None:
+    history = [
+        Message(
+            conversation_id="test_conversation",
+            sender_type=SenderType.youth,
+            content="hey i want to stop getting bullied by mruthulan",
+        )
+    ]
+
+    identity_reply = generate_safenight_reply(
+        "are u gay?",
+        history,
+        assess_safe_night_message("are u gay?"),
+    )
+    greeting_reply = generate_safenight_reply(
+        "helllo",
+        history,
+        assess_safe_night_message("helllo"),
+    )
+
+    assert "ai after-hours companion" in identity_reply.lower()
+    assert "sexuality" in identity_reply.lower()
+    assert "dark" not in identity_reply.lower()
+    assert "hi, i am here with you" in greeting_reply.lower()
+
+
+def test_safenight_uses_current_dark_context_over_prior_bullying() -> None:
+    history = [
+        Message(
+            conversation_id="test_conversation",
+            sender_type=SenderType.youth,
+            content="hey i want to stop getting bullied by mruthulan",
+        )
+    ]
+
+    reply = generate_safenight_reply(
+        "hello im scared of the dark",
+        history,
+        assess_safe_night_message("hello im scared of the dark"),
+    )
+
+    assert "dark" in reply.lower()
+    assert "bullying" not in reply.lower()
 
 
 def test_supervisor_reassignment_analytics_audit_and_simulator() -> None:
