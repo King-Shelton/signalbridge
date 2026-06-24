@@ -6,7 +6,7 @@ import styles from "./page.module.css";
 
 const TOTAL = 6;
 const CLOCK_TIMES = ["11:42 PM", "11:43 PM", "11:48 PM", "2:17 AM", "5:30 AM", "7:08 AM"];
-const CHAPTER_LABELS = ["After hours", "A message arrives", "SignalBridge", "The promise", "How it holds", "Morning"];
+const CHAPTER_LABELS = ["After hours", "A message arrives", "SignalBridge", "The promise", "How SafeNight works", "Morning"];
 
 function AnimatedWords({ text, startMs, stepMs, dur = "0.7s" }: {
   text: string; startMs: number; stepMs: number; dur?: string;
@@ -53,7 +53,7 @@ function Scene1() {
         </div>
         <div className={styles.youthBubble}>
           <AnimatedWords
-            text="People in my class group chat keep editing my photos. I don't want to go school tomorrow. I'm so tired of explaining this."
+            text="Someone in my class keeps editing photos of me and sharing them around. I really don't want to face school tomorrow."
             startMs={300}
             stepMs={75}
             dur="0.6s"
@@ -63,7 +63,7 @@ function Scene1() {
         <div className={styles.replyWrap}>
           <p>SafeNight</p>
           <div className={styles.replyBubble}>
-            You do not need to repeat everything. We can start with whether school feels safe tomorrow.
+            That sounds really hard. You don&apos;t have to go over all of it right now. How are you feeling about school tomorrow?
           </div>
         </div>
       </div>
@@ -88,7 +88,7 @@ function Scene2() {
           </svg>
         </div>
         <h1 className={styles.wordmark}><span>Signal</span>Bridge</h1>
-        <p className={styles.lead}>An after-hours command centre for youth workers. Not a chatbot - a bridge.</p>
+        <p className={styles.lead}>After-hours support for young people. And a space for the workers who show up for them.</p>
       </div>
     </div>
   );
@@ -102,7 +102,7 @@ function Scene3() {
         <div className={styles.eyebrow}>The promise</div>
         <h2>
           <AnimatedWords
-            text="The youth does not have to repeat their pain twice. The worker does not have to start from zero."
+            text="You only have to say it once. We hold it until morning."
             startMs={250}
             stepMs={95}
             dur="0.7s"
@@ -119,8 +119,8 @@ function Scene4() {
       <div className={`${styles.atmosphere} ${styles.atmosphere4}`} />
       <div className={styles.stepsScene}>
         <div className={styles.stepsHeading}>
-          <div className={styles.eyebrow}>How it holds the night</div>
-          <h2>Three quiet steps. Always with consent.</h2>
+          <div className={styles.eyebrow}>How SafeNight works</div>
+          <h2>Three steps. Always on your terms.</h2>
         </div>
         <div className={styles.steps}>
           <div className={styles.step}>
@@ -129,8 +129,8 @@ function Scene4() {
                 <path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"/>
               </svg>
             </div>
-            <h3>Listen safely</h3>
-            <p>No diagnosis. No pressure. Just presence at the hour it matters.</p>
+            <h3>Listen</h3>
+            <p>Here with you when it&apos;s late. No labels, no pressure.</p>
           </div>
 
           <div className={styles.connector} />
@@ -141,8 +141,8 @@ function Scene4() {
                 <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
               </svg>
             </div>
-            <h3>Detect the signals</h3>
-            <p>Cyberbullying, school avoidance, after-hours risk - surfaced, never assumed.</p>
+            <h3>Read the signals</h3>
+            <p>Picks up on what matters. Never diagnoses. Never assumes.</p>
           </div>
 
           <div
@@ -160,8 +160,8 @@ function Scene4() {
                 <path d="m9 12 2 2 4-4"/>
               </svg>
             </div>
-            <h3>Hand off with consent</h3>
-            <p>You choose what gets shared. A human worker reviews every note.</p>
+            <h3>Hand off carefully</h3>
+            <p>You decide what gets shared. Your worker reviews everything before morning.</p>
           </div>
         </div>
       </div>
@@ -174,35 +174,32 @@ function Scene5({ onEnter }: { onEnter: (label: string, href: string) => void })
     <div className={styles.scene}>
       <div className={`${styles.atmosphere} ${styles.atmosphere5}`} />
       <div className={styles.morning}>
-        <div className={styles.eyebrow}>7:08 AM - the morning after</div>
-        <h2>A worker picks up - with the full story already there.</h2>
-        <p className={styles.morningLead}>
-          Choose where to step in. The context, the consent, and the care carry over.
-        </p>
+        <div className={styles.eyebrow}>7:08 AM</div>
+        <h2>Your worker picks up ready. You won&apos;t have to start over.</h2>
 
         <div className={styles.entryGrid}>
           <div
             className={styles.entryCard}
             role="button"
             tabIndex={0}
-            onClick={(e) => { e.stopPropagation(); onEnter("SafeNight Companion", "/youth/chat"); }}
-            onKeyDown={(e) => { if (e.key === "Enter") { e.stopPropagation(); onEnter("SafeNight Companion", "/youth/chat"); } }}
+            onClick={(e) => { e.stopPropagation(); onEnter("Talk to SafeNight", "/login"); }}
+            onKeyDown={(e) => { if (e.key === "Enter") { e.stopPropagation(); onEnter("Talk to SafeNight", "/login"); } }}
           >
             <div className={styles.entryIcon}>
               <svg viewBox="0 0 24 24" fill="none" stroke="#1f6f64" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/>
               </svg>
             </div>
-            <strong>SafeNight Companion</strong>
-            <span>After-hours youth chat with consent-gated handoff.</span>
+            <strong>Talk to SafeNight</strong>
+            <span>Private. After hours. Here with you tonight.</span>
           </div>
 
           <div
             className={styles.entryCard}
             role="button"
             tabIndex={0}
-            onClick={(e) => { e.stopPropagation(); onEnter("Worker Cockpit", "/worker/cockpit"); }}
-            onKeyDown={(e) => { if (e.key === "Enter") { e.stopPropagation(); onEnter("Worker Cockpit", "/worker/cockpit"); } }}
+            onClick={(e) => { e.stopPropagation(); onEnter("Youth worker", "/login"); }}
+            onKeyDown={(e) => { if (e.key === "Enter") { e.stopPropagation(); onEnter("Youth worker", "/login"); } }}
           >
             <div className={`${styles.entryIcon} ${styles.coral}`}>
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
@@ -216,37 +213,25 @@ function Scene5({ onEnter }: { onEnter: (label: string, href: string) => void })
                 <path d="m13.41 10.59 5.66-5.66"/>
               </svg>
             </div>
-            <strong>Worker Cockpit</strong>
-            <span>Signal Radar queue and consent-based handoff briefs.</span>
-          </div>
-
-          <div
-            className={styles.entryCard}
-            role="button"
-            tabIndex={0}
-            onClick={(e) => { e.stopPropagation(); onEnter("Supervisor", "/supervisor"); }}
-            onKeyDown={(e) => { if (e.key === "Enter") { e.stopPropagation(); onEnter("Supervisor", "/supervisor"); } }}
-          >
-            <div className={`${styles.entryIcon} ${styles.amber}`}>
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M18 21a8 8 0 0 0-16 0"/>
-                <circle cx="10" cy="8" r="5"/>
-                <path d="M22 20c0-3.37-2-6.5-4-8a5 5 0 0 0-.45-8.3"/>
-              </svg>
-            </div>
-            <strong>Supervisor</strong>
-            <span>Worker-load wellbeing monitor and safety audit.</span>
+            <strong>Youth worker</strong>
+            <span>Your morning queue and case handoffs.</span>
           </div>
         </div>
 
         <button
           className={styles.enterButton}
-          onClick={(e) => { e.stopPropagation(); onEnter("SignalBridge", "/worker/cockpit"); }}
+          onClick={(e) => { e.stopPropagation(); onEnter("SafeNight", "/login"); }}
         >
-          Enter SignalBridge
+          Start talking
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d="M5 12h14"/><path d="m12 5 7 7-7 7"/>
           </svg>
+        </button>
+        <button
+          className={styles.supervisorLink}
+          onClick={(e) => { e.stopPropagation(); onEnter("Supervisor", "/login"); }}
+        >
+          Supervisor sign in
         </button>
       </div>
     </div>
@@ -258,17 +243,6 @@ export default function IntroPage() {
   const [entering, setEntering] = useState<string | null>(null);
   const router = useRouter();
   const lockRef = useRef(false);
-
-  useEffect(() => {
-    try {
-      const v = parseInt(localStorage.getItem("sb_intro_scene") || "0", 10);
-      if (!isNaN(v)) setScene(Math.max(0, Math.min(5, v)));
-    } catch {}
-  }, []);
-
-  useEffect(() => {
-    try { localStorage.setItem("sb_intro_scene", String(scene)); } catch {}
-  }, [scene]);
 
   const next = useCallback(() => setScene(s => Math.min(5, s + 1)), []);
   const prev = useCallback(() => setScene(s => Math.max(0, s - 1)), []);
@@ -359,6 +333,15 @@ export default function IntroPage() {
       </div>
 
       {/* Entering overlay */}
+      {scene < 5 && !entering && (
+        <button
+          className={styles.skipBtn}
+          onClick={(e) => { e.stopPropagation(); setScene(5); }}
+        >
+          Skip intro
+        </button>
+      )}
+
       {entering && (
         <div className={styles.entering}>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -366,7 +349,6 @@ export default function IntroPage() {
           </svg>
           <div>
             <strong>Opening {entering}</strong>
-            <span>Live AI connects here</span>
           </div>
         </div>
       )}
