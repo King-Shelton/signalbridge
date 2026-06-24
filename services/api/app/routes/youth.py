@@ -223,6 +223,8 @@ def create_youth_message(
         reply_content = generate_safenight_reply(
             payload.content, history, assessment,
             consent_to_handoff=conversation.consent_to_handoff,
+            db=db,
+            conversation_id=conversation.id,
         )
 
     ai_reply = Message(
