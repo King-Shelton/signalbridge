@@ -25,6 +25,7 @@ from app.models.message import Message, SenderType
 from app.models.youth_profile import YouthProfile
 from app.routes import operations, telegram_bot
 from app.services.ai_service import CRITICAL_FALLBACK_REPLY, generate_safenight_reply
+from app.services.discord_bot_service import _ensure_thread_conversation, _handle_message
 from app.services.safenight_service import assess_safe_night_message
 from seed import seed
 
@@ -141,6 +142,31 @@ def test_telegram_deep_link_and_worker_reply_round_trip(monkeypatch) -> None:
         last_message = db.query(Message).filter_by(conversation_id=conversation.id).order_by(Message.created_at.desc()).first()
         assert last_message.sender_type == SenderType.worker
         assert conversation.last_message_at == last_message.created_at
+
+
+def test_discord_thread_conversation_routes_to_safenight() -> None:
+    discord_user_id = "discord_user_mira_thread_test"
+    discord_thread_id = "discord_thread_mira_001"
+
+    assert _ensure_thread_conversation(discord_user_id, "youth_mira", discord_thread_id) == "SafeNight is ready here. Keep typing in this thread."
+
+    reply = _handle_message(
+        discord_user_id,
+        "Someone keeps editing my photos and I do not want to go to school tomorrow.",
+        discord_thread_id,
+    )
+
+    assert reply
+    with SessionLocal() as db:
+        youth = db.get(YouthProfile, "youth_mira")
+        conversation = db.query(Conversation).filter_by(discord_thread_id=discord_thread_id).one()
+        messages = db.query(Message).filter_by(conversation_id=conversation.id).order_by(Message.created_at.asc()).all()
+
+        assert youth.discord_user_id == discord_user_id
+        assert conversation.channel == "Discord"
+        assert conversation.risk_score >= 40
+        assert messages[-2].sender_type == SenderType.youth
+        assert messages[-1].sender_type == SenderType.ai
 
 
 def test_public_telegram_intake_asks_name_then_syncs_to_worker_cockpit(monkeypatch) -> None:
