@@ -35,4 +35,3 @@ The API container also runs migrations and idempotent seed data on normal startu
 2. Local Docker demo from a clean clone using `docker compose up --build`.
 3. Backup recording of the Mira youth-to-worker handoff journey.
 4. Screenshots of `/login`, youth chat, Signal Radar, handoff detail, supervisor load, and audit logs.
-

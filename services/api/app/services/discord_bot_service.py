@@ -276,6 +276,5 @@ def build_discord_bot() -> SafeNightDiscordBot | None:
         return None
 
     intents = discord.Intents.default()
-    intents.message_content = True
     intents.dm_messages = True
     return SafeNightDiscordBot(intents=intents)

@@ -11,12 +11,21 @@ depends_on = None
 
 def upgrade() -> None:
     bind = op.get_bind()
-    columns = {c["name"] for c in inspect(bind).get_columns("youth_profiles")}
+    inspector = inspect(bind)
+    columns = {c["name"] for c in inspector.get_columns("youth_profiles")}
+    indexes = {index["name"] for index in inspector.get_indexes("youth_profiles")}
     if "discord_user_id" not in columns:
-        op.add_column("youth_profiles", sa.Column("discord_user_id", sa.String(32), nullable=True))
-        op.create_unique_constraint("uq_youth_profiles_discord_user_id", "youth_profiles", ["discord_user_id"])
+        op.add_column("youth_profiles", sa.Column("discord_user_id", sa.String(80), nullable=True))
+    if "ix_youth_profiles_discord_user_id" not in indexes:
+        op.create_index("ix_youth_profiles_discord_user_id", "youth_profiles", ["discord_user_id"], unique=True)
 
 
 def downgrade() -> None:
-    op.drop_constraint("uq_youth_profiles_discord_user_id", "youth_profiles", type_="unique")
-    op.drop_column("youth_profiles", "discord_user_id")
+    bind = op.get_bind()
+    inspector = inspect(bind)
+    columns = {c["name"] for c in inspector.get_columns("youth_profiles")}
+    indexes = {index["name"] for index in inspector.get_indexes("youth_profiles")}
+    if "ix_youth_profiles_discord_user_id" in indexes:
+        op.drop_index("ix_youth_profiles_discord_user_id", table_name="youth_profiles")
+    if "discord_user_id" in columns:
+        op.drop_column("youth_profiles", "discord_user_id")
