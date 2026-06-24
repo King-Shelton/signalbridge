@@ -177,47 +177,6 @@ function Scene5({ onEnter }: { onEnter: (label: string, href: string) => void })
         <div className={styles.eyebrow}>7:08 AM</div>
         <h2>Your worker picks up ready. You won&apos;t have to start over.</h2>
 
-        <div className={styles.entryGrid}>
-          <div
-            className={styles.entryCard}
-            role="button"
-            tabIndex={0}
-            onClick={(e) => { e.stopPropagation(); onEnter("Talk to SafeNight", "/login"); }}
-            onKeyDown={(e) => { if (e.key === "Enter") { e.stopPropagation(); onEnter("Talk to SafeNight", "/login"); } }}
-          >
-            <div className={styles.entryIcon}>
-              <svg viewBox="0 0 24 24" fill="none" stroke="#1f6f64" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/>
-              </svg>
-            </div>
-            <strong>Talk to SafeNight</strong>
-            <span>Private. After hours. Here with you tonight.</span>
-          </div>
-
-          <div
-            className={styles.entryCard}
-            role="button"
-            tabIndex={0}
-            onClick={(e) => { e.stopPropagation(); onEnter("Youth worker", "/login"); }}
-            onKeyDown={(e) => { if (e.key === "Enter") { e.stopPropagation(); onEnter("Youth worker", "/login"); } }}
-          >
-            <div className={`${styles.entryIcon} ${styles.coral}`}>
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M19.07 4.93A10 10 0 0 0 6.99 3.34"/>
-                <path d="M4 6h.01"/>
-                <path d="M2.29 9.62A10 10 0 1 0 21.31 8.35"/>
-                <path d="M16.24 7.76A6 6 0 1 0 8.23 16.67"/>
-                <path d="M12 18h.01"/>
-                <path d="M17.99 11.66A6 6 0 0 1 15.77 16.67"/>
-                <circle cx="12" cy="12" r="2"/>
-                <path d="m13.41 10.59 5.66-5.66"/>
-              </svg>
-            </div>
-            <strong>Youth worker</strong>
-            <span>Your morning queue and case handoffs.</span>
-          </div>
-        </div>
-
         <button
           className={styles.enterButton}
           onClick={(e) => { e.stopPropagation(); onEnter("SafeNight", "/login"); }}
@@ -227,12 +186,22 @@ function Scene5({ onEnter }: { onEnter: (label: string, href: string) => void })
             <path d="M5 12h14"/><path d="m12 5 7 7-7 7"/>
           </svg>
         </button>
-        <button
-          className={styles.supervisorLink}
-          onClick={(e) => { e.stopPropagation(); onEnter("Supervisor", "/login"); }}
-        >
-          Supervisor sign in
-        </button>
+
+        <div className={styles.staffLinks}>
+          <button
+            className={styles.supervisorLink}
+            onClick={(e) => { e.stopPropagation(); onEnter("Youth worker", "/login"); }}
+          >
+            Youth worker sign in
+          </button>
+          <span className={styles.staffDivider}>·</span>
+          <button
+            className={styles.supervisorLink}
+            onClick={(e) => { e.stopPropagation(); onEnter("Supervisor", "/login"); }}
+          >
+            Supervisor sign in
+          </button>
+        </div>
       </div>
     </div>
   );
