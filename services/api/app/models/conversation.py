@@ -29,6 +29,7 @@ class Conversation(Base):
     id: Mapped[str] = mapped_column(String, primary_key=True, default=lambda: f"conv_{uuid.uuid4().hex}")
     youth_id: Mapped[str] = mapped_column(ForeignKey("youth_profiles.id"), nullable=False)
     channel: Mapped[str] = mapped_column(String(80), default="Web Chat", nullable=False)
+    discord_thread_id: Mapped[str | None] = mapped_column(String(80), nullable=True, unique=True)
     status: Mapped[ConversationStatus] = mapped_column(Enum(ConversationStatus), default=ConversationStatus.active)
     risk_level: Mapped[RiskLevel] = mapped_column(Enum(RiskLevel), default=RiskLevel.low)
     risk_score: Mapped[int] = mapped_column(default=0, nullable=False)
