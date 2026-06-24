@@ -1,17 +1,8 @@
-"""Discord bot - youth-facing SafeNight chat via Discord DMs.
-
-Flow:
-  Youth DMs the bot -> discord.py gateway receives it -> SafeNight AI replies -> worker notified.
-  !start  -> welcome + link instructions
-  !link   -> links the Discord user ID to a youth profile
-  text    -> full SafeNight pipeline, reply sent back, worker alerted if risk high
-
-Runs as an asyncio task inside FastAPI's lifespan - no separate process needed.
-Synchronous DB/AI work is offloaded to a thread executor so the event loop stays free.
-"""
+"""Discord bot for SafeNight DMs and server-thread conversations."""
 
 import asyncio
 import logging
+import re
 
 from sqlalchemy import select
 
@@ -55,7 +46,6 @@ from app.services.ai_service import (
     detect_verbal_consent,
     generate_safenight_reply,
     get_conversation_messages,
-    persist_signals,
 )
 from app.services.notifications import notify_worker
 from app.services.safenight_service import assess_safe_night_message
@@ -64,32 +54,48 @@ from app.timeutil import naive_utcnow
 logger = logging.getLogger("signalbridge.discord_bot")
 
 _WELCOME = (
-    "Hi, I'm SafeNight - SignalBridge's after-hours support companion.\n\n"
+    "Hi, I'm SafeNight, SignalBridge's after-hours support companion.\n\n"
     "I'm here to listen, and I'll never share what you say without asking you first.\n\n"
     "To connect this chat to your SignalBridge account, send:\n"
     "!link YOUR_YOUTH_ID\n\n"
-    "Once linked, just type normally - no commands needed."
+    "Once linked, just type normally."
 )
 
-_LINK_USAGE = "Send `!link` followed by your youth ID, e.g.:\n`!link youth_abc123`"
+_LINK_USAGE = "Send `!link` followed by your youth ID, e.g.:\n`!link youth_mira`"
+_PUBLIC_USAGE = "Start a SafeNight thread with `!safenight YOUR_YOUTH_ID`, e.g. `!safenight youth_mira`."
 _NOT_LINKED = (
     "I don't recognise this account yet.\n\n"
-    "Send `!link YOUR_YOUTH_ID` to connect, or ask your worker for your youth ID."
+    "Send `!link YOUR_YOUTH_ID` in DM, or start from the server with `!safenight YOUR_YOUTH_ID`."
 )
 _LINKED_OK = "Linked! You can now chat with SafeNight right here. Just type whenever you're ready."
 _ALREADY_LINKED = "This Discord account is already linked to a SignalBridge account."
+_THREAD_READY = "SafeNight is ready here. Keep typing in this thread."
 
 
-# ---------------------------------------------------------------------------
-# Synchronous DB helpers (called via asyncio.to_thread so they don't block)
-# ---------------------------------------------------------------------------
+def _get_active_discord_conversation(
+    db,
+    youth: YouthProfile,
+    discord_thread_id: str | None = None,
+) -> Conversation:
+    if discord_thread_id:
+        conv = db.scalar(
+            select(Conversation)
+            .where(
+                Conversation.discord_thread_id == discord_thread_id,
+                Conversation.youth_id == youth.id,
+                Conversation.status != ConversationStatus.closed,
+            )
+            .order_by(Conversation.last_message_at.desc().nullslast(), Conversation.created_at.desc())
+        )
+        if conv is not None:
+            return conv
 
-def _get_active_discord_conversation(db, youth: YouthProfile) -> Conversation:
     conv = db.scalar(
         select(Conversation)
         .where(
             Conversation.youth_id == youth.id,
             Conversation.channel == "Discord",
+            Conversation.discord_thread_id.is_(None),
             Conversation.status != ConversationStatus.closed,
         )
         .order_by(Conversation.last_message_at.desc().nullslast(), Conversation.created_at.desc())
@@ -98,17 +104,19 @@ def _get_active_discord_conversation(db, youth: YouthProfile) -> Conversation:
         conv = Conversation(
             youth_id=youth.id,
             channel="Discord",
+            discord_thread_id=discord_thread_id,
             status=ConversationStatus.active,
             risk_level=RiskLevel.low,
             risk_score=0,
         )
         db.add(conv)
         db.flush()
+    elif discord_thread_id and conv.discord_thread_id is None:
+        conv.discord_thread_id = discord_thread_id
     return conv
 
 
 def _handle_link(discord_user_id: str, youth_id: str) -> str:
-    """Link a Discord user ID to a youth profile. Returns the reply string."""
     db = SessionLocal()
     try:
         youth = db.get(YouthProfile, youth_id)
@@ -129,15 +137,41 @@ def _handle_link(discord_user_id: str, youth_id: str) -> str:
         db.close()
 
 
-def _handle_message(discord_user_id: str, content: str) -> str:
-    """Run the full SafeNight pipeline. Returns the AI reply string."""
+def _ensure_thread_conversation(discord_user_id: str, youth_id: str, discord_thread_id: str) -> str:
+    db = SessionLocal()
+    try:
+        youth = db.get(YouthProfile, youth_id)
+        if youth is None:
+            return "Youth ID not found. Ask your worker for your exact ID."
+
+        if youth.discord_user_id and youth.discord_user_id != discord_user_id:
+            return _ALREADY_LINKED
+
+        existing = db.scalar(select(YouthProfile).where(YouthProfile.discord_user_id == discord_user_id))
+        if existing and existing.id != youth_id:
+            return "This Discord account is already linked to another youth profile."
+
+        youth.discord_user_id = discord_user_id
+        conversation = _get_active_discord_conversation(db, youth, discord_thread_id)
+        conversation.discord_thread_id = discord_thread_id
+        db.commit()
+        return _THREAD_READY
+    finally:
+        db.close()
+
+
+def _handle_message(
+    discord_user_id: str,
+    content: str,
+    discord_thread_id: str | None = None,
+) -> str:
     db = SessionLocal()
     try:
         youth = db.scalar(select(YouthProfile).where(YouthProfile.discord_user_id == discord_user_id))
         if youth is None:
             return _NOT_LINKED
 
-        conversation = _get_active_discord_conversation(db, youth)
+        conversation = _get_active_discord_conversation(db, youth, discord_thread_id)
         now = naive_utcnow()
 
         assessment = assess_safe_night_message(content)
@@ -152,7 +186,6 @@ def _handle_message(discord_user_id: str, content: str) -> str:
         db.add(youth_msg)
         db.flush()
 
-        # Verbal consent detection
         ai_triggered_consent = False
         risk_rank = {"low": 1, "medium": 2, "high": 3, "critical": 4}
         if not conversation.consent_to_handoff and risk_rank.get(conversation.risk_level.value, 1) >= 2:
@@ -176,7 +209,9 @@ def _handle_message(discord_user_id: str, content: str) -> str:
                 db.add(handoff)
         else:
             reply_content = generate_safenight_reply(
-                content, history, assessment,
+                content,
+                history,
+                assessment,
                 consent_to_handoff=conversation.consent_to_handoff,
             )
 
@@ -190,7 +225,6 @@ def _handle_message(discord_user_id: str, content: str) -> str:
         db.add(ai_reply)
         db.flush()
 
-        # Deduplicate signals per conversation
         existing_types = {
             t for (t,) in db.execute(
                 select(Signal.type).where(Signal.conversation_id == conversation.id)
@@ -227,7 +261,6 @@ def _handle_message(discord_user_id: str, content: str) -> str:
         ))
         db.commit()
 
-        # Notify assigned worker if risk is elevated
         if youth.assigned_worker_id and assessment.risk_level.value in ("high", "critical"):
             ns = db.query(WorkerNotificationSettings).filter_by(user_id=youth.assigned_worker_id).first()
             if ns:
@@ -251,24 +284,35 @@ def _handle_message(discord_user_id: str, content: str) -> str:
         db.close()
 
 
-# ---------------------------------------------------------------------------
-# Discord client
-# ---------------------------------------------------------------------------
+def _clean_thread_name(display_name: str) -> str:
+    cleaned = re.sub(r"[^A-Za-z0-9_-]+", "-", display_name).strip("-")
+    return f"SafeNight-{cleaned or 'chat'}"[:90]
+
 
 class SafeNightDiscordBot(discord.Client):
     async def on_ready(self) -> None:
         logger.info("Discord bot connected as %s (id=%s)", self.user, self.user.id)
 
     async def on_message(self, message: discord.Message) -> None:
-        if message.author == self.user:
-            return
-        if not isinstance(message.channel, discord.DMChannel):
+        if message.author.bot:
             return
 
-        discord_user_id = str(message.author.id)
         text = (message.content or "").strip()
         if not text:
             return
+
+        if isinstance(message.channel, discord.DMChannel):
+            await self._handle_dm(message, text)
+            return
+
+        if isinstance(message.channel, discord.Thread):
+            await self._handle_thread_message(message, text)
+            return
+
+        await self._handle_entry_channel_message(message, text)
+
+    async def _handle_dm(self, message: discord.Message, text: str) -> None:
+        discord_user_id = str(message.author.id)
 
         if text.lower().startswith("!start"):
             await message.channel.send(_WELCOME)
@@ -279,19 +323,59 @@ class SafeNightDiscordBot(discord.Client):
             if len(parts) < 2 or not parts[1].strip():
                 await message.channel.send(_LINK_USAGE)
                 return
-            youth_id = parts[1].strip()
-            reply = await asyncio.to_thread(_handle_link, discord_user_id, youth_id)
+            reply = await asyncio.to_thread(_handle_link, discord_user_id, parts[1].strip())
             await message.channel.send(reply)
             return
 
-        # Regular message - run SafeNight pipeline in thread executor.
         async with message.channel.typing():
             reply = await asyncio.to_thread(_handle_message, discord_user_id, text)
         await message.channel.send(reply)
 
+    async def _handle_entry_channel_message(self, message: discord.Message, text: str) -> None:
+        settings = get_settings()
+        entry_channel_id = settings.discord_entry_channel_id
+        if not message.guild or not entry_channel_id or str(message.channel.id) != entry_channel_id:
+            return
+
+        if not text.lower().startswith("!safenight"):
+            return
+
+        parts = text.split(maxsplit=1)
+        if len(parts) < 2 or not parts[1].strip():
+            await message.reply(_PUBLIC_USAGE, mention_author=False)
+            return
+
+        youth_id = parts[1].strip()
+        thread_name = _clean_thread_name(message.author.display_name)
+        try:
+            thread = await message.channel.create_thread(
+                name=thread_name,
+                type=discord.ChannelType.private_thread,
+                invitable=False,
+                auto_archive_duration=1440,
+            )
+            await thread.add_user(message.author)
+        except Exception:
+            logger.exception("Could not create private Discord thread; falling back to message thread.")
+            thread = await message.create_thread(name=thread_name, auto_archive_duration=1440)
+
+        reply = await asyncio.to_thread(
+            _ensure_thread_conversation,
+            str(message.author.id),
+            youth_id,
+            str(thread.id),
+        )
+        await thread.send(reply)
+        await message.reply("I started a SafeNight thread for you.", mention_author=False)
+
+    async def _handle_thread_message(self, message: discord.Message, text: str) -> None:
+        discord_user_id = str(message.author.id)
+        async with message.channel.typing():
+            reply = await asyncio.to_thread(_handle_message, discord_user_id, text, str(message.channel.id))
+        await message.channel.send(reply)
+
 
 def build_discord_bot() -> SafeNightDiscordBot | None:
-    """Create and return the bot client, or None if no token is configured."""
     settings = get_settings()
     if not settings.discord_bot_token:
         logger.info("SIGNALBRIDGE_DISCORD_BOT_TOKEN not set - Discord bot disabled.")
@@ -303,4 +387,6 @@ def build_discord_bot() -> SafeNightDiscordBot | None:
 
     intents = discord.Intents.default()
     intents.dm_messages = True
+    intents.guild_messages = True
+    intents.message_content = True
     return SafeNightDiscordBot(intents=intents)
