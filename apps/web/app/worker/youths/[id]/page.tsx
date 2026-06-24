@@ -33,6 +33,7 @@ export default function YouthPage({ params }: { params: Promise<{ id: string }> 
     void params.then((value) => setId(value.id));
   }, [params]);
 
+
   const load = useCallback(async () => {
     if (!id) return;
 

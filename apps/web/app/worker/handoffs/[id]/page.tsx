@@ -74,6 +74,7 @@ export default function HandoffPage({ params }: { params: Promise<{ id: string }
     void params.then((value) => setId(value.id));
   }, [params]);
 
+
   const load = useCallback(async () => {
     if (!id) return;
     setLoading(true);
@@ -154,7 +155,7 @@ export default function HandoffPage({ params }: { params: Promise<{ id: string }
   return (
     <div className="p-6 lg:p-8 space-y-5 max-w-4xl mx-auto">
       <Link href="/worker/cockpit" className="inline-flex items-center gap-1.5 text-[13.5px] font-semibold text-[rgba(214,235,230,0.55)] hover:text-[rgba(214,235,230,0.85)] transition-colors">
-        <ArrowLeft size={16} strokeWidth={1.75} /> Back to Signal Radar
+        <ArrowLeft size={16} strokeWidth={1.75} /> Back to Worker Cockpit
       </Link>
 
       {/* Hero */}
