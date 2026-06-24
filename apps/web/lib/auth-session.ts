@@ -16,6 +16,8 @@ export type AuthSession = {
   user: AuthUser;
 };
 
+const VALID_ROLES = new Set<Role>(["youth", "worker", "supervisor", "admin"]);
+
 export function readAuthSession(): AuthSession | null {
   if (typeof window === "undefined") {
     return null;
@@ -28,12 +30,21 @@ export function readAuthSession(): AuthSession | null {
 
   try {
     const parsed = JSON.parse(rawSession) as Partial<AuthSession>;
-    if (!parsed.accessToken || !parsed.user?.email || !parsed.user?.role) {
+    if (
+      typeof parsed.accessToken !== "string" ||
+      !parsed.accessToken ||
+      typeof parsed.user?.id !== "string" ||
+      typeof parsed.user?.name !== "string" ||
+      typeof parsed.user?.email !== "string" ||
+      !VALID_ROLES.has(parsed.user?.role as Role)
+    ) {
+      clearAuthSession();
       return null;
     }
 
     return parsed as AuthSession;
   } catch {
+    clearAuthSession();
     return null;
   }
 }

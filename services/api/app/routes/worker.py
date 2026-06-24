@@ -37,6 +37,7 @@ from app.schemas.worker import (
     YouthSignalsResponse,
 )
 from app.services.auth_service import get_current_user
+from app.timeutil import naive_utcnow
 from app.services.case_service import (
     follow_up_status,
     get_case_for_youth,
@@ -487,7 +488,7 @@ def create_case_note(
     )
     if not note.content:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Note content cannot be blank.")
-    case.updated_at = datetime.utcnow()
+    case.updated_at = naive_utcnow()
     db.add(note)
     db.flush()
     write_audit_log(
@@ -512,12 +513,12 @@ def update_case_status(
     db: Session = Depends(get_db),
 ) -> CaseStatusUpdateResponse:
     case = get_visible_case(db, current_user, case_id)
-    previous = {"status": case.status.value, "priority": case.priority, "nextFollowUpAt": case.next_follow_up_at.isoformat() if case.next_follow_up_at else None}
+    previous = {"status": case.status.value, "priority": case.priority, "nextFollowUpAt": case.next_follow_up_at.isoformat() + "Z" if case.next_follow_up_at else None}
     case.status = validate_case_status(payload.status)
     if payload.priority is not None:
         case.priority = payload.priority
     case.next_follow_up_at = payload.nextFollowUpAt
-    case.updated_at = datetime.utcnow()
+    case.updated_at = naive_utcnow()
     write_audit_log(
         db,
         actor_user_id=current_user.id,
@@ -530,7 +531,7 @@ def update_case_status(
             "current": {
                 "status": case.status.value,
                 "priority": case.priority,
-                "nextFollowUpAt": case.next_follow_up_at.isoformat() if case.next_follow_up_at else None,
+                "nextFollowUpAt": case.next_follow_up_at.isoformat() + "Z" if case.next_follow_up_at else None,
             },
         },
     )

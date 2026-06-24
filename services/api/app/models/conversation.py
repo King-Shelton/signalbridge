@@ -2,6 +2,8 @@ import enum
 import uuid
 from datetime import datetime
 
+from app.timeutil import naive_utcnow
+
 from sqlalchemy import DateTime, Enum, ForeignKey, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -33,6 +35,6 @@ class Conversation(Base):
     consent_to_handoff: Mapped[bool] = mapped_column(default=False, nullable=False)
     unresolved_handoff: Mapped[bool] = mapped_column(default=False, nullable=False)
     last_message_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=naive_utcnow, nullable=False)
 
     messages: Mapped[list["Message"]] = relationship(back_populates="conversation")

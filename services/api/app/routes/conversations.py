@@ -10,6 +10,10 @@ from app.models.conversation import Conversation, ConversationStatus, RiskLevel
 from app.models.message import Message, SenderType
 from app.models.signal import Signal
 from app.models.youth_profile import YouthProfile
+from app.timeutil import naive_utcnow
+from app.models.worker_notification_settings import WorkerNotificationSettings
+from app.models.youth_profile import YouthProfile as _YouthProfile
+from app.services.notifications import notify_worker
 from app.schemas.conversation import (
     ConversationPublic,
     ConversationResponse,
@@ -126,7 +130,7 @@ def send_message(
     db: Session = Depends(get_db),
 ) -> SendMessageResponse:
     conversation = get_conversation_or_404(db, conversation_id)
-    now = datetime.utcnow()
+    now = naive_utcnow()
     content = payload.content.strip()
     if not content:
         raise HTTPException(
@@ -178,6 +182,18 @@ def send_message(
         .where(Signal.conversation_id == conversation.id)
         .order_by(Signal.created_at.asc())
     ).all()
+
+    youth = db.get(_YouthProfile, conversation.youth_id)
+    if youth and youth.assigned_worker_id:
+        ns = db.query(WorkerNotificationSettings).filter_by(user_id=youth.assigned_worker_id).first()
+        if ns:
+            notify_worker(
+                ns.telegram_chat_id,
+                ns.discord_webhook_url,
+                title="🌙 After-hours message received",
+                body=f"A youth reached out after hours. Risk score: {conversation.risk_score}/100.\nAI has replied and a handoff brief is ready.",
+                risk_level="high",
+            )
 
     return SendMessageResponse(
         message=serialize_message(youth_message),

@@ -1,6 +1,6 @@
-from datetime import datetime
-
 from pydantic import BaseModel, ConfigDict, Field
+
+from app.timeutil import UtcDateTime
 
 
 class WorkerYouthPublic(BaseModel):
@@ -18,7 +18,7 @@ class WorkerMessagePublic(BaseModel):
     senderType: str
     content: str
     safetyStatus: str | None
-    createdAt: datetime
+    createdAt: UtcDateTime
 
 
 class WorkerSignalPublic(BaseModel):
@@ -27,7 +27,7 @@ class WorkerSignalPublic(BaseModel):
     severity: str
     reason: str
     source: str
-    createdAt: datetime
+    createdAt: UtcDateTime
 
 
 class SignalEvidencePublic(BaseModel):
@@ -35,7 +35,7 @@ class SignalEvidencePublic(BaseModel):
     detail: str
     severity: str
     source: str
-    createdAt: datetime
+    createdAt: UtcDateTime
 
 
 class WorkerConversationPublic(BaseModel):
@@ -48,8 +48,8 @@ class WorkerConversationPublic(BaseModel):
     riskScore: int
     consentToHandoff: bool
     unresolvedHandoff: bool
-    lastMessageAt: datetime | None
-    createdAt: datetime
+    lastMessageAt: UtcDateTime | None
+    createdAt: UtcDateTime
     messages: list[WorkerMessagePublic] = Field(default_factory=list)
     signals: list[WorkerSignalPublic] = Field(default_factory=list)
 
@@ -69,7 +69,7 @@ class WorkerHandoffPublic(BaseModel):
     suggestedWorkerResponse: str | None
     recommendedNextStep: str | None
     reviewStatus: str
-    createdAt: datetime
+    createdAt: UtcDateTime
 
 
 class WorkerCaseNotePublic(BaseModel):
@@ -79,7 +79,7 @@ class WorkerCaseNotePublic(BaseModel):
     authorName: str
     content: str
     followUpAction: str | None
-    createdAt: datetime
+    createdAt: UtcDateTime
 
 
 class WorkerCasePublic(BaseModel):
@@ -89,9 +89,9 @@ class WorkerCasePublic(BaseModel):
     status: str
     priority: str
     summary: str | None
-    nextFollowUpAt: datetime | None
-    createdAt: datetime
-    updatedAt: datetime
+    nextFollowUpAt: UtcDateTime | None
+    createdAt: UtcDateTime
+    updatedAt: UtcDateTime
     notes: list[WorkerCaseNotePublic] = Field(default_factory=list)
 
 
@@ -113,7 +113,7 @@ class SignalRadarItemPublic(BaseModel):
     riskLevel: str
     riskScore: int
     unresolvedHandoff: bool
-    lastActivityAt: datetime | None
+    lastActivityAt: UtcDateTime | None
     reasons: list[str]
     suggestedAction: str
     explanation: list[str]
@@ -184,7 +184,7 @@ class CaseNoteCreateResponse(BaseModel):
 class CaseStatusUpdate(BaseModel):
     status: str
     priority: str | None = Field(default=None, max_length=40)
-    nextFollowUpAt: datetime | None = None
+    nextFollowUpAt: UtcDateTime | None = None
 
 
 class CaseStatusUpdateResponse(BaseModel):

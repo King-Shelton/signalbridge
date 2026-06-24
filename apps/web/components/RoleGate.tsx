@@ -1,10 +1,11 @@
-"use client";
+﻿"use client";
 
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { fetchCurrentUser } from "@/lib/api-client";
 import {
   clearAuthSession,
+  getRoleHome,
   readAuthSession,
   saveAuthSession,
   type AuthSession
@@ -20,9 +21,7 @@ type RoleGateProps = {
 export function RoleGate({ allowedRoles, children }: RoleGateProps) {
   const router = useRouter();
   const [session, setSession] = useState<AuthSession | null>(null);
-  const [status, setStatus] = useState<"loading" | "ready" | "missing" | "wrong-role">(
-    "loading"
-  );
+  const [status, setStatus] = useState<"loading" | "ready" | "missing" | "wrong-role">("loading");
 
   useEffect(() => {
     const storedSession = readAuthSession();
@@ -44,45 +43,31 @@ export function RoleGate({ allowedRoles, children }: RoleGateProps) {
       });
   }, [allowedRoles]);
 
-  if (status === "loading") {
-    return (
-      <main className="mx-auto min-h-screen w-full max-w-6xl px-4 py-5 sm:px-6">
-        <StatePanel
-          title="Checking SignalBridge session"
-          description="The app is confirming your role with the backend."
-          variant="loading"
-        />
-      </main>
-    );
+  // Don't strand visitors on a dead-end panel: when there's no session (e.g. the
+  // intro CTAs link straight here), send them to login; when they're signed in
+  // with the wrong role, send them to their own workspace.
+  useEffect(() => {
+    if (status === "missing") {
+      router.replace("/login");
+    } else if (status === "wrong-role" && session) {
+      router.replace(getRoleHome(session.user.role));
+    }
+  }, [status, session, router]);
+
+  if (status === "ready") {
+    return <>{children}</>;
   }
 
-  if (status === "missing") {
-    return (
-      <main className="mx-auto min-h-screen w-full max-w-4xl px-4 py-5 sm:px-6">
-        <StatePanel
-          title="Login needed"
-          description="Please sign in before opening this SignalBridge workspace."
-          actionHref="/login"
-          actionLabel="Go to login"
-          variant="error"
-        />
-      </main>
-    );
-  }
+  const description =
+    status === "wrong-role"
+      ? `Taking ${session?.user.name ?? "you"} to the right workspace...`
+      : status === "missing"
+        ? "Taking you to sign in..."
+        : "The app is confirming your role with the backend.";
 
-  if (status === "wrong-role") {
-    return (
-      <main className="mx-auto min-h-screen w-full max-w-4xl px-4 py-5 sm:px-6">
-        <StatePanel
-          title="Different role required"
-          description={`${session?.user.name ?? "This account"} cannot open this workspace.`}
-          actionHref="/login"
-          actionLabel="Switch account"
-          variant="error"
-        />
-      </main>
-    );
-  }
-
-  return <>{children}</>;
+  return (
+    <main className="mx-auto min-h-screen w-full max-w-6xl px-4 py-5 sm:px-6">
+      <StatePanel title="Checking SignalBridge session" description={description} variant="loading" />
+    </main>
+  );
 }

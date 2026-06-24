@@ -13,8 +13,12 @@ from app.database import get_db
 from app.models import AiRun, AuditLog, Case, CaseNote, Conversation, HandoffBrief, Message, Notification, Signal, User, YouthProfile
 from app.models.case import CaseStatus
 from app.models.handoff_brief import ReviewStatus
+from app.models.message import SenderType
+from app.config import get_settings
 from app.models.user import UserRole
 from app.services.auth_service import require_roles
+from app.services.notifications import send_telegram
+from app.timeutil import naive_utcnow, to_sgt
 
 router = APIRouter(tags=["operations"])
 worker_required = require_roles(UserRole.worker, UserRole.supervisor, UserRole.admin)
@@ -31,6 +35,10 @@ class NoteCreate(BaseModel):
 
 class ReviewUpdate(BaseModel):
     status: ReviewStatus
+
+
+class WorkerMessageCreate(BaseModel):
+    content: str = Field(min_length=1, max_length=2000)
 
 
 class AssignmentUpdate(BaseModel):
@@ -56,6 +64,16 @@ def require_case_access(db: Session, case_id: str, user: User) -> Case:
     return item
 
 
+def require_conversation_access(db: Session, conversation_id: str, user: User) -> Conversation:
+    item = db.get(Conversation, conversation_id)
+    if item is None:
+        raise HTTPException(status_code=404, detail="Conversation not found")
+    youth = db.get(YouthProfile, item.youth_id)
+    if user.role == UserRole.worker and (not youth or youth.assigned_worker_id != user.id):
+        raise HTTPException(status_code=403, detail="Conversation is assigned to another worker")
+    return item
+
+
 def conversation_payload(db: Session, conversation: Conversation) -> dict:
     youth = db.get(YouthProfile, conversation.youth_id)
     user = db.get(User, youth.user_id) if youth else None
@@ -73,12 +91,12 @@ def conversation_payload(db: Session, conversation: Conversation) -> dict:
         "riskScore": conversation.risk_score,
         "consentToHandoff": conversation.consent_to_handoff,
         "unresolvedHandoff": conversation.unresolved_handoff,
-        "lastMessageAt": (conversation.last_message_at or conversation.created_at).isoformat(),
+        "lastMessageAt": (conversation.last_message_at or conversation.created_at).isoformat() + "Z",
         "suggestedAction": handoff.recommended_next_step if handoff else "Review recent conversation",
         "case": ({"id": case_item.id, "status": case_item.status.value, "priority": case_item.priority, "summary": case_item.summary} if case_item else None),
         "handoffId": handoff.id if handoff else None,
-        "messages": [{"id": m.id, "senderType": m.sender_type.value, "content": m.content, "safetyStatus": m.safety_status, "createdAt": m.created_at.isoformat()} for m in messages],
-        "signals": [{"id": s.id, "type": s.type, "severity": s.severity, "reason": s.reason, "source": s.source, "createdAt": s.created_at.isoformat()} for s in signals],
+        "messages": [{"id": m.id, "senderType": m.sender_type.value, "content": m.content, "safetyStatus": m.safety_status, "createdAt": m.created_at.isoformat() + "Z"} for m in messages],
+        "signals": [{"id": s.id, "type": s.type, "severity": s.severity, "reason": s.reason, "source": s.source, "createdAt": s.created_at.isoformat() + "Z"} for s in signals],
     }
 
 
@@ -92,7 +110,7 @@ def handoff_payload(db: Session, handoff: HandoffBrief) -> dict:
         "riskScore": handoff.risk_score, "keyQuote": handoff.key_quote, "whatAiDid": handoff.what_ai_did,
         "whatNotToRepeat": handoff.what_not_to_repeat, "suggestedWorkerResponse": handoff.suggested_worker_response,
         "recommendedNextStep": handoff.recommended_next_step, "reviewStatus": handoff.review_status.value,
-        "createdAt": handoff.created_at.isoformat(),
+        "createdAt": handoff.created_at.isoformat() + "Z",
     }
 
 
@@ -112,7 +130,7 @@ def worker_load_payload(db: Session, worker: User) -> dict:
     latest_conversations = [conversation for case_item in cases if (conversation := latest_conversation_for_youth(db, case_item.youth_id))]
     high_risk_cases = sum(conversation.risk_level.value in {"high", "critical"} for conversation in latest_conversations)
     unresolved_handoffs = sum(conversation.unresolved_handoff for conversation in latest_conversations)
-    overdue_follow_ups = sum(bool(case_item.next_follow_up_at and case_item.next_follow_up_at < datetime.utcnow()) for case_item in cases)
+    overdue_follow_ups = sum(bool(case_item.next_follow_up_at and case_item.next_follow_up_at < naive_utcnow()) for case_item in cases)
     score = (
         len(cases) * LOAD_CASE_WEIGHT
         + high_risk_cases * LOAD_HIGH_RISK_WEIGHT
@@ -155,13 +173,66 @@ def worker_cockpit(current_user: User = Depends(worker_required), db: Session = 
 
 @router.get("/worker/conversations/{conversation_id}")
 def worker_conversation(conversation_id: str, current_user: User = Depends(worker_required), db: Session = Depends(get_db)) -> dict:
-    item = db.get(Conversation, conversation_id)
-    if item is None:
-        raise HTTPException(status_code=404, detail="Conversation not found")
-    youth = db.get(YouthProfile, item.youth_id)
-    if current_user.role == UserRole.worker and (not youth or youth.assigned_worker_id != current_user.id):
-        raise HTTPException(status_code=403, detail="Conversation is assigned to another worker")
+    item = require_conversation_access(db, conversation_id, current_user)
     return conversation_payload(db, item)
+
+
+@router.post("/worker/conversations/{conversation_id}/messages", status_code=status.HTTP_201_CREATED)
+def create_worker_message(
+    conversation_id: str,
+    payload: WorkerMessageCreate,
+    current_user: User = Depends(worker_required),
+    db: Session = Depends(get_db),
+) -> dict:
+    conversation = require_conversation_access(db, conversation_id, current_user)
+    youth = db.get(YouthProfile, conversation.youth_id)
+    content = payload.content.strip()
+    if not content:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Message content cannot be blank")
+
+    delivery_channel = "signalbridge"
+    if conversation.channel.lower() == "telegram":
+        if youth is None or not youth.telegram_chat_id:
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Youth has not linked Telegram yet")
+        if not get_settings().telegram_bot_token:
+            raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Telegram is not configured")
+        delivery_channel = "telegram"
+
+    now = naive_utcnow()
+    message = Message(
+        conversation_id=conversation.id,
+        sender_type=SenderType.worker,
+        content=content,
+        created_at=now,
+    )
+    conversation.last_message_at = now
+    db.add(message)
+    audit(
+        db,
+        current_user.id,
+        "worker_message_sent",
+        "conversation",
+        conversation.id,
+        {"channel": delivery_channel, "messageId": message.id},
+    )
+    db.commit()
+    db.refresh(message)
+
+    if delivery_channel == "telegram":
+        send_telegram(youth.telegram_chat_id, f"{current_user.name}: {content}")
+
+    return {
+        "message": {
+            "id": message.id,
+            "conversationId": message.conversation_id,
+            "senderType": message.sender_type.value,
+            "content": message.content,
+            "safetyStatus": message.safety_status,
+            "createdAt": message.created_at.isoformat() + "Z",
+        },
+        "conversation": conversation_payload(db, conversation),
+        "deliveryChannel": delivery_channel,
+    }
 
 
 @router.get("/worker/handoffs/{handoff_id}")
@@ -204,19 +275,19 @@ def worker_youth(youth_id: str, current_user: User = Depends(worker_required), d
     notes = db.query(CaseNote).join(Case, Case.id == CaseNote.case_id).filter(Case.youth_id == youth.id).order_by(CaseNote.created_at.desc()).all()
     return {"id": youth.id, "name": user.name, "preferredChannel": youth.preferred_channel, "assignedWorker": worker.name if worker else None,
             "supportStyle": youth.support_style, "stressors": youth.stressors,
-            "cases": [{"id": c.id, "status": c.status.value, "priority": c.priority, "summary": c.summary, "updatedAt": c.updated_at.isoformat()} for c in cases],
+            "cases": [{"id": c.id, "status": c.status.value, "priority": c.priority, "summary": c.summary, "updatedAt": c.updated_at.isoformat() + "Z"} for c in cases],
             "handoffs": [handoff_payload(db, h) for h in handoffs if (conv := db.get(Conversation, h.conversation_id)) and conv.consent_to_handoff],
-            "notes": [{"id": n.id, "content": n.content, "authorUserId": n.author_user_id, "createdAt": n.created_at.isoformat()} for n in notes]}
+            "notes": [{"id": n.id, "content": n.content, "authorUserId": n.author_user_id, "createdAt": n.created_at.isoformat() + "Z"} for n in notes]}
 
 
 @router.patch("/worker/cases/{case_id}/status")
 def update_case_status(case_id: str, payload: StatusUpdate, current_user: User = Depends(worker_required), db: Session = Depends(get_db)) -> dict:
     item = require_case_access(db, case_id, current_user)
     item.status = payload.status
-    item.updated_at = datetime.utcnow()
+    item.updated_at = naive_utcnow()
     audit(db, current_user.id, "case_status_updated", "case", item.id, {"status": payload.status.value})
     db.commit()
-    return {"id": item.id, "status": item.status.value, "updatedAt": item.updated_at.isoformat()}
+    return {"id": item.id, "status": item.status.value, "updatedAt": item.updated_at.isoformat() + "Z"}
 
 
 @router.post("/worker/cases/{case_id}/notes", status_code=status.HTTP_201_CREATED)
@@ -227,7 +298,7 @@ def create_case_note(case_id: str, payload: NoteCreate, current_user: User = Dep
     audit(db, current_user.id, "case_note_added", "case", item.id, {"noteId": note.id})
     db.commit()
     db.refresh(note)
-    return {"id": note.id, "content": note.content, "authorUserId": note.author_user_id, "createdAt": note.created_at.isoformat()}
+    return {"id": note.id, "content": note.content, "authorUserId": note.author_user_id, "createdAt": note.created_at.isoformat() + "Z"}
 
 
 @router.get("/worker/handoffs/{handoff_id}/pdf")
@@ -297,7 +368,7 @@ def assign_case(case_id: str, payload: AssignmentUpdate, current_user: User = De
     previous_worker = db.get(User, item.assigned_worker_id) if item.assigned_worker_id else None
     previous = item.assigned_worker_id
     item.assigned_worker_id = worker.id
-    item.updated_at = datetime.utcnow()
+    item.updated_at = naive_utcnow()
     youth = db.get(YouthProfile, item.youth_id)
     if youth:
         youth.assigned_worker_id = worker.id
@@ -331,12 +402,12 @@ def assign_case(case_id: str, payload: AssignmentUpdate, current_user: User = De
 def audit_logs(_: User = Depends(supervisor_required), db: Session = Depends(get_db), limit: int = 100) -> dict:
     rows = db.query(AuditLog).order_by(AuditLog.created_at.desc()).limit(min(max(limit, 1), 250)).all()
     logs = [{"id": row.id, "actorUserId": row.actor_user_id, "eventType": row.event_type, "entityType": row.entity_type,
-             "entityId": row.entity_id, "details": row.details, "createdAt": row.created_at.isoformat()} for row in rows]
+             "entityId": row.entity_id, "details": row.details, "createdAt": row.created_at.isoformat() + "Z"} for row in rows]
     ai_runs = db.query(AiRun).order_by(AiRun.created_at.desc()).limit(min(max(limit, 1), 250)).all()
     logs.extend({"id": run.id, "actorUserId": None, "eventType": f"ai_{run.action}_{run.mode}", "entityType": "ai_run",
                  "entityId": run.conversation_id or run.id,
                  "details": json.dumps({"promptVersion": run.prompt_version, "model": run.model_name, "safetyStatus": run.safety_status, "fallbackReason": run.error}),
-                 "createdAt": run.created_at.isoformat()} for run in ai_runs)
+                 "createdAt": run.created_at.isoformat() + "Z"} for run in ai_runs)
     logs.sort(key=lambda item: item["createdAt"], reverse=True)
     return {"logs": logs[:limit]}
 
@@ -348,11 +419,11 @@ def analytics(_: User = Depends(supervisor_required), db: Session = Depends(get_
     return {"totalConversations": len(conversations), "openCases": open_cases,
             "unresolvedHandoffs": sum(item.unresolved_handoff for item in conversations),
             "highRiskConversations": sum(item.risk_level.value in {"high", "critical"} for item in conversations),
-            "afterHoursVolume": sum((item.created_at.hour >= 18 or item.created_at.hour < 7) for item in conversations),
+            "afterHoursVolume": sum((to_sgt(item.created_at).hour >= 18 or to_sgt(item.created_at).hour < 7) for item in conversations),
             "riskBreakdown": {level: sum(item.risk_level.value == level for item in conversations) for level in ("low", "medium", "high", "critical")}}
 
 
 @router.get("/notifications")
 def notifications(current_user: User = Depends(worker_required), db: Session = Depends(get_db)) -> dict:
     rows = db.query(Notification).filter(Notification.recipient_user_id == current_user.id).order_by(Notification.created_at.desc()).limit(50).all()
-    return {"notifications": [{"id": n.id, "title": n.title, "message": n.message, "severity": n.severity, "read": n.read, "createdAt": n.created_at.isoformat()} for n in rows]}
+    return {"notifications": [{"id": n.id, "title": n.title, "message": n.message, "severity": n.severity, "read": n.read, "createdAt": n.created_at.isoformat() + "Z"} for n in rows]}

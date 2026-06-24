@@ -5,8 +5,8 @@ services:
     plan: free
     region: singapore
     repo: https://github.com/King-Shelton/signalbridge
-    branch: dev
-    autoDeploy: true
+    branch: main
+    autoDeployTrigger: commit
     dockerfilePath: ./services/api/Dockerfile
     dockerContext: .
     healthCheckPath: /health
@@ -21,8 +21,10 @@ services:
         generateValue: true
       - key: SIGNALBRIDGE_OPENAI_API_KEY
         sync: false
+      - key: SIGNALBRIDGE_OPENAI_BASE_URL
+        value: https://openrouter.ai/api/v1
       - key: SIGNALBRIDGE_OPENAI_MODEL
-        value: gpt-4.1-mini
+        value: openai/gpt-4o-mini
       - key: SIGNALBRIDGE_CORS_ORIGINS
         value: https://signalbridge-web.onrender.com
 
@@ -32,17 +34,16 @@ services:
     plan: free
     region: singapore
     repo: https://github.com/King-Shelton/signalbridge
-    branch: dev
-    autoDeploy: true
+    branch: main
+    autoDeployTrigger: commit
     dockerfilePath: ./apps/web/Dockerfile
     dockerContext: .
     healthCheckPath: /login
     envVars:
       - key: SIGNALBRIDGE_API_URL
-        fromService:
-          name: signalbridge-api
-          type: web
-          property: host
+        value: https://signalbridge-api-6wc6.onrender.com
+      - key: NEXT_PUBLIC_SIGNALBRIDGE_API_URL
+        value: /api
 
 databases:
   - name: signalbridge-postgres
@@ -52,6 +53,3 @@ databases:
     region: singapore
     postgresMajorVersion: "16"
     ipAllowList: []
-
-previews:
-  generation: manual

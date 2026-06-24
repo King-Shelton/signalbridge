@@ -1,6 +1,6 @@
-from datetime import datetime
-
 from pydantic import BaseModel, Field
+
+from app.timeutil import UtcDateTime
 
 
 class YouthMessageCreate(BaseModel):
@@ -17,7 +17,7 @@ class MessagePublic(BaseModel):
     senderType: str
     content: str
     safetyStatus: str | None
-    createdAt: datetime
+    createdAt: UtcDateTime
 
 
 class SignalPublic(BaseModel):
@@ -26,7 +26,7 @@ class SignalPublic(BaseModel):
     severity: str
     reason: str
     source: str
-    createdAt: datetime
+    createdAt: UtcDateTime
 
 
 class YouthConversationPublic(BaseModel):
@@ -39,8 +39,8 @@ class YouthConversationPublic(BaseModel):
     riskScore: int
     consentToHandoff: bool
     unresolvedHandoff: bool
-    lastMessageAt: datetime | None
-    createdAt: datetime
+    lastMessageAt: UtcDateTime | None
+    createdAt: UtcDateTime
     messages: list[MessagePublic]
     signals: list[SignalPublic]
 
@@ -56,6 +56,7 @@ class YouthMessageCreateResponse(BaseModel):
     signals: list[SignalPublic]
     handoffRecommended: bool
     handoffPrompt: str
+    aiTriggeredConsent: bool = False
 
 
 class HandoffConsentResponse(BaseModel):

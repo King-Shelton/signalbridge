@@ -27,6 +27,10 @@
   @keyframes sn-drift2 { 0% { transform: translate(0,0); } 50% { transform: translate(-36px,26px); } 100% { transform: translate(0,0); } }
   @keyframes sn-dot { 0%, 60%, 100% { opacity: 0.3; transform: translateY(0); } 30% { opacity: 1; transform: translateY(-3px); } }
   @keyframes sn-spin { to { transform: rotate(360deg); } }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation-duration: 0.001ms !important; animation-delay: 0ms !important; animation-iteration-count: 1 !important; transition-duration: 0.001ms !important; }
+  }
+  [role="button"]:focus-visible, textarea:focus-visible { outline: 2px solid #6fb8aa; outline-offset: 2px; }
 </style>
 </helmet>
 
@@ -75,7 +79,7 @@
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg>
             After hours
           </span>
-          <span onClick="{{ onHome }}" data-stop="1" style="display: inline-flex; align-items: center; gap: 6px; cursor: pointer; font-size: 12.5px; font-weight: 600; color: rgba(214,235,230,0.6); border: 1px solid rgba(255,255,255,0.12); padding: 6px 13px; border-radius: 999px; transition: all 200ms;" style-hover="color: #f1f6f4; border-color: rgba(255,255,255,0.28);">
+          <span onClick="{{ onHome }}" data-stop="1" tabindex="0" role="button" style="display: inline-flex; align-items: center; gap: 6px; cursor: pointer; font-size: 12.5px; font-weight: 600; color: rgba(214,235,230,0.6); border: 1px solid rgba(255,255,255,0.12); padding: 6px 13px; border-radius: 999px; transition: all 200ms;" style-hover="color: #f1f6f4; border-color: rgba(255,255,255,0.28);">
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="m16 17 5-5-5-5"/><path d="M21 12H9"/></svg>
             Leave
           </span>
@@ -128,7 +132,7 @@
               <div style="flex: 1;">
                 <div style="font-size: 15px; font-weight: 600; color: #f1f6f4;">Let your worker read a short note?</div>
                 <p style="margin: 6px 0 14px; font-size: 13px; line-height: 1.6; color: rgba(214,235,230,0.6);">You choose what gets shared. It only helps your worker understand — so you don't have to explain it all again tomorrow.</p>
-                <div onClick="{{ onToggleConsent }}" data-stop="1" style="display: flex; align-items: flex-start; gap: 11px; cursor: pointer;">
+                <div onClick="{{ onToggleConsent }}" data-stop="1" tabindex="0" role="button" style="display: flex; align-items: flex-start; gap: 11px; cursor: pointer;">
                   <span style="{{ checkboxStyle }}">
                     <sc-if value="{{ consent }}" hint-placeholder-val=""><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></sc-if>
                   </span>
@@ -139,7 +143,7 @@
                 </div>
                 <div style="margin-top: 14px; padding: 10px 13px; border-radius: 11px; font-size: 12.5px; font-weight: 500; {{ consentBannerStyle }}">{{ consentBannerText }}</div>
                 <sc-if value="{{ consent }}" hint-placeholder-val="">
-                  <div onClick="{{ onPreview }}" data-stop="1" style="margin-top: 14px; display: inline-flex; align-items: center; gap: 9px; cursor: pointer; background: #1f6f64; color: #fff; font-size: 13.5px; font-weight: 600; padding: 11px 20px; border-radius: 999px; box-shadow: 0 10px 26px rgba(31,111,100,0.4); transition: all 200ms; animation: sn-soft 0.5s ease forwards;" style-hover="background: #258678; transform: translateY(-1px);">
+                  <div onClick="{{ onPreview }}" data-stop="1" tabindex="0" role="button" style="margin-top: 14px; display: inline-flex; align-items: center; gap: 9px; cursor: pointer; background: #1f6f64; color: #fff; font-size: 13.5px; font-weight: 600; padding: 11px 20px; border-radius: 999px; box-shadow: 0 10px 26px rgba(31,111,100,0.4); transition: all 200ms; animation: sn-soft 0.5s ease forwards;" style-hover="background: #258678; transform: translateY(-1px);">
                     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M2.06 12.35a1 1 0 0 1 0-.7 10.75 10.75 0 0 1 19.88 0 1 1 0 0 1 0 .7 10.75 10.75 0 0 1-19.88 0Z"/><circle cx="12" cy="12" r="3"/></svg>
                     See exactly what your worker sees
                   </div>
@@ -155,7 +159,7 @@
       <div style="padding: 12px 4px 22px;">
         <div style="display: flex; gap: 10px; align-items: flex-end; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.12); border-radius: 18px; padding: 10px 10px 10px 16px;">
           <textarea value="{{ draft }}" onInput="{{ onDraft }}" onKeyDown="{{ onKeyDown }}" rows="1" placeholder="Start with one sentence…" style="flex: 1; resize: none; border: none; outline: none; background: transparent; color: #eef4f2; font-family: 'Inter', sans-serif; font-size: 14.5px; line-height: 1.5; padding: 7px 0; max-height: 110px;"></textarea>
-          <span onClick="{{ onSend }}" data-stop="1" style="{{ sendStyle }}">
+          <span onClick="{{ onSend }}" data-stop="1" tabindex="0" role="button" aria-label="Send message" style="{{ sendStyle }}">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M14.536 21.686a.5.5 0 0 0 .937-.024l6.5-19a.496.496 0 0 0-.635-.635l-19 6.5a.5.5 0 0 0-.024.937l7.93 3.18a2 2 0 0 1 1.112 1.11z"/><path d="m21.854 2.147-10.94 10.939"/></svg>
           </span>
         </div>
@@ -177,7 +181,7 @@
         <div style="padding: 22px 26px; display: flex; flex-direction: column; gap: 14px;">
           <div style="border-left: 3px solid #6fb8aa; padding: 4px 0 4px 16px;">
             <div style="font-size: 10.5px; letter-spacing: 0.14em; text-transform: uppercase; color: rgba(214,235,230,0.45); font-weight: 600;">In your words</div>
-            <p style="margin: 7px 0 0; font-size: 16px; font-weight: 500; line-height: 1.4; color: #eef4f2;">"I'm so tired of explaining this."</p>
+            <p style="margin: 7px 0 0; font-size: 16px; font-weight: 500; line-height: 1.4; color: #eef4f2;">"I really don't want to face school tomorrow."</p>
           </div>
           <sc-for list="{{ briefFields }}" as="f" hint-placeholder-count="4">
             <div style="background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); border-radius: 14px; padding: 14px 16px;">
@@ -187,11 +191,11 @@
           </sc-for>
         </div>
         <div style="padding: 18px 26px 24px; border-top: 1px solid rgba(255,255,255,0.07); display: flex; gap: 11px; flex-wrap: wrap;">
-          <span onClick="{{ onConfirm }}" data-stop="1" style="flex: 1; min-width: 180px; display: inline-flex; align-items: center; justify-content: center; gap: 9px; cursor: pointer; background: #1f6f64; color: #fff; font-size: 14px; font-weight: 600; padding: 13px 20px; border-radius: 14px; box-shadow: 0 10px 26px rgba(31,111,100,0.4); transition: all 200ms;" style-hover="background: #258678;">
+          <span onClick="{{ onConfirm }}" data-stop="1" tabindex="0" role="button" style="flex: 1; min-width: 180px; display: inline-flex; align-items: center; justify-content: center; gap: 9px; cursor: pointer; background: #1f6f64; color: #fff; font-size: 14px; font-weight: 600; padding: 13px 20px; border-radius: 14px; box-shadow: 0 10px 26px rgba(31,111,100,0.4); transition: all 200ms;" style-hover="background: #258678;">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
             This looks okay — share it
           </span>
-          <span onClick="{{ onClosePreview }}" data-stop="1" style="display: inline-flex; align-items: center; justify-content: center; cursor: pointer; background: transparent; color: rgba(214,235,230,0.7); font-size: 14px; font-weight: 600; padding: 13px 20px; border: 1px solid rgba(255,255,255,0.14); border-radius: 14px; transition: all 200ms;" style-hover="color: #f1f6f4; border-color: rgba(255,255,255,0.3);">Not yet</span>
+          <span onClick="{{ onClosePreview }}" data-stop="1" tabindex="0" role="button" style="display: inline-flex; align-items: center; justify-content: center; cursor: pointer; background: transparent; color: rgba(214,235,230,0.7); font-size: 14px; font-weight: 600; padding: 13px 20px; border: 1px solid rgba(255,255,255,0.14); border-radius: 14px; transition: all 200ms;" style-hover="color: #f1f6f4; border-color: rgba(255,255,255,0.3);">Not yet</span>
         </div>
       </div>
     </div>
@@ -207,10 +211,10 @@
         </span>
       </div>
       <div style="font-size: 12px; letter-spacing: 0.28em; text-transform: uppercase; color: #1f6f64; font-weight: 600; opacity: 0; animation: sn-soft 0.9s ease 0.5s forwards;">Your note is ready</div>
-      <h1 style="margin: 16px 0 0; font-size: clamp(26px, 3.8vw, 46px); line-height: 1.16; font-weight: 600; letter-spacing: -0.025em; color: #18212f; max-width: 18ch; opacity: 0; animation: sn-rise 1s cubic-bezier(0.2,0,0,1) 0.7s forwards;">Your worker can pick up in the morning — you won't start from the beginning.</h1>
-      <p style="margin: 18px 0 0; font-size: clamp(15px, 1.7vw, 18px); line-height: 1.6; color: #475569; max-width: 34ch; opacity: 0; animation: sn-soft 1s ease 1.1s forwards;">Nothing is shared until a human reviews it. You can rest now, Mira.</p>
+      <h1 style="margin: 16px 0 0; font-size: clamp(26px, 3.8vw, 46px); line-height: 1.16; font-weight: 600; letter-spacing: -0.025em; color: #18212f; max-width: 18ch; opacity: 0; animation: sn-rise 1s cubic-bezier(0.2,0,0,1) 0.7s forwards;">Your worker picks up in the morning. You won't have to start from scratch.</h1>
+      <p style="margin: 18px 0 0; font-size: clamp(15px, 1.7vw, 18px); line-height: 1.6; color: #475569; max-width: 34ch; opacity: 0; animation: sn-soft 1s ease 1.1s forwards;">Nothing goes anywhere until a real person reviews it first. You can rest now.</p>
       <div style="margin-top: 36px; display: flex; gap: 12px; opacity: 0; animation: sn-soft 1s ease 1.4s forwards;">
-        <span onClick="{{ onHome }}" data-stop="1" style="display: inline-flex; align-items: center; gap: 9px; cursor: pointer; background: #1f6f64; color: #fff; font-size: 14.5px; font-weight: 600; padding: 14px 26px; border-radius: 999px; box-shadow: 0 12px 30px rgba(31,111,100,0.3); transition: all 200ms;" style-hover="background: #1a5d54; transform: translateY(-2px);">
+        <span onClick="{{ onHome }}" data-stop="1" tabindex="0" role="button" style="display: inline-flex; align-items: center; gap: 9px; cursor: pointer; background: #1f6f64; color: #fff; font-size: 14.5px; font-weight: 600; padding: 14px 26px; border-radius: 999px; box-shadow: 0 12px 30px rgba(31,111,100,0.3); transition: all 200ms;" style-hover="background: #1a5d54; transform: translateY(-2px);">
           Close SafeNight
           <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
         </span>
@@ -227,16 +231,16 @@ class Component extends DCLogic {
     this._scrollRef = React.createRef();
     this.state = {
       phase: "enter",       // enter | chat | done
-      draft: "Can you help me tell my worker without making me explain it all again?",
+      draft: "Can you help me let my worker know without having to go through it all again?",
       consent: false,
       showConsent: false,
       typing: false,
       showPreview: false,
       turn: 0,
       msgs: [
-        { sender: "system", time: "11:41 PM", text: "It may be after your worker's usual hours. SafeNight can stay with you and help prepare a note — only if you allow it." },
-        { sender: "youth", time: "11:42 PM", text: "People in my class group chat keep editing my photos. I don't want to go school tomorrow. I'm so tired of explaining this." },
-        { sender: "assistant", time: "11:42 PM", text: "That sounds exhausting, and it makes sense that you're tired. You don't have to explain all of it again. Can we start with just whether school feels safe for you tomorrow?" }
+        { sender: "system", time: "11:41 PM", text: "It may be after your worker's usual hours. SafeNight can stay with you and help prepare a short note — only if you want that." },
+        { sender: "youth", time: "11:42 PM", text: "Someone in my class keeps editing photos of me and sharing them around. I really don't want to face school tomorrow." },
+        { sender: "assistant", time: "11:42 PM", text: "That sounds really hard. You don't need to go over all of it right now. How are you feeling about school tomorrow?" }
       ]
     };
     this._replies = [
@@ -250,7 +254,14 @@ class Component extends DCLogic {
     this._enterT = setTimeout(() => {
       if (this.state.phase === "enter") this.setState({ phase: "chat" });
     }, 2900);
-    this._onKey = (e) => { if (e.key === "Escape") this.goHome(); };
+    this._onKey = (e) => {
+      if (e.key === "Escape") { this.goHome(); return; }
+      const el = document.activeElement;
+      if ((e.key === "Enter" || e.key === " ") && el && el.getAttribute && el.getAttribute("role") === "button") {
+        e.preventDefault();
+        el.click();
+      }
+    };
     window.addEventListener("keydown", this._onKey);
   }
 
@@ -267,32 +278,51 @@ class Component extends DCLogic {
 
   goHome() { window.location.href = "SignalBridge%20Intro.dc.html"; }
 
-  // === This is where a real AI completion would be called ===
-  aiRespond(text, firstTurn) {
+  // === Live AI completion, with a graceful canned fallback ===
+  cannedReply(firstTurn) {
     if (firstTurn) {
       return "Of course. With your okay, I can prepare a short, gentle note so your worker already understands what happened — you won't have to start from the beginning tomorrow. You'd choose exactly what gets shared.";
     }
     return this._replies[(this.state.turn) % this._replies.length];
   }
 
+  async aiRespond(history, firstTurn) {
+    if (typeof window !== "undefined" && window.claude && typeof window.claude.complete === "function") {
+      try {
+        const sys = "You are SafeNight, a warm, plain, trauma-informed after-hours companion for a youth in Singapore who may be in distress. You are NOT a counsellor and must never say you are one, never diagnose, and never give clinical advice. Keep every reply to 2-3 short sentences. Lower pressure, reduce shame, and offer the youth choices so they keep control of the pace. Gently remind, when it fits, that a human youth worker reviews anything they choose to share. Never use emoji or hype. Speak directly to the youth as 'you'.";
+        const convo = history.map((m) => (m.sender === "youth" ? "Youth" : m.sender === "assistant" ? "SafeNight" : "System") + ": " + m.text).join("\n");
+        const prompt = sys + "\n\nConversation so far:\n" + convo + "\n\nWrite only SafeNight's next reply, nothing else.";
+        const r = await window.claude.complete(prompt);
+        if (r && String(r).trim()) return String(r).trim();
+      } catch (e) {}
+    }
+    return this.cannedReply(firstTurn);
+  }
+
   send() {
     const t = (this.state.draft || "").trim();
     if (!t || this.state.typing) return;
     const first = this.state.turn === 0;
+    const youthMsg = { sender: "youth", time: "11:43 PM", text: t };
+    const history = [...(this.state.msgs || []), youthMsg];
     this.setState((s) => ({
-      msgs: [...s.msgs, { sender: "youth", time: "11:43 PM", text: t }],
+      msgs: [...s.msgs, youthMsg],
       draft: "",
       typing: true,
       turn: s.turn + 1
     }));
-    clearTimeout(this._typeT);
-    this._typeT = setTimeout(() => {
-      this.setState((s) => ({
-        typing: false,
-        showConsent: s.showConsent || first,
-        msgs: [...s.msgs, { sender: "assistant", time: "11:43 PM", text: this.aiRespond(t, first) }]
-      }));
-    }, 1200);
+    const started = Date.now();
+    this.aiRespond(history, first).then((reply) => {
+      const wait = Math.max(0, 900 - (Date.now() - started));
+      clearTimeout(this._typeT);
+      this._typeT = setTimeout(() => {
+        this.setState((s) => ({
+          typing: false,
+          showConsent: s.showConsent || first,
+          msgs: [...s.msgs, { sender: "assistant", time: "11:43 PM", text: reply }]
+        }));
+      }, wait);
+    });
   }
 
   renderVals() {
@@ -348,10 +378,10 @@ class Component extends DCLogic {
     };
 
     const briefFields = [
-      { label: "Main concern", value: "Cyberbullying — edited photos shared in a class group chat." },
-      { label: "How you're feeling", value: "Tired, embarrassed, and reluctant to repeat the story." },
-      { label: "What SafeNight already did", value: "Stayed with you, noticed the signals, and waited for your okay before preparing anything." },
-      { label: "What your worker won't ask you to repeat", value: "The photo-editing incident — unless you choose to add more tomorrow." }
+      { label: "Main concern", value: "Photos being edited and shared without consent in a class group chat." },
+      { label: "How you're feeling", value: "Tired and not ready to face school tomorrow." },
+      { label: "What SafeNight already did", value: "Stayed with you tonight, noticed what was going on, and waited for your okay before preparing anything." },
+      { label: "What your worker already knows", value: "About the photos and the group chat. You don't need to repeat it unless you want to add more." }
     ];
 
     return {
@@ -376,7 +406,7 @@ class Component extends DCLogic {
       onToggleConsent: () => this.setState((st) => ({ consent: !st.consent })),
       onPreview: () => this.setState({ showPreview: true }),
       onClosePreview: () => this.setState({ showPreview: false }),
-      onConfirm: () => this.setState({ showPreview: false, phase: "done" })
+      onConfirm: () => { try { localStorage.setItem("sb_handoff", JSON.stringify({ shared: true, at: "11:46 PM" })); } catch (e) {} this.setState({ showPreview: false, phase: "done" }); }
     };
   }
 }
