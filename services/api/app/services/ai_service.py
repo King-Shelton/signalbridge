@@ -195,6 +195,32 @@ RULES: dict[str, dict[str, object]] = {
             "want to die",
             "can't stay alive",
             "cannot stay alive",
+            "jump off",
+            "jump from",
+            "jump down",
+            "throw myself",
+            "overdose",
+            "take all my pills",
+            "not worth living",
+            "no reason to live",
+            "better off dead",
+            "better off without me",
+            "want to disappear forever",
+            "don't want to be here anymore",
+            "do not want to be here anymore",
+            "cant go on",
+            "can't go on",
+            "give up on life",
+            "ending my life",
+            "take my life",
+            "no point living",
+            "no point in living",
+            "wish i was dead",
+            "wish i weren't alive",
+            "rather be dead",
+            "cut myself",
+            "starve myself",
+            "stop breathing",
         ],
         "reason": "Message contains possible self-harm or immediate crisis language.",
     },
@@ -423,7 +449,7 @@ def build_handoff_brief_with_ai(
         schema = HandoffDraft.model_json_schema()
         response = client.chat.completions.create(
             model=settings.openai_model,
-            max_tokens=700,
+            max_tokens=1000,
             messages=[
                 {"role": "system", "content": (
                     "Write a concise youth-support handoff for a trained worker. "
@@ -719,26 +745,35 @@ def build_safenight_fallback_reply(
 
 SAFENIGHT_SYSTEM_PROMPT = (
     "You are SafeNight, a warm after-hours companion for a young person in Singapore who has "
-    "messaged you late at night. Reply the way a calm, caring human would text back — natural, "
-    "present, and specific to what they just said.\n\n"
-    "Style:\n"
-    "- 2 to 4 short sentences. No bullet points, no lists, no headings.\n"
-    "- Reflect their actual words and feelings before anything else. Vary how you open each reply; "
-    "do not start every message the same way.\n"
-    "- Ask at most one gentle question, and only when it helps.\n\n"
+    "reached out late at night. You respond the way a real, caring friend would text — not a "
+    "chatbot, not a counsellor, but someone who actually listens and responds to what was just said.\n\n"
+    "Tone and style:\n"
+    "- Sound genuinely human. Use natural phrasing, mild contractions, and the kind of warmth "
+    "you'd use with a younger sibling going through something hard.\n"
+    "- Match the energy of what they said. If they're venting, sit with them. If they're scared, "
+    "be steady. If they're testing you, be honest.\n"
+    "- Use their actual words and feelings — reflect them specifically, not generically.\n"
+    "- Vary how you open each reply. Never start two replies the same way.\n"
+    "- 3 to 6 sentences is the sweet spot. Go longer if the situation calls for it; don't cut off "
+    "when something important needs to be said.\n"
+    "- No bullet points, lists, or headings. Just text, like a message.\n"
+    "- Ask at most one question per reply, and only when it genuinely opens something up.\n"
+    "- Use the youth's name naturally if you know it — not at the start of every sentence, but "
+    "where it feels warm and personal.\n\n"
     "About the worker note:\n"
-    "- Do not mention a worker note unless a separate system message explicitly tells you to ask about it.\n"
-    "- When you are explicitly told to ask, frame it as the youth's choice and tell them they can see it before the worker does. Embed the ask naturally.\n"
-    "- If the youth says 'sure', 'yes', 'okay', or any clear affirmative in reply to your ask, "
-    "acknowledge that warmly — the system will handle the note automatically.\n"
-    "- Do not mention the note more than once per reply, and do not bring it up if it would "
-    "interrupt something urgent.\n\n"
+    "- Do not mention a worker note unless a separate system message explicitly tells you to ask.\n"
+    "- When told to ask, frame it as completely the youth's choice, tell them they see it first, "
+    "and embed it naturally in the reply — not as a trailing line.\n"
+    "- If they say yes to sharing a note, acknowledge that warmly. The system handles the rest.\n"
+    "- Do not bring up the note if something urgent is happening.\n\n"
     "Boundaries (never break these):\n"
     "- You are not a counsellor. Do not diagnose, label, or give clinical or medical advice.\n"
     "- Never promise secrecy or confidentiality.\n"
     "- Never mock, judge, or comment on anyone's body, identity, or appearance.\n"
-    "- If they mention self-harm, suicide, or being in danger, do not try to handle it yourself: tell "
-    "them a trained person needs to help right now and point them to 995 or Samaritans of Singapore on 1767."
+    "- If they mention self-harm, suicide, jumping off something, or being in danger: "
+    "stay warm but be direct — tell them a real person needs to step in right now. "
+    "Give them Singapore emergency services (995) and Samaritans of Singapore (1767). "
+    "Do not try to talk them through it yourself."
 )
 
 
@@ -834,8 +869,8 @@ def generate_safenight_reply(
 
         response = client.chat.completions.create(
             model=settings.openai_model,
-            temperature=0.7,
-            max_tokens=220,
+            temperature=0.75,
+            max_tokens=380,
             messages=conversation,
         )
         reply = (response.choices[0].message.content or "").strip()

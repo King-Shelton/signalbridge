@@ -1,5 +1,5 @@
 export type SignalItem = { id: string; type: string; severity: string; reason: string; source: string; createdAt: string };
-export type CaseItem = { id: string; status: string; priority: string; summary?: string };
+export type CaseItem = { id: string; status: string; priority: string; summary?: string; createdAt?: string };
 export type ConversationItem = {
   id: string; youthId: string; youthName: string; channel: string; status: string;
   riskLevel: "low" | "medium" | "high" | "critical"; riskScore: number;

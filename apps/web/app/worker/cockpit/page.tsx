@@ -295,17 +295,38 @@ export default function WorkerCockpitPage() {
 
         {/* Aside */}
         <aside className="space-y-4">
-          <div className="glass-card p-5">
-            <p className="sb-eyebrow">What changed</p>
-            <h3 className="mt-1.5 mb-3.5 text-[16px] font-semibold text-[#f1f6f4]">Why someone moved up</h3>
-            <div className="flex flex-wrap gap-2">
-              {["After-hours message", "Cyberbullying", "School avoidance", "Repeated late-night contact", "Unresolved handoff"].map((s) => (
-                <span key={s} className="px-2.5 py-1 rounded-full text-[11px] font-medium" style={{ background: "rgba(255,255,255,0.07)", color: "rgba(214,235,230,0.6)", border: "1px solid rgba(255,255,255,0.1)" }}>
-                  {s}
-                </span>
-              ))}
-            </div>
-          </div>
+          {(() => {
+            const allSignalTypes = Array.from(new Set(ranked.flatMap((item) => item.signals.map((s) => s.type)).filter((t) => t !== "after_hours_support")));
+            const unresolvedCount = ranked.filter((item) => item.unresolvedHandoff).length;
+            const highCount = ranked.filter((item) => ["high", "critical"].includes(item.riskLevel)).length;
+            return (
+              <div className="glass-card p-5">
+                <p className="sb-eyebrow">Live signals</p>
+                <h3 className="mt-1.5 mb-3.5 text-[16px] font-semibold text-[#f1f6f4]">What&apos;s driving the queue</h3>
+                {allSignalTypes.length > 0 ? (
+                  <div className="flex flex-wrap gap-2">
+                    {allSignalTypes.slice(0, 6).map((s) => (
+                      <span key={s} className="px-2.5 py-1 rounded-full text-[11px] font-medium capitalize" style={{ background: "rgba(255,255,255,0.07)", color: "rgba(214,235,230,0.6)", border: "1px solid rgba(255,255,255,0.1)" }}>
+                        {label(s)}
+                      </span>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-[12px] text-[rgba(214,235,230,0.4)]">No high-risk signals active right now.</p>
+                )}
+                {(unresolvedCount > 0 || highCount > 0) && (
+                  <div className="mt-3 pt-3 space-y-1.5" style={{ borderTop: "1px solid rgba(255,255,255,0.07)" }}>
+                    {highCount > 0 && (
+                      <p className="text-[12px]" style={{ color: "#e88d78" }}>⚠ {highCount} high or critical risk conversation{highCount > 1 ? "s" : ""}</p>
+                    )}
+                    {unresolvedCount > 0 && (
+                      <p className="text-[12px]" style={{ color: "#e9c685" }}>📋 {unresolvedCount} handoff{unresolvedCount > 1 ? "s" : ""} waiting to be read</p>
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          })()}
           <div className="rounded-[18px] p-5" style={{ background: "rgba(183,121,31,0.1)", border: "1px solid rgba(183,121,31,0.28)" }}>
             <p className="text-[10.5px] font-semibold uppercase tracking-[0.14em] text-[#e9c685]">Reminder</p>
             <h3 className="mt-1.5 mb-2 text-[16px] font-semibold text-[#f1f6f4]">You make the call</h3>

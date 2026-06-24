@@ -79,6 +79,7 @@ export default function YouthChatPage() {
   const [handoffLoading, setHandoffLoading] = useState(false);
   const [isResetting, setIsResetting] = useState(false);
   const [showResetConfirm, setShowResetConfirm] = useState(false);
+  const [showMenu, setShowMenu] = useState(false);
 
   const messages = useMemo(() => {
     if (!conversation) return [];
@@ -294,6 +295,7 @@ export default function YouthChatPage() {
   }
 
   const showConsentBar = !conversation.consentToHandoff && !consentDismissed && messages.length >= 2;
+  const showRestoreConsent = !conversation.consentToHandoff && consentDismissed && messages.length >= 2;
 
   return (
     <div className="fixed inset-0 flex flex-col font-sans overflow-hidden" style={{ background: "#060d0c", WebkitFontSmoothing: "antialiased" }}>
@@ -328,60 +330,119 @@ export default function YouthChatPage() {
           </div>
           <div>
             <div className="text-[13px] font-semibold" style={{ color: "#f1f6f4", letterSpacing: "-0.01em" }}>SafeNight</div>
-            <div className="text-[10px]" style={{ color: "rgba(214,235,230,0.35)" }}>Your private space</div>
+            <div className="text-[10px]" style={{ color: "rgba(214,235,230,0.35)" }}>
+              {youthName && youthName !== "You" ? `Here for you, ${youthName}` : "Here for you, whenever you're ready"}
+            </div>
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
-          {showResetConfirm ? (
-            <div className="flex items-center gap-1.5">
-              <span className="text-[11px]" style={{ color: "rgba(214,235,230,0.45)" }}>Start fresh?</span>
-              <button
-                type="button"
-                onClick={() => void resetChat()}
-                disabled={isResetting}
-                className="px-2 py-0.5 rounded-[6px] text-[11px] font-semibold transition"
-                style={{ background: "rgba(217,95,72,0.15)", border: "1px solid rgba(217,95,72,0.3)", color: "#e88d78" }}
-              >
-                {isResetting ? "…" : "Yes"}
-              </button>
-              <button
-                type="button"
-                onClick={() => setShowResetConfirm(false)}
-                className="px-2 py-0.5 rounded-[6px] text-[11px] font-medium transition"
-                style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", color: "rgba(214,235,230,0.4)" }}
-              >
-                No
-              </button>
+        <div className="flex items-center gap-2 relative">
+          {conversation.consentToHandoff ? (
+            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full" style={{ background: "rgba(111,184,170,0.12)", border: "1px solid rgba(111,184,170,0.25)" }}>
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#6fb8aa" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M20 6 9 17l-5-5"/>
+              </svg>
+              <span className="text-[10px] font-semibold text-[#6fb8aa]">Worker notified</span>
             </div>
           ) : (
-            <>
+            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full" style={{ background: "rgba(183,121,31,0.12)", border: "1px solid rgba(183,121,31,0.25)" }}>
+              <div className="w-1.5 h-1.5 rounded-full bg-[#e9c685]" style={{ animation: "sb-core 2.8s ease-in-out infinite" }} />
+              <span className="text-[10px] font-semibold text-[#e9c685]">After hours</span>
+            </div>
+          )}
+
+          {/* Menu toggle */}
+          <button
+            type="button"
+            onClick={() => setShowMenu((prev) => !prev)}
+            className="flex items-center justify-center w-7 h-7 rounded-full transition"
+            style={{ background: showMenu ? "rgba(255,255,255,0.08)" : "transparent", color: "rgba(214,235,230,0.4)" }}
+            aria-label="More options"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/>
+            </svg>
+          </button>
+
+          {/* Dropdown menu */}
+          {showMenu && (
+            <div
+              className="absolute top-full right-0 mt-2 w-[220px] rounded-[14px] overflow-hidden shadow-xl z-20"
+              style={{ background: "#0d1f1d", border: "1px solid rgba(255,255,255,0.1)" }}
+            >
               <button
                 type="button"
-                onClick={() => setShowResetConfirm(true)}
-                title="Reset chat"
-                className="flex items-center justify-center w-6 h-6 rounded-full transition"
-                style={{ color: "rgba(214,235,230,0.3)" }}
+                onClick={() => { setShowMenu(false); void openHandoffPreview(); }}
+                className="w-full flex items-center gap-3 px-4 py-3 text-left text-[13px] transition hover:bg-white/5"
+                style={{ color: "#e8f2ef", borderBottom: "1px solid rgba(255,255,255,0.06)" }}
               >
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
-                  <path d="M3 3v5h5"/>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#6fb8aa" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/>
+                  <polyline points="14 2 14 8 20 8"/>
                 </svg>
+                <div>
+                  <div className="font-medium">{conversation.consentToHandoff ? "See my note" : "Preview my note"}</div>
+                  <div className="text-[10.5px] mt-0.5" style={{ color: "rgba(214,235,230,0.35)" }}>
+                    {conversation.consentToHandoff ? "What your worker will receive" : "See what would be shared"}
+                  </div>
+                </div>
               </button>
-              {conversation.consentToHandoff ? (
-                <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full" style={{ background: "rgba(111,184,170,0.12)", border: "1px solid rgba(111,184,170,0.25)" }}>
-                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#6fb8aa" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M20 6 9 17l-5-5"/>
-                  </svg>
-                  <span className="text-[10px] font-semibold text-[#6fb8aa]">Worker notified</span>
+
+              {showResetConfirm ? (
+                <div className="px-4 py-3" style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
+                  <p className="text-[12px] mb-2" style={{ color: "rgba(214,235,230,0.5)" }}>Start a fresh conversation?</p>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => { setShowMenu(false); void resetChat(); }}
+                      disabled={isResetting}
+                      className="flex-1 py-1.5 rounded-[8px] text-[12px] font-semibold"
+                      style={{ background: "rgba(217,95,72,0.2)", border: "1px solid rgba(217,95,72,0.3)", color: "#e88d78" }}
+                    >
+                      {isResetting ? "…" : "Yes, new chat"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setShowResetConfirm(false)}
+                      className="flex-1 py-1.5 rounded-[8px] text-[12px] font-medium"
+                      style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", color: "rgba(214,235,230,0.4)" }}
+                    >
+                      Cancel
+                    </button>
+                  </div>
                 </div>
               ) : (
-                <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full" style={{ background: "rgba(183,121,31,0.12)", border: "1px solid rgba(183,121,31,0.25)" }}>
-                  <div className="w-1.5 h-1.5 rounded-full bg-[#e9c685]" style={{ animation: "sb-core 2.8s ease-in-out infinite" }} />
-                  <span className="text-[10px] font-semibold text-[#e9c685]">After hours</span>
-                </div>
+                <button
+                  type="button"
+                  onClick={() => { setShowResetConfirm(true); }}
+                  className="w-full flex items-center gap-3 px-4 py-3 text-left text-[13px] transition hover:bg-white/5"
+                  style={{ color: "#e8f2ef", borderBottom: "1px solid rgba(255,255,255,0.06)" }}
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="rgba(214,235,230,0.5)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
+                    <path d="M3 3v5h5"/>
+                  </svg>
+                  <div>
+                    <div className="font-medium">New conversation</div>
+                    <div className="text-[10.5px] mt-0.5" style={{ color: "rgba(214,235,230,0.35)" }}>Start fresh with SafeNight</div>
+                  </div>
+                </button>
               )}
-            </>
+
+              <button
+                type="button"
+                onClick={() => { setShowMenu(false); router.push("/login"); }}
+                className="w-full flex items-center gap-3 px-4 py-3 text-left text-[13px] transition hover:bg-white/5"
+                style={{ color: "rgba(214,235,230,0.45)" }}
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+                  <polyline points="16 17 21 12 16 7"/>
+                  <line x1="21" y1="12" x2="9" y2="12"/>
+                </svg>
+                Leave SafeNight
+              </button>
+            </div>
           )}
         </div>
       </div>
@@ -457,7 +518,7 @@ export default function YouthChatPage() {
       {showConsentBar && (
         <div className="relative z-10 mx-4 mb-2 flex items-center justify-between gap-3 rounded-[10px] px-3.5 py-2.5" style={{ background: "rgba(31,111,100,0.1)", border: "1px solid rgba(111,184,170,0.18)" }}>
           <p className="text-[12px] leading-snug flex-1" style={{ color: "rgba(214,235,230,0.6)" }}>
-            Let your worker see a brief note from tonight?
+            Let your worker see a brief note from tonight? You can review it first.
           </p>
           <div className="flex gap-2 shrink-0">
             <button
@@ -477,6 +538,23 @@ export default function YouthChatPage() {
               Yes, share
             </button>
           </div>
+        </div>
+      )}
+
+      {/* Restore consent — shows after "Not now" so it's not lost forever */}
+      {showRestoreConsent && (
+        <div className="relative z-10 mx-4 mb-2">
+          <button
+            type="button"
+            onClick={() => {
+              setConsentDismissed(false);
+              if (conversation?.id) sessionStorage.removeItem(`consent_dismissed_${conversation.id}`);
+            }}
+            className="w-full text-left px-3.5 py-2 rounded-[9px] text-[11.5px] transition"
+            style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", color: "rgba(214,235,230,0.35)" }}
+          >
+            Changed your mind? <span style={{ color: "#6fb8aa" }}>Share a note with your worker →</span>
+          </button>
         </div>
       )}
 
@@ -515,7 +593,7 @@ export default function YouthChatPage() {
             value={draft}
             onChange={handleDraftChange}
             onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); void sendMessage(); } }}
-            placeholder="What's on your mind…"
+            placeholder={youthName && youthName !== "You" ? `What's on your mind, ${youthName}…` : "What's on your mind…"}
             rows={1}
             disabled={isSending}
             className="flex-1 bg-transparent text-[14px] placeholder-[rgba(214,235,230,0.28)] resize-none outline-none leading-relaxed"
