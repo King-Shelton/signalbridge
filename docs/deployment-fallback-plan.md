@@ -12,6 +12,8 @@ When credentials are available, deploy with one of these repo-supported paths:
 
 ## Verification Commands
 
+For the Day 9 operations explanation, including audit coverage, AI fallback behaviour, and demo endpoint list, see `docs/day9-devops-explanation.md`.
+
 Clean local Docker demo:
 
 ```bash

@@ -1,6 +1,9 @@
 import argparse
 import json
+import os
 from datetime import datetime, timedelta, timezone
+from enum import Enum
+from pathlib import Path
 
 from sqlalchemy.orm import Session
 
@@ -549,12 +552,13 @@ def seed(reset: bool = False) -> None:
                          prompt_version="handoff-v1", safety_status="fallback_passed",
                          error="Deterministic fallback - no OpenAI key required for seed demo"))
 
-        # Worker 1 (Aisha Rahman) — pre-seeded notification channels for demo
+        # Optional demo notification channels. Keep real chat IDs/webhooks in
+        # local env only; the seed remains safe to export and share.
         _upsert_worker_notifications(
             db,
             user_id="user_worker_1",
-            telegram_chat_id="5693434686",
-            discord_webhook_url="https://discord.com/api/webhooks/1519325032088866947/TInlgkKdSdVg95fJd3qPdVmfDWilYVY9R_HXKzIT5rEHI5NmT-FlkKrDrKBsai-X7MK2",
+            telegram_chat_id=os.getenv("SIGNALBRIDGE_DEMO_TELEGRAM_CHAT_ID"),
+            discord_webhook_url=os.getenv("SIGNALBRIDGE_DEMO_DISCORD_WEBHOOK_URL"),
         )
 
         db.commit()
@@ -566,10 +570,66 @@ def seed(reset: bool = False) -> None:
         db.close()
 
 
+EXPORT_MODELS = (
+    User,
+    YouthProfile,
+    WorkerNotificationSettings,
+    Conversation,
+    Message,
+    Signal,
+    HandoffBrief,
+    Case,
+    CaseNote,
+    AuditLog,
+    AiRun,
+)
+
+
+def _export_value(value):
+    if isinstance(value, datetime):
+        return value.replace(microsecond=0).isoformat() + "Z"
+    if isinstance(value, Enum):
+        return value.value
+    return value
+
+
+def _export_row(row) -> dict:
+    payload = {
+        column.key: _export_value(getattr(row, column.key))
+        for column in row.__mapper__.columns
+    }
+    if row.__tablename__ == "worker_notification_settings":
+        if payload.get("telegram_chat_id"):
+            payload["telegram_chat_id"] = "<set SIGNALBRIDGE_DEMO_TELEGRAM_CHAT_ID>"
+        if payload.get("discord_webhook_url"):
+            payload["discord_webhook_url"] = "<set SIGNALBRIDGE_DEMO_DISCORD_WEBHOOK_URL>"
+    return payload
+
+
+def export_seed_json(path: Path) -> None:
+    db = SessionLocal()
+    try:
+        data = {
+            model.__tablename__: [
+                _export_row(row)
+                for row in db.query(model).order_by(model.id).all()
+            ]
+            for model in EXPORT_MODELS
+        }
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(data, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    finally:
+        db.close()
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Seed SignalBridge fictional demo data.")
     parser.add_argument("--reset", action="store_true", help="Drop all application tables before reseeding.")
+    parser.add_argument("--export-json", type=Path, help="Write the seeded demo database rows to a JSON file.")
     args = parser.parse_args()
 
     seed(reset=args.reset)
+    if args.export_json:
+        export_seed_json(args.export_json)
+        print(f"Exported SignalBridge seed data to {args.export_json}.")
     print("Seeded SignalBridge demo data successfully.")

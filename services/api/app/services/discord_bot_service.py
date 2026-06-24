@@ -4,8 +4,30 @@ import asyncio
 import logging
 import re
 
-import discord
 from sqlalchemy import select
+
+try:
+    import discord
+    DISCORD_AVAILABLE = True
+except ModuleNotFoundError:  # pragma: no cover - import-time deployment guard.
+    DISCORD_AVAILABLE = False
+
+    class _DiscordShim:
+        class Client:
+            pass
+
+        class DMChannel:
+            pass
+
+        class Message:
+            pass
+
+        class Intents:
+            @staticmethod
+            def default():
+                raise RuntimeError("discord.py is not installed")
+
+    discord = _DiscordShim()
 
 from app.config import get_settings
 from app.database import SessionLocal
@@ -356,7 +378,11 @@ class SafeNightDiscordBot(discord.Client):
 def build_discord_bot() -> SafeNightDiscordBot | None:
     settings = get_settings()
     if not settings.discord_bot_token:
-        logger.info("SIGNALBRIDGE_DISCORD_BOT_TOKEN not set; Discord bot disabled.")
+        logger.info("SIGNALBRIDGE_DISCORD_BOT_TOKEN not set - Discord bot disabled.")
+        return None
+
+    if not DISCORD_AVAILABLE:
+        logger.warning("discord.py is not installed; Discord bot disabled.")
         return None
 
     intents = discord.Intents.default()

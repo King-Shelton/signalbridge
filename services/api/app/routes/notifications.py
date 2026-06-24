@@ -84,12 +84,12 @@ def test_notification(
     if row is None:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Save your settings first.")
 
-    test_msg = f"SignalBridge test — alerts are working for {current_user.name}."
+    test_msg = f"SignalBridge test - alerts are working for {current_user.name}."
 
     if payload.channel == "telegram":
         if not row.telegram_chat_id:
             raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="No Telegram chat ID saved.")
-        send_telegram(row.telegram_chat_id, f"🟢 *Test message*\n\n{test_msg}")
+        send_telegram(row.telegram_chat_id, f"*Test message*\n\n{test_msg}")
     elif payload.channel == "discord":
         if not row.discord_webhook_url:
             raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="No Discord webhook saved.")

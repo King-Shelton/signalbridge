@@ -1,6 +1,6 @@
 """Fire-and-forget Telegram and Discord alert delivery.
 
-All public functions return silently on failure — a missed notification should
+All public functions return silently on failure - a missed notification should
 never crash an API response.
 """
 
@@ -39,7 +39,7 @@ def _discord_send(webhook_url: str, title: str, description: str, color: int) ->
                 "title": title,
                 "description": description,
                 "color": color,
-                "footer": {"text": "SignalBridge · SafeNight"},
+                "footer": {"text": "SignalBridge - SafeNight"},
             }
         ]
     }
@@ -79,8 +79,8 @@ def notify_worker(
 ) -> None:
     """Send to whichever channels the worker has configured."""
     if telegram_chat_id:
-        level_emoji = {"critical": "🔴", "high": "🟠", "medium": "🟡", "low": "🟢"}.get(risk_level, "🟠")
-        text = f"{level_emoji} *{title}*\n\n{body}"
+        risk_label = risk_level.upper()
+        text = f"[{risk_label}] *{title}*\n\n{body}"
         send_telegram(telegram_chat_id, text)
 
     if discord_webhook_url:

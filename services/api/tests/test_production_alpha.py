@@ -1,3 +1,4 @@
+import json
 import os
 import sys
 from pathlib import Path
@@ -27,7 +28,7 @@ from app.routes import operations, telegram_bot
 from app.services.ai_service import CRITICAL_FALLBACK_REPLY, generate_safenight_reply
 from app.services.discord_bot_service import _ensure_thread_conversation, _handle_message
 from app.services.safenight_service import assess_safe_night_message
-from seed import seed
+from seed import export_seed_json, seed
 
 
 def setup_module() -> None:
@@ -405,3 +406,54 @@ def test_supervisor_reassignment_analytics_audit_and_simulator() -> None:
     simulated = client.post("/simulator/intake", headers=headers, json={"youthId": "youth_mira", "channel": "Discord Simulator", "message": "I do not want to go to school because they keep editing my photos."})
     assert simulated.status_code == 201
     assert simulated.json()["riskScore"] >= 40
+
+
+def test_demo_endpoints_stay_stable_for_seed_users() -> None:
+    assert client.get("/health/db").json()["database"] == "ok"
+    assert client.get("/version").status_code == 200
+
+    youth_headers = auth("mira@signalbridge.test")
+    youth_conversations = client.get("/youth/conversations", headers=youth_headers)
+    assert youth_conversations.status_code == 200
+    assert youth_conversations.json()["conversations"]
+    assert client.get("/youth/handoffs", headers=youth_headers).status_code == 200
+
+    worker_headers = auth("worker1@signalbridge.test")
+    cockpit = client.get("/worker/cockpit", headers=worker_headers)
+    assert cockpit.status_code == 200
+    first = cockpit.json()["conversations"][0]
+    assert client.get(f"/worker/conversations/{first['id']}", headers=worker_headers).status_code == 200
+    assert client.get(f"/worker/youths/{first['youthId']}", headers=worker_headers).status_code == 200
+    if first["handoffId"]:
+        assert client.get(f"/worker/handoffs/{first['handoffId']}", headers=worker_headers).status_code == 200
+    assert client.get("/signals/radar", headers=worker_headers).status_code == 200
+    assert client.get("/notifications", headers=worker_headers).status_code == 200
+
+    supervisor_headers = auth("supervisor@signalbridge.test")
+    for path in ("/supervisor/load", "/supervisor/workers", "/analytics/summary", "/audit/logs?limit=25"):
+        assert client.get(path, headers=supervisor_headers).status_code == 200
+
+
+def test_audit_log_details_are_valid_json() -> None:
+    headers = auth("supervisor@signalbridge.test")
+    logs = client.get("/audit/logs?limit=100", headers=headers)
+
+    assert logs.status_code == 200
+    assert logs.json()["logs"]
+    for row in logs.json()["logs"]:
+        assert row["eventType"]
+        assert row["entityType"]
+        if row["details"]:
+            assert isinstance(json.loads(row["details"]), dict)
+
+
+def test_seed_export_json_contains_demo_rows(tmp_path) -> None:
+    export_path = tmp_path / "signalbridge-seed-export.json"
+
+    export_seed_json(export_path)
+    data = json.loads(export_path.read_text(encoding="utf-8"))
+
+    assert "users" in data
+    assert "conversations" in data
+    assert any(row["id"] == "conv_mira_after_hours" for row in data["conversations"])
+    assert any(row["event_type"] == "ai_handoff_brief_created" for row in data["audit_logs"])

@@ -190,7 +190,7 @@ def send_message(
             notify_worker(
                 ns.telegram_chat_id,
                 ns.discord_webhook_url,
-                title="🌙 After-hours message received",
+                title="After-hours message received",
                 body=f"A youth reached out after hours. Risk score: {conversation.risk_score}/100.\nAI has replied and a handoff brief is ready.",
                 risk_level="high",
             )
