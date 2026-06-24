@@ -59,8 +59,8 @@ function Section({
   );
 }
 
-export default function HandoffPage({ params }: { params: { id: string } }) {
-  const id = params.id;
+export default function HandoffPage({ params }: { params: Promise<{ id: string }> }) {
+  const [id, setId] = useState("");
   const [data, setData] = useState<Handoff | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -69,6 +69,10 @@ export default function HandoffPage({ params }: { params: { id: string } }) {
   const [replySending, setReplySending] = useState(false);
   const [replyStatus, setReplyStatus] = useState<{ ok: boolean; text: string } | null>(null);
   const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    void params.then((value) => setId(value.id));
+  }, [params]);
 
 
   const load = useCallback(async () => {

@@ -23,11 +23,15 @@ function caseStatusColor(status: string) {
   return { bg: "rgba(255,255,255,0.05)", border: "rgba(255,255,255,0.1)", color: "rgba(214,235,230,0.5)" };
 }
 
-export default function YouthPage({ params }: { params: { id: string } }) {
-  const id = params.id;
+export default function YouthPage({ params }: { params: Promise<{ id: string }> }) {
+  const [id, setId] = useState("");
   const [data, setData] = useState<Youth | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+
+  useEffect(() => {
+    void params.then((value) => setId(value.id));
+  }, [params]);
 
 
   const load = useCallback(async () => {
