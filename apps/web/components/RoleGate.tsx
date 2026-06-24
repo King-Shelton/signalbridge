@@ -1,7 +1,6 @@
 ﻿"use client";
 
-import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { fetchCurrentUser } from "@/lib/api-client";
 import {
   clearAuthSession,
@@ -19,9 +18,13 @@ type RoleGateProps = {
 };
 
 export function RoleGate({ allowedRoles, children }: RoleGateProps) {
-  const router = useRouter();
   const [session, setSession] = useState<AuthSession | null>(null);
   const [status, setStatus] = useState<"loading" | "ready" | "missing" | "wrong-role">("loading");
+  const allowedRolesKey = allowedRoles.join("|");
+  const allowedRolesSet = useMemo(
+    () => new Set(allowedRolesKey.split("|").filter(Boolean) as Role[]),
+    [allowedRolesKey]
+  );
 
   useEffect(() => {
     const storedSession = readAuthSession();
@@ -35,13 +38,13 @@ export function RoleGate({ allowedRoles, children }: RoleGateProps) {
         const verifiedSession = { ...storedSession, user };
         saveAuthSession(verifiedSession);
         setSession(verifiedSession);
-        setStatus(allowedRoles.includes(user.role) ? "ready" : "wrong-role");
+        setStatus(allowedRolesSet.has(user.role) ? "ready" : "wrong-role");
       })
       .catch(() => {
         clearAuthSession();
         setStatus("missing");
       });
-  }, [allowedRoles]);
+  }, [allowedRolesSet]);
 
   // Don't strand visitors on a dead-end panel: when there's no session (e.g. the
   // intro CTAs link straight here), send them to login; when they're signed in
