@@ -6,8 +6,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from starlette.requests import Request
 
 from app.config import get_settings
-from app.models import AiRun, AuditLog, Case, CaseNote, Conversation, HandoffBrief, Message, Notification, Signal, User, YouthProfile
-from app.routes import ai, auth, conversations, constants, health, operations, signals, simulator, worker, youth
+from app.models import AiRun, AuditLog, Case, CaseNote, Conversation, HandoffBrief, Message, Notification, Signal, User, WorkerNotificationSettings, YouthProfile
+from app.routes import ai, auth, conversations, constants, health, notifications, operations, signals, simulator, telegram_bot, worker, youth
 
 settings = get_settings()
 
@@ -58,3 +58,5 @@ app.include_router(signals.router)
 app.include_router(simulator.router)
 app.include_router(worker.signals_router, prefix="/signals", tags=["signals"])
 app.include_router(conversations.router, tags=["conversations"])
+app.include_router(notifications.router)
+app.include_router(telegram_bot.router)

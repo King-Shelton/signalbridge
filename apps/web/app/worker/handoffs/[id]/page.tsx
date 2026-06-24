@@ -179,8 +179,8 @@ export default function HandoffPage({ params }: { params: Promise<{ id: string }
       <div className="grid gap-4 sm:grid-cols-2">
         <Section icon={<HeartPulse size={17} strokeWidth={1.75} />} title="Main concern" tone="pine">{data.mainConcern}</Section>
         <Section icon={<Thermometer size={17} strokeWidth={1.75} />} title="Emotional state" tone="amber">{data.emotionalState}</Section>
-        <Section icon={<Sparkles size={17} strokeWidth={1.75} />} title="What SafeNight did" tone="pine">{data.whatAiDid}</Section>
-        <Section icon={<CircleSlash size={17} strokeWidth={1.75} />} title="What not to repeat" tone="coral">{data.whatNotToRepeat}</Section>
+        <Section icon={<Sparkles size={17} strokeWidth={1.75} />} title="What was covered" tone="pine">{data.whatAiDid}</Section>
+        <Section icon={<CircleSlash size={17} strokeWidth={1.75} />} title="Sensitive areas" tone="coral">{data.whatNotToRepeat}</Section>
       </div>
 
       {/* Suggested first response */}

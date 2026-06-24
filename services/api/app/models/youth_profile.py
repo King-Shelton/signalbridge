@@ -16,6 +16,7 @@ class YouthProfile(Base):
     user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), unique=True, nullable=False)
     assigned_worker_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"), nullable=True)
     preferred_channel: Mapped[str] = mapped_column(String(80), default="Web Chat", nullable=False)
+    telegram_chat_id: Mapped[str | None] = mapped_column(String(64), nullable=True, unique=True)
     support_style: Mapped[str | None] = mapped_column(Text, nullable=True)
     stressors: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=naive_utcnow, nullable=False)

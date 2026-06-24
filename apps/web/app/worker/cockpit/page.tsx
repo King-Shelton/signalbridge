@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Radar, ShieldAlert, ClipboardList, Sparkles, MessageCircle, ChevronRight } from "lucide-react";
+import { Radar, ShieldAlert, ClipboardList, Sparkles, MessageCircle, ChevronRight, Bell, Send } from "lucide-react";
 import { apiFetch } from "@/lib/api-client";
 import { ConversationItem, label } from "@/lib/operations";
 
@@ -44,11 +44,20 @@ function greetingFor(date: Date) {
   return "Working late";
 }
 
+type NotifSettings = { telegramChatId: string | null; discordWebhookUrl: string | null };
+
 export default function WorkerCockpitPage() {
   const [items, setItems] = useState<ConversationItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [now, setNow] = useState<Date | null>(null);
+
+  const [notifSettings, setNotifSettings] = useState<NotifSettings>({ telegramChatId: null, discordWebhookUrl: null });
+  const [telegramInput, setTelegramInput] = useState("");
+  const [discordInput, setDiscordInput] = useState("");
+  const [notifSaving, setNotifSaving] = useState<"telegram" | "discord" | null>(null);
+  const [notifTesting, setNotifTesting] = useState<"telegram" | "discord" | null>(null);
+  const [notifMsg, setNotifMsg] = useState<{ channel: "telegram" | "discord"; text: string; ok: boolean } | null>(null);
 
   // Render the live clock and greeting only after mount so the server-rendered
   // markup matches the first client paint (avoids a hydration mismatch).
@@ -70,9 +79,55 @@ export default function WorkerCockpitPage() {
     }
   }, []);
 
+  const loadNotifSettings = useCallback(async () => {
+    try {
+      const data = await apiFetch<NotifSettings>("/worker/notification-settings");
+      setNotifSettings(data);
+      setTelegramInput(data.telegramChatId ?? "");
+      setDiscordInput(data.discordWebhookUrl ?? "");
+    } catch { /* non-critical */ }
+  }, []);
+
+  const saveNotifChannel = useCallback(async (channel: "telegram" | "discord") => {
+    setNotifSaving(channel);
+    setNotifMsg(null);
+    try {
+      const body = channel === "telegram"
+        ? { telegramChatId: telegramInput.trim() || null }
+        : { discordWebhookUrl: discordInput.trim() || null };
+      const data = await apiFetch<NotifSettings>("/worker/notification-settings", {
+        method: "PATCH",
+        body: JSON.stringify(body),
+      });
+      setNotifSettings(data);
+      setNotifMsg({ channel, text: "Saved.", ok: true });
+    } catch (e) {
+      setNotifMsg({ channel, text: e instanceof Error ? e.message : "Save failed.", ok: false });
+    } finally {
+      setNotifSaving(null);
+    }
+  }, [telegramInput, discordInput]);
+
+  const testNotifChannel = useCallback(async (channel: "telegram" | "discord") => {
+    setNotifTesting(channel);
+    setNotifMsg(null);
+    try {
+      await apiFetch("/worker/notification-settings/test", {
+        method: "POST",
+        body: JSON.stringify({ channel }),
+      });
+      setNotifMsg({ channel, text: "Test sent — check your app.", ok: true });
+    } catch (e) {
+      setNotifMsg({ channel, text: e instanceof Error ? e.message : "Test failed.", ok: false });
+    } finally {
+      setNotifTesting(null);
+    }
+  }, []);
+
   useEffect(() => {
     void load();
-  }, [load]);
+    void loadNotifSettings();
+  }, [load, loadNotifSettings]);
 
   useEffect(() => {
     const interval = setInterval(() => void load(), 5000);
@@ -187,6 +242,12 @@ export default function WorkerCockpitPage() {
                         <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full" style={{ background: m.soft, color: m.fg, border: `1px solid ${m.border}` }}>
                           {label(item.riskLevel)} · {item.riskScore}
                         </span>
+                        {item.consentToHandoff && (
+                          <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full flex items-center gap-1" style={{ background: "rgba(31,111,100,0.15)", color: "#6fb8aa", border: "1px solid rgba(111,184,170,0.3)" }}>
+                            <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+                            Consent
+                          </span>
+                        )}
                       </div>
                       <p className="mt-0.5 text-[12.5px] text-[rgba(214,235,230,0.4)] flex items-center gap-1.5">
                         <MessageCircle size={13} strokeWidth={1.75} /> {item.channel} · {timeAgo(item.lastMessageAt)}
@@ -195,8 +256,20 @@ export default function WorkerCockpitPage() {
                     <ChevronRight size={20} strokeWidth={1.75} className="text-[rgba(214,235,230,0.3)] flex-shrink-0" />
                   </div>
 
+                  {(() => {
+                    const youthMessages = item.messages.filter((m) => m.senderType === "youth");
+                    const last = youthMessages[youthMessages.length - 1];
+                    return last ? (
+                      <p className="mt-3 text-[13px] leading-snug text-[rgba(214,235,230,0.5)] truncate">
+                        <span className="text-[rgba(214,235,230,0.3)] mr-1">&ldquo;</span>
+                        {last.content.length > 90 ? last.content.slice(0, 90) + "…" : last.content}
+                        <span className="text-[rgba(214,235,230,0.3)] ml-0.5">&rdquo;</span>
+                      </p>
+                    ) : null;
+                  })()}
+
                   {item.suggestedAction && (
-                    <p className="mt-3 text-[13px] leading-relaxed text-[rgba(214,235,230,0.6)]">{item.suggestedAction}</p>
+                    <p className="mt-2 text-[12px] leading-relaxed text-[rgba(214,235,230,0.5)] italic">{item.suggestedAction}</p>
                   )}
 
                   {item.signals.length > 0 && (
@@ -238,6 +311,105 @@ export default function WorkerCockpitPage() {
             <h3 className="mt-1.5 mb-2 text-[16px] font-semibold text-[#f1f6f4]">Radar supports judgement</h3>
             <p className="text-[13px] leading-relaxed text-[rgba(214,235,230,0.6)]">
               The order is a starting point. You still decide the actual next action after reading the handoff brief.
+            </p>
+          </div>
+
+          {/* Alert channels */}
+          <div className="glass-card p-5 space-y-4">
+            <div className="flex items-center gap-2.5">
+              <Bell size={15} strokeWidth={1.75} className="text-[#6fb8aa]" />
+              <div>
+                <p className="sb-eyebrow">Alert channels</p>
+                <h3 className="mt-0.5 text-[15px] font-semibold text-[#f1f6f4]">Get notified off-platform</h3>
+              </div>
+            </div>
+
+            {/* Telegram */}
+            <div className="space-y-2">
+              <p className="text-[12px] font-semibold text-[rgba(214,235,230,0.7)] flex items-center gap-1.5">
+                <span className="text-[14px]">✈️</span> Telegram chat ID
+                {notifSettings.telegramChatId && <span className="text-[10px] px-1.5 py-0.5 rounded-full font-semibold" style={{ background: "rgba(31,111,100,0.2)", color: "#6fb8aa", border: "1px solid rgba(111,184,170,0.25)" }}>Active</span>}
+              </p>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={telegramInput}
+                  onChange={(e) => setTelegramInput(e.target.value)}
+                  placeholder="e.g. 123456789"
+                  className="flex-1 text-[13px] px-3 py-2 rounded-xl text-[#f1f6f4] outline-none"
+                  style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)" }}
+                />
+                <button
+                  type="button"
+                  onClick={() => void saveNotifChannel("telegram")}
+                  disabled={!!notifSaving}
+                  className="text-[12px] font-semibold px-3 py-2 rounded-xl transition-opacity disabled:opacity-50"
+                  style={{ background: "rgba(111,184,170,0.15)", color: "#6fb8aa", border: "1px solid rgba(111,184,170,0.3)" }}
+                >
+                  {notifSaving === "telegram" ? "…" : "Save"}
+                </button>
+                {notifSettings.telegramChatId && (
+                  <button
+                    type="button"
+                    onClick={() => void testNotifChannel("telegram")}
+                    disabled={!!notifTesting}
+                    title="Send test"
+                    className="w-9 h-9 flex items-center justify-center rounded-xl transition-opacity disabled:opacity-50"
+                    style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)", color: "rgba(214,235,230,0.6)" }}
+                  >
+                    <Send size={13} strokeWidth={1.75} />
+                  </button>
+                )}
+              </div>
+              {notifMsg?.channel === "telegram" && (
+                <p className="text-[11.5px]" style={{ color: notifMsg.ok ? "#6fb8aa" : "#e88d78" }}>{notifMsg.text}</p>
+              )}
+            </div>
+
+            {/* Discord */}
+            <div className="space-y-2">
+              <p className="text-[12px] font-semibold text-[rgba(214,235,230,0.7)] flex items-center gap-1.5">
+                <span className="text-[14px]">🎮</span> Discord webhook URL
+                {notifSettings.discordWebhookUrl && <span className="text-[10px] px-1.5 py-0.5 rounded-full font-semibold" style={{ background: "rgba(31,111,100,0.2)", color: "#6fb8aa", border: "1px solid rgba(111,184,170,0.25)" }}>Active</span>}
+              </p>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={discordInput}
+                  onChange={(e) => setDiscordInput(e.target.value)}
+                  placeholder="https://discord.com/api/webhooks/…"
+                  className="flex-1 text-[13px] px-3 py-2 rounded-xl text-[#f1f6f4] outline-none"
+                  style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)" }}
+                />
+                <button
+                  type="button"
+                  onClick={() => void saveNotifChannel("discord")}
+                  disabled={!!notifSaving}
+                  className="text-[12px] font-semibold px-3 py-2 rounded-xl transition-opacity disabled:opacity-50"
+                  style={{ background: "rgba(111,184,170,0.15)", color: "#6fb8aa", border: "1px solid rgba(111,184,170,0.3)" }}
+                >
+                  {notifSaving === "discord" ? "…" : "Save"}
+                </button>
+                {notifSettings.discordWebhookUrl && (
+                  <button
+                    type="button"
+                    onClick={() => void testNotifChannel("discord")}
+                    disabled={!!notifTesting}
+                    title="Send test"
+                    className="w-9 h-9 flex items-center justify-center rounded-xl transition-opacity disabled:opacity-50"
+                    style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)", color: "rgba(214,235,230,0.6)" }}
+                  >
+                    <Send size={13} strokeWidth={1.75} />
+                  </button>
+                )}
+              </div>
+              {notifMsg?.channel === "discord" && (
+                <p className="text-[11.5px]" style={{ color: notifMsg.ok ? "#6fb8aa" : "#e88d78" }}>{notifMsg.text}</p>
+              )}
+            </div>
+
+            <p className="text-[11px] text-[rgba(214,235,230,0.35)] leading-relaxed">
+              High-risk signals and handoff briefs fire an alert to your configured channels automatically.
             </p>
           </div>
         </aside>

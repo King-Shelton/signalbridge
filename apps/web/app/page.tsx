@@ -176,36 +176,18 @@ function Scene5({ onEnter }: { onEnter: (label: string, href: string) => void })
       <div className={styles.morning}>
         <div className={styles.eyebrow}>7:08 AM</div>
         <h2>Your worker picks up ready. You won&apos;t have to start over.</h2>
-        <p className={styles.morningLead}>Choose where to step in. The context, the consent, and the care carry over.</p>
+        <p className={styles.morningLead}>The context, the consent, and the care carry over.</p>
 
         <button
           type="button"
           className={styles.enterButton}
-          onClick={(e) => { e.stopPropagation(); onEnter("SafeNight", "youth"); }}
+          onClick={(e) => { e.stopPropagation(); onEnter("SignalBridge", "/login"); }}
         >
-          Start talking
+          Sign in
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d="M5 12h14"/><path d="m12 5 7 7-7 7"/>
           </svg>
         </button>
-
-        <div className={styles.staffLinks}>
-          <button
-            type="button"
-            className={styles.supervisorLink}
-            onClick={(e) => { e.stopPropagation(); onEnter("Youth worker", "/login?role=worker"); }}
-          >
-            Youth worker sign in
-          </button>
-          <span className={styles.staffDivider}>·</span>
-          <button
-            type="button"
-            className={styles.supervisorLink}
-            onClick={(e) => { e.stopPropagation(); onEnter("Supervisor", "/login?role=supervisor"); }}
-          >
-            Supervisor sign in
-          </button>
-        </div>
       </div>
     </div>
   );

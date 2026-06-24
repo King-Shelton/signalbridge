@@ -56,6 +56,7 @@ class YouthMessageCreateResponse(BaseModel):
     signals: list[SignalPublic]
     handoffRecommended: bool
     handoffPrompt: str
+    aiTriggeredConsent: bool = False
 
 
 class HandoffConsentResponse(BaseModel):

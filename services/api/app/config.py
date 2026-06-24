@@ -18,6 +18,9 @@ class Settings(BaseSettings):
     openai_model: str = "gpt-4.1-mini"
     openai_timeout_seconds: float = 12.0
     ai_prompt_version: str = "handoff-v1"
+    telegram_bot_token: str | None = None
+    telegram_webhook_secret: str | None = None
+    discord_webhook_url: str | None = None
 
     model_config = SettingsConfigDict(env_file=".env", env_prefix="SIGNALBRIDGE_", extra="ignore")
 

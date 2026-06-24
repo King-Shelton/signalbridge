@@ -21,6 +21,76 @@ from app.models.youth_profile import YouthProfile
 
 AI_MODE = "fallback_rule_based"
 
+# Short affirmatives the youth might say in reply to a consent ask
+_CONSENT_PHRASES: tuple[str, ...] = (
+    "sure", "yes", "yeah", "yep", "ok", "okay", "alright", "fine",
+    "go ahead", "sounds good", "please do", "do it", "why not",
+    "of course", "you can", "u can", "go for it", "please",
+    "yah", "ya", "yes please", "yeah sure", "yeah ok", "yeah okay",
+    "ok sure", "ok yeah", "sure thing", "thats fine", "that's fine",
+)
+
+# Markers that indicate the AI message asked about sharing a note
+_CONSENT_ASK_MARKERS: tuple[str, ...] = (
+    "note for your worker",
+    "note for your",
+    "share with your worker",
+    "prepare a",
+    "okay if i prepared",
+    "would it be okay",
+    "want me to prepare",
+    "you'd get to see it",
+    "before they do",
+    "worker to read",
+    "worker know",
+)
+
+
+def _ai_asked_about_consent(last_ai_message: str) -> bool:
+    text = last_ai_message.lower()
+    return any(marker in text for marker in _CONSENT_ASK_MARKERS)
+
+
+def detect_verbal_consent(youth_message: str, last_ai_message: str | None) -> bool:
+    """Return True when the youth appears to be verbally consenting to a worker handoff.
+
+    Only fires when (a) the last AI turn actually asked about sharing a note, and
+    (b) the youth's reply is a short, clearly affirmative message.
+    """
+    if not last_ai_message or not _ai_asked_about_consent(last_ai_message):
+        return False
+    text = youth_message.strip().lower().rstrip("!.?")
+    if len(text) > 60:
+        return False
+    return text in _CONSENT_PHRASES or any(text.startswith(p + " ") for p in _CONSENT_PHRASES)
+
+
+def build_consent_confirmation_reply() -> str:
+    """The AI reply sent immediately after it detects verbal consent and triggers the handoff."""
+    return (
+        "I've prepared a short note for your worker — you can see exactly what they'll read before they do. "
+        "Nothing is locked in; you're still in control of this."
+    )
+
+
+def _should_ask_consent(
+    assessment: RiskAssessment,
+    history: "list[Message]",
+    consent_to_handoff: bool,
+) -> bool:
+    """Return True when SafeNight should embed a consent ask in its next reply."""
+    if consent_to_handoff:
+        return False
+    if assessment.risk_score < 40:
+        return False
+    youth_count = sum(1 for m in history if m.sender_type == SenderType.youth)
+    if youth_count < 2:
+        return False
+    ai_messages = [m for m in history if m.sender_type == SenderType.ai]
+    if ai_messages and _ai_asked_about_consent(ai_messages[-1].content):
+        return False
+    return True
+
 
 class HandoffDraft(BaseModel):
     main_concern: str = Field(max_length=800)
@@ -468,10 +538,17 @@ def _asks_about_safenight_identity(text: str) -> bool:
     )
 
 
+_CONSENT_ASK_SUFFIX = (
+    " Would it be okay if I prepared a short note for your worker? "
+    "You'd get to see it before they do — nothing goes to them without you knowing."
+)
+
+
 def build_safenight_fallback_reply(
     new_message: str,
     assessment: RiskAssessment,
     history: list[Message] | None = None,
+    consent_to_handoff: bool = False,
 ) -> str:
     """Return a varied, safety-bounded reply when the model path is unavailable."""
     text = new_message.strip().lower()
@@ -479,6 +556,8 @@ def build_safenight_fallback_reply(
     signal_types = {signal.type for signal in assessment.signals}
     current_has_cyberbullying = "cyberbullying" in signal_types or _has_cyberbullying_context(text)
     prior_has_cyberbullying = _has_cyberbullying_context(history_text)
+
+    ask_consent = _should_ask_consent(assessment, history or [], consent_to_handoff)
 
     if _is_short_greeting(text):
         return (
@@ -499,47 +578,48 @@ def build_safenight_fallback_reply(
         )
 
     if "dark" in text:
-        return (
+        reply = (
             "Being scared can feel bigger at night. Try to stay somewhere you feel a little safer if you can, and tell me "
-            "what is making the dark feel hard right now. A real worker can follow up on anything you choose to share."
+            "what is making the dark feel hard right now."
         )
+        return reply + (_CONSENT_ASK_SUFFIX if ask_consent else " A real worker can follow up on anything you choose to share.")
 
     if _asks_for_bullying_help(text):
         return (
             "If you are being bullied, try not to answer them alone tonight. Save screenshots if it is safe, block or mute the chat "
-            "for now, and tell a trusted adult or school staff member as soon as you can. I can help prepare a short note for your worker."
+            "for now, and tell a trusted adult or school staff member as soon as you can."
+            + (_CONSENT_ASK_SUFFIX if ask_consent else " I can help prepare a short note for your worker.")
         )
 
     if current_has_cyberbullying or (
         prior_has_cyberbullying and any(term in text for term in ("scared", "afraid", "fear", "him", "her", "them"))
     ):
-        return (
-            "That sounds humiliating and exhausting to carry alone. I am not a counsellor, but I can help you slow this down "
-            "and keep a clear note for your worker about the bullying, so you do not have to retell the whole thing tomorrow."
+        reply = (
+            "That sounds humiliating and exhausting to carry alone. I am not a counsellor, but I can help you slow this down."
         )
+        return reply + (_CONSENT_ASK_SUFFIX if ask_consent else
+                        " I can keep a clear note for your worker about the bullying, so you do not have to retell the whole thing tomorrow.")
 
     if "school_avoidance" in signal_types:
-        return (
-            "It makes sense that school feels hard to face right now. For tonight, we can focus on one small next step and "
-            "prepare a note for your worker about what is making tomorrow feel unsafe."
-        )
+        reply = "It makes sense that school feels hard to face right now. For tonight, we can focus on one small next step."
+        return reply + (_CONSENT_ASK_SUFFIX if ask_consent else
+                        " I can prepare a note for your worker about what is making tomorrow feel unsafe.")
 
     if "negative_emotional_language" in signal_types or "negative_emotion_spike" in signal_types:
-        return (
-            "I hear that you are feeling overwhelmed. You do not need to explain everything at once; we can keep this simple "
-            "and save the important parts for your worker to read with your permission."
-        )
+        reply = "I hear that you are feeling overwhelmed. You do not need to explain everything at once."
+        return reply + (_CONSENT_ASK_SUFFIX if ask_consent else
+                        " We can keep this simple and save the important parts for your worker to read with your permission.")
 
     if any(term in text for term in ("scared", "afraid", "fear")):
-        return (
-            "That fear sounds real, and you do not have to carry it by yourself tonight. If you can, stay near a trusted adult "
-            "or a safer place, and tell me one small thing that would help you feel less alone right now."
+        reply = (
+            "That fear sounds real, and you do not have to carry it by yourself tonight. "
+            "If you can, stay near a trusted adult or a safer place."
         )
+        return reply + (_CONSENT_ASK_SUFFIX if ask_consent else
+                        " Tell me one small thing that would help you feel less alone right now.")
 
-    return (
-        "I am here with you. You do not have to make the whole thing clear tonight; one small piece is enough. "
-        "If you want, I can help keep a short note ready for your worker."
-    )
+    reply = "I am here with you. You do not have to make the whole thing clear tonight; one small piece is enough."
+    return reply + (_CONSENT_ASK_SUFFIX if ask_consent else " If you want, I can help keep a short note ready for your worker.")
 
 
 SAFENIGHT_SYSTEM_PROMPT = (
@@ -550,20 +630,30 @@ SAFENIGHT_SYSTEM_PROMPT = (
     "- 2 to 4 short sentences. No bullet points, no lists, no headings.\n"
     "- Reflect their actual words and feelings before anything else. Vary how you open each reply; "
     "do not start every message the same way.\n"
-    "- Ask at most one gentle question, and only when it helps.\n"
-    "- Do not offer to 'prepare a note for your worker' in every message — mention it occasionally, "
-    "only when it genuinely fits.\n\n"
+    "- Ask at most one gentle question, and only when it helps.\n\n"
+    "About the worker note:\n"
+    "- When it fits naturally and you have not asked recently, gently ask if the youth would like you "
+    "to prepare a short note for their worker — frame it as their choice and tell them they can see "
+    "it before the worker does. Embed the ask in your reply, not as a separate sentence at the end.\n"
+    "- If the youth says 'sure', 'yes', 'okay', or any clear affirmative in reply to your ask, "
+    "acknowledge that warmly — the system will handle the note automatically.\n"
+    "- Do not mention the note more than once per reply, and do not bring it up if it would "
+    "interrupt something urgent.\n\n"
     "Boundaries (never break these):\n"
     "- You are not a counsellor. Do not diagnose, label, or give clinical or medical advice.\n"
-    "- Never promise secrecy or confidentiality. It is fine to remind them, gently and occasionally, "
-    "that a real youth worker can follow up.\n"
+    "- Never promise secrecy or confidentiality.\n"
     "- Never mock, judge, or comment on anyone's body, identity, or appearance.\n"
     "- If they mention self-harm, suicide, or being in danger, do not try to handle it yourself: tell "
     "them a trained person needs to help right now and point them to 995 or Samaritans of Singapore on 1767."
 )
 
 
-def generate_safenight_reply(new_message: str, history: list[Message], assessment: RiskAssessment) -> str:
+def generate_safenight_reply(
+    new_message: str,
+    history: list[Message],
+    assessment: RiskAssessment,
+    consent_to_handoff: bool = False,
+) -> str:
     """Generate SafeNight's reply.
 
     The conversation is handled by the model so it feels genuine. Safety stays
@@ -577,7 +667,7 @@ def generate_safenight_reply(new_message: str, history: list[Message], assessmen
 
     settings = get_settings()
     if not settings.openai_api_key:
-        return build_safenight_fallback_reply(new_message, assessment, history)
+        return build_safenight_fallback_reply(new_message, assessment, history, consent_to_handoff)
 
     try:
         from openai import OpenAI
@@ -602,6 +692,22 @@ def generate_safenight_reply(new_message: str, history: list[Message], assessmen
                 "content": f"Context only (do not read this back to them): possible signals noticed so far — {signal_summary}.",
             })
 
+        # Tell the model whether to ask for consent in this reply
+        if _should_ask_consent(assessment, history, consent_to_handoff):
+            conversation.insert(1, {
+                "role": "system",
+                "content": (
+                    "The youth has not yet agreed to a worker note. If it fits naturally in this reply, "
+                    "gently ask if they'd like you to prepare one — remind them they can see it first. "
+                    "Phrase it as part of your response, not as a trailing sentence."
+                ),
+            })
+        elif consent_to_handoff:
+            conversation.insert(1, {
+                "role": "system",
+                "content": "The youth has already agreed to share a note with their worker. Do not mention the note again.",
+            })
+
         response = client.chat.completions.create(
             model=settings.openai_model,
             temperature=0.7,
@@ -610,15 +716,15 @@ def generate_safenight_reply(new_message: str, history: list[Message], assessmen
         )
         reply = (response.choices[0].message.content or "").strip()
         if not reply or len(reply) < 10:
-            return build_safenight_fallback_reply(new_message, assessment, history)
+            return build_safenight_fallback_reply(new_message, assessment, history, consent_to_handoff)
 
         prohibited = ("you have depression", "you have anxiety", "keep this secret", "i promise", "clinically")
         if any(term in reply.lower() for term in prohibited):
-            return build_safenight_fallback_reply(new_message, assessment, history)
+            return build_safenight_fallback_reply(new_message, assessment, history, consent_to_handoff)
 
         return reply
     except Exception:
-        return build_safenight_fallback_reply(new_message, assessment, history)
+        return build_safenight_fallback_reply(new_message, assessment, history, consent_to_handoff)
 
 
 def suggest_worker_reply(assessment: RiskAssessment) -> str:
