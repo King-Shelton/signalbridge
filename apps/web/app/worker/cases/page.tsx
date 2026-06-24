@@ -23,7 +23,16 @@ export default function CasesPage() {
     setLoading(true);
     try {
       const data = await apiFetch<{ conversations: ConversationItem[] }>("/worker/cockpit");
-      setItems(data.conversations.filter((item) => item.case));
+      // A youth can have several conversations that roll up to one case (e.g. a
+      // past check-in plus a live after-hours thread). The case workflow shows one
+      // row per case, so collapse to the highest-risk conversation per case id.
+      const byCase = new Map<string, ConversationItem>();
+      for (const item of data.conversations) {
+        if (!item.case) continue;
+        const existing = byCase.get(item.case.id);
+        if (!existing || item.riskScore > existing.riskScore) byCase.set(item.case.id, item);
+      }
+      setItems([...byCase.values()]);
       setError("");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not load cases");

@@ -11,7 +11,15 @@ class Base(DeclarativeBase):
 
 
 settings = get_settings()
-engine = create_engine(settings.database_url, pool_pre_ping=True)
+
+# SQLite (used for tests and lightweight local/fallback runs) needs
+# check_same_thread disabled so the threaded uvicorn workers can share the
+# connection pool. Postgres ignores this argument.
+_engine_kwargs: dict = {"pool_pre_ping": True}
+if settings.database_url.startswith("sqlite"):
+    _engine_kwargs["connect_args"] = {"check_same_thread": False}
+
+engine = create_engine(settings.database_url, **_engine_kwargs)
 SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False)
 
 

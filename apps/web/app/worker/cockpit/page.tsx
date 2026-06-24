@@ -33,10 +33,30 @@ function timeAgo(dateStr: string) {
   return `${Math.floor(hours / 24)}d ago`;
 }
 
+function greetingFor(date: Date) {
+  const hour = Number(
+    new Intl.DateTimeFormat("en-SG", { hour: "numeric", hour12: false, timeZone: "Asia/Singapore" }).format(date)
+  );
+  if (hour < 5) return "Working late";
+  if (hour < 12) return "Good morning";
+  if (hour < 17) return "Good afternoon";
+  if (hour < 22) return "Good evening";
+  return "Working late";
+}
+
 export default function WorkerCockpitPage() {
   const [items, setItems] = useState<ConversationItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [now, setNow] = useState<Date | null>(null);
+
+  // Render the live clock and greeting only after mount so the server-rendered
+  // markup matches the first client paint (avoids a hydration mismatch).
+  useEffect(() => {
+    setNow(new Date());
+    const tick = setInterval(() => setNow(new Date()), 30000);
+    return () => clearInterval(tick);
+  }, []);
 
   const load = useCallback(async () => {
     setError("");
@@ -88,7 +108,7 @@ export default function WorkerCockpitPage() {
       {/* Header */}
       <header className="flex items-end justify-between gap-5 flex-wrap">
         <div className="max-w-xl">
-          <p className="sb-eyebrow mb-2">Signal Radar · Good morning</p>
+          <p className="sb-eyebrow mb-2">Signal Radar{now ? ` · ${greetingFor(now)}` : ""}</p>
           <h1 className="text-[30px] font-semibold text-[#f1f6f4]" style={{ letterSpacing: "-0.025em" }}>
             Prioritise the queue before it becomes noise.
           </h1>
@@ -97,7 +117,7 @@ export default function WorkerCockpitPage() {
           </p>
         </div>
         <div className="text-[12px] font-mono text-[rgba(214,235,230,0.35)]">
-          {new Date().toLocaleString("en-SG", { weekday: "short", hour: "2-digit", minute: "2-digit" })}
+          {now ? now.toLocaleString("en-SG", { weekday: "short", hour: "2-digit", minute: "2-digit" }) : ""}
         </div>
       </header>
 

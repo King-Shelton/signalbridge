@@ -1,11 +1,11 @@
 import argparse
 import json
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from sqlalchemy.orm import Session
 
 from app.database import Base, SessionLocal, engine
-from app.timeutil import naive_utcnow
+from app.timeutil import SGT, naive_utcnow
 from app.models.audit_log import AuditLog
 from app.models.ai_run import AiRun
 from app.models.case import Case, CaseStatus
@@ -216,6 +216,18 @@ def seed(reset: bool = False) -> None:
     db = SessionLocal()
     now = naive_utcnow().replace(microsecond=0)
 
+    # Mira's after-hours message is the hero of the demo, so it must always read as
+    # a real late-night message ("11:42 PM, last night") regardless of when the
+    # database is seeded. Anchoring it to a fixed Singapore wall-clock keeps the
+    # timestamp, the "After hours" badge, and the worker's "morning review" story
+    # consistent even if the team reseeds in the afternoon. Other conversations stay
+    # relative to now so the cockpit still feels live.
+    sgt_now = now.replace(tzinfo=timezone.utc).astimezone(SGT)
+    last_night_2342 = sgt_now.replace(hour=23, minute=40, second=0, microsecond=0)
+    if last_night_2342 >= sgt_now:
+        last_night_2342 -= timedelta(days=1)
+    mira_after_hours = last_night_2342.astimezone(timezone.utc).replace(tzinfo=None)
+
     try:
         worker = upsert_user(db, "user_worker_1", "Aisha Rahman", "worker1@signalbridge.test", UserRole.worker)
         worker_two = upsert_user(db, "user_worker_2", "Marcus Lee", "worker2@signalbridge.test", UserRole.worker)
@@ -258,7 +270,7 @@ def seed(reset: bool = False) -> None:
                 "risk_level": RiskLevel.high,
                 "risk_score": 92,
                 "unresolved": True,
-                "last": now - timedelta(hours=9),
+                "last": mira_after_hours + timedelta(minutes=4),
                 "messages": [
                     ("youth", "People in my class group chat keep editing my photos. I don't want to go school tomorrow."),
                     ("ai", "I am sorry this is happening. I can help prepare a short note for your worker so you do not have to repeat everything tomorrow."),
@@ -484,21 +496,21 @@ def seed(reset: bool = False) -> None:
                             event_type="handoff_consent_received", entity_type="conversation",
                             entity_id="conv_mira_after_hours",
                             details=json.dumps({"consentGiven": True, "youthId": "youth_mira"}),
-                            created_at=now - timedelta(hours=9)))
+                            created_at=mira_after_hours + timedelta(minutes=3)))
 
         if db.get(AuditLog, "audit_seed_handoff_mira") is None:
             db.add(AuditLog(id="audit_seed_handoff_mira", actor_user_id=None,
                             event_type="ai_handoff_brief_created", entity_type="handoff_brief",
                             entity_id="handoff_mira_current",
                             details=json.dumps({"riskLevel": "high", "riskScore": 92, "aiMode": "fallback_rule_based"}),
-                            created_at=now - timedelta(hours=9)))
+                            created_at=mira_after_hours + timedelta(minutes=3)))
 
         if db.get(AuditLog, "audit_seed_response_mira") is None:
             db.add(AuditLog(id="audit_seed_response_mira", actor_user_id=None,
                             event_type="ai_response_generated", entity_type="conversation",
                             entity_id="conv_mira_after_hours",
                             details=json.dumps({"aiMode": "safenight_fallback", "safetyStatus": "fallback_passed"}),
-                            created_at=now - timedelta(hours=9)))
+                            created_at=mira_after_hours + timedelta(minutes=3)))
 
         if db.get(AuditLog, "audit_seed_signal_jay") is None:
             db.add(AuditLog(id="audit_seed_signal_jay", actor_user_id=None,
