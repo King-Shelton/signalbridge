@@ -130,6 +130,8 @@ def _get_or_create_public_intake_youth(db: Session, chat_id: str) -> YouthProfil
         )
         db.add(youth)
 
+    db.flush()
+
     case = db.get(Case, case_id)
     if case is None:
         case = Case(
