@@ -48,12 +48,18 @@ export default function SignalRadarPage() {
 
   const filtered = useMemo(
     () =>
-      items.filter(
-        (item) =>
-          (risk === "all" || item.riskLevel === risk) &&
-          (channel === "all" || item.channel === channel) &&
-          item.youthName.toLowerCase().includes(query.toLowerCase())
-      ),
+      items
+        .map((item) => ({
+          ...item,
+          signals: item.signals.filter((s) => s.type !== "after_hours_support"),
+        }))
+        .filter(
+          (item) =>
+            item.signals.length > 0 &&
+            (risk === "all" || item.riskLevel === risk) &&
+            (channel === "all" || item.channel === channel) &&
+            item.youthName.toLowerCase().includes(query.toLowerCase())
+        ),
     [items, risk, channel, query]
   );
 
