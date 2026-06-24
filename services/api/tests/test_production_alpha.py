@@ -113,6 +113,7 @@ def test_telegram_deep_link_and_worker_reply_round_trip(monkeypatch) -> None:
     for text in [
         "Someone keeps editing my photos in the class chat and I don't want to go to school tomorrow.",
         "yes please share a short note with my worker",
+        "I am scared he will find me after school.",
     ]:
         response = client.post("/telegram/webhook", headers=headers, json={"message": {"chat": {"id": chat_id}, "text": text}})
         assert response.status_code == 200
@@ -123,6 +124,8 @@ def test_telegram_deep_link_and_worker_reply_round_trip(monkeypatch) -> None:
     assert telegram_row["riskScore"] >= 40
     assert telegram_row["consentToHandoff"] is True
     assert telegram_row["handoffId"]
+    handoff = client.get(f"/worker/handoffs/{telegram_row['handoffId']}", headers=worker_headers).json()
+    assert "after school" in handoff["keyQuote"].lower()
 
     reply = client.post(
         f"/worker/conversations/{telegram_row['id']}/messages",
@@ -186,6 +189,21 @@ def test_consent_required_and_fallback_handoff_generation() -> None:
     assert client.get("/youth/handoffs", headers=youth_headers).json()["handoffs"]
 
 
+def test_youth_can_start_fresh_conversation_without_reusing_old_messages() -> None:
+    youth_headers = auth("mira@signalbridge.test")
+    before = client.get("/youth/conversations", headers=youth_headers).json()["conversations"]
+
+    created = client.post("/youth/conversations", headers=youth_headers)
+
+    assert created.status_code == 201
+    conversation = created.json()["conversation"]
+    assert conversation["messages"] == []
+    assert conversation["consentToHandoff"] is False
+    after = client.get("/youth/conversations", headers=youth_headers).json()["conversations"]
+    assert len(after) == len(before) + 1
+    assert after[0]["id"] == conversation["id"]
+
+
 def test_critical_language_cannot_be_downgraded() -> None:
     youth_headers = auth("mira@signalbridge.test")
     conversation_id = client.get("/youth/conversations", headers=youth_headers).json()["conversations"][0]["id"]
@@ -210,7 +228,7 @@ def test_safenight_fallback_reply_is_contextual_without_ai_key() -> None:
     ]
 
     assert len(set(replies)) == len(samples)
-    assert any("bullying" in reply.lower() for reply in replies)
+    assert any("humiliating" in reply.lower() for reply in replies)
     assert any("dark" in reply.lower() for reply in replies)
     assert CRITICAL_FALLBACK_REPLY == generate_safenight_reply(
         "I want to die",
@@ -234,7 +252,7 @@ def test_safenight_keeps_bullying_context_when_youth_says_scared_of_person() -> 
         assess_safe_night_message("im so scared of mruthulan"),
     )
 
-    assert "bullying" in reply.lower()
+    assert "bullying" in reply.lower() or "bullied" in reply.lower() or "humiliating" in reply.lower()
     assert "dark" not in reply.lower()
 
 
@@ -261,7 +279,7 @@ def test_safenight_handles_identity_questions_and_typo_greetings() -> None:
     assert "ai after-hours companion" in identity_reply.lower()
     assert "sexuality" in identity_reply.lower()
     assert "dark" not in identity_reply.lower()
-    assert "hi, i am here with you" in greeting_reply.lower()
+    assert "start with whatever feels easiest" in greeting_reply.lower()
 
 
 def test_safenight_handles_identity_disclosure_and_bad_reply_feedback() -> None:
@@ -283,6 +301,17 @@ def test_safenight_handles_identity_disclosure_and_bad_reply_feedback() -> None:
     assert "scripted" in feedback_reply.lower()
 
 
+def test_safenight_low_risk_fallback_does_not_push_worker_note() -> None:
+    reply = generate_safenight_reply(
+        "I just feel weird and don't know why",
+        [],
+        assess_safe_night_message("I just feel weird and don't know why"),
+    )
+
+    assert "worker" not in reply.lower()
+    assert "note" not in reply.lower()
+
+
 def test_safenight_gives_practical_bullying_help() -> None:
     reply = generate_safenight_reply(
         "if im getting bullied what shld i do",
@@ -292,7 +321,7 @@ def test_safenight_gives_practical_bullying_help() -> None:
 
     assert "screenshots" in reply.lower()
     assert "trusted adult" in reply.lower()
-    assert "worker" in reply.lower()
+    assert "next small step" in reply.lower()
 
 
 def test_safenight_redirects_off_topic_insult_after_bullying_context() -> None:

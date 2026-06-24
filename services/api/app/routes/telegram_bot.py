@@ -34,7 +34,7 @@ from app.services.ai_service import (
     detect_verbal_consent,
     generate_safenight_reply,
     get_conversation_messages,
-    persist_signals,
+    upsert_handoff_brief_with_ai,
 )
 from app.services.notifications import notify_worker
 from app.services.safenight_service import assess_safe_night_message
@@ -261,6 +261,8 @@ def _process_youth_message(
         reply_content = generate_safenight_reply(
             content, history, assessment,
             consent_to_handoff=conversation.consent_to_handoff,
+            db=db,
+            conversation_id=conversation.id,
         )
 
     ai_reply = Message(
@@ -300,6 +302,13 @@ def _process_youth_message(
         if assessment.handoff_recommended:
             conversation.status = ConversationStatus.needs_review
             conversation.unresolved_handoff = True
+
+    if conversation.consent_to_handoff:
+        all_messages = list(history) + [youth_msg, ai_reply]
+        full_assessment = analyse_risk([m.content for m in all_messages], all_messages)
+        apply_risk_to_conversation(conversation, full_assessment)
+        handoff, _ = upsert_handoff_brief_with_ai(db, conversation, all_messages, full_assessment)
+        db.add(handoff)
 
     db.add(AuditLog(
         actor_user_id=youth.user_id,

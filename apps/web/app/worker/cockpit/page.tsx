@@ -116,7 +116,7 @@ export default function WorkerCockpitPage() {
         method: "POST",
         body: JSON.stringify({ channel }),
       });
-      setNotifMsg({ channel, text: "Test sent — check your app.", ok: true });
+      setNotifMsg({ channel, text: "Test sent. Check your app.", ok: true });
     } catch (e) {
       setNotifMsg({ channel, text: e instanceof Error ? e.message : "Test failed.", ok: false });
     } finally {
@@ -152,9 +152,9 @@ export default function WorkerCockpitPage() {
   );
 
   const tiles: [string, number | string, string, React.ReactNode][] = [
-    ["Priority queue", stats.queue, "#6fb8aa", <Radar key="i" size={20} strokeWidth={1.75} />],
-    ["High-priority", stats.high, "#e88d78", <ShieldAlert key="i" size={20} strokeWidth={1.75} />],
-    ["Unresolved handoffs", stats.handoffs, "#e9c685", <ClipboardList key="i" size={20} strokeWidth={1.75} />],
+    ["Youth waiting", stats.queue, "#6fb8aa", <Radar key="i" size={20} strokeWidth={1.75} />],
+    ["Needs quick review", stats.high, "#e88d78", <ShieldAlert key="i" size={20} strokeWidth={1.75} />],
+    ["Handoffs to read", stats.handoffs, "#e9c685", <ClipboardList key="i" size={20} strokeWidth={1.75} />],
     ["Open cases", stats.open, "#6fb8aa", <Sparkles key="i" size={20} strokeWidth={1.75} />],
   ];
 
@@ -163,12 +163,12 @@ export default function WorkerCockpitPage() {
       {/* Header */}
       <header className="flex items-end justify-between gap-5 flex-wrap">
         <div className="max-w-xl">
-          <p className="sb-eyebrow mb-2">Signal Radar{now ? ` · ${greetingFor(now)}` : ""}</p>
+          <p className="sb-eyebrow mb-2">Worker queue{now ? ` · ${greetingFor(now)}` : ""}</p>
           <h1 className="text-[30px] font-semibold text-[#f1f6f4]" style={{ letterSpacing: "-0.025em" }}>
-            Prioritise the queue before it becomes noise.
+            Start with the youths who need you soonest.
           </h1>
           <p className="mt-3 text-[14px] leading-relaxed text-[rgba(214,235,230,0.55)]">
-            Cases ranked by risk signals, unresolved handoffs, and urgency — so you decide what to open first.
+            The list combines recent messages, consented handoffs, and risk level so you can choose the next human step.
           </p>
         </div>
         <div className="text-[12px] font-mono text-[rgba(214,235,230,0.35)]">
@@ -205,11 +205,11 @@ export default function WorkerCockpitPage() {
         <div className="glass-card p-5">
           <div className="flex items-center justify-between pb-4 mb-4" style={{ borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
             <div>
-              <p className="sb-eyebrow">Ranked signals</p>
+              <p className="sb-eyebrow">Today&apos;s queue</p>
               <h2 className="mt-1 text-[18px] font-semibold text-[#f1f6f4]">Case order</h2>
             </div>
             <span className="text-[11.5px] font-semibold text-[rgba(214,235,230,0.55)] px-3 py-1.5 rounded-full" style={{ background: "rgba(255,255,255,0.06)" }}>
-              Highest risk first
+              Review first
             </span>
           </div>
 
@@ -296,8 +296,8 @@ export default function WorkerCockpitPage() {
         {/* Aside */}
         <aside className="space-y-4">
           <div className="glass-card p-5">
-            <p className="sb-eyebrow">Signal language</p>
-            <h3 className="mt-1.5 mb-3.5 text-[16px] font-semibold text-[#f1f6f4]">What the radar catches</h3>
+            <p className="sb-eyebrow">What changed</p>
+            <h3 className="mt-1.5 mb-3.5 text-[16px] font-semibold text-[#f1f6f4]">Why someone moved up</h3>
             <div className="flex flex-wrap gap-2">
               {["After-hours message", "Cyberbullying", "School avoidance", "Repeated late-night contact", "Unresolved handoff"].map((s) => (
                 <span key={s} className="px-2.5 py-1 rounded-full text-[11px] font-medium" style={{ background: "rgba(255,255,255,0.07)", color: "rgba(214,235,230,0.6)", border: "1px solid rgba(255,255,255,0.1)" }}>
@@ -308,9 +308,9 @@ export default function WorkerCockpitPage() {
           </div>
           <div className="rounded-[18px] p-5" style={{ background: "rgba(183,121,31,0.1)", border: "1px solid rgba(183,121,31,0.28)" }}>
             <p className="text-[10.5px] font-semibold uppercase tracking-[0.14em] text-[#e9c685]">Reminder</p>
-            <h3 className="mt-1.5 mb-2 text-[16px] font-semibold text-[#f1f6f4]">Radar supports judgement</h3>
+            <h3 className="mt-1.5 mb-2 text-[16px] font-semibold text-[#f1f6f4]">You make the call</h3>
             <p className="text-[13px] leading-relaxed text-[rgba(214,235,230,0.6)]">
-              The order is a starting point. You still decide the actual next action after reading the handoff brief.
+              The queue is a starting point. Read the note, check the youth&apos;s words, then decide what to do next.
             </p>
           </div>
 
@@ -327,7 +327,7 @@ export default function WorkerCockpitPage() {
             {/* Telegram */}
             <div className="space-y-2">
               <p className="text-[12px] font-semibold text-[rgba(214,235,230,0.7)] flex items-center gap-1.5">
-                <span className="text-[14px]">✈️</span> Telegram chat ID
+                Telegram chat ID
                 {notifSettings.telegramChatId && <span className="text-[10px] px-1.5 py-0.5 rounded-full font-semibold" style={{ background: "rgba(31,111,100,0.2)", color: "#6fb8aa", border: "1px solid rgba(111,184,170,0.25)" }}>Active</span>}
               </p>
               <div className="flex gap-2">
@@ -369,7 +369,7 @@ export default function WorkerCockpitPage() {
             {/* Discord */}
             <div className="space-y-2">
               <p className="text-[12px] font-semibold text-[rgba(214,235,230,0.7)] flex items-center gap-1.5">
-                <span className="text-[14px]">🎮</span> Discord webhook URL
+                Discord webhook URL
                 {notifSettings.discordWebhookUrl && <span className="text-[10px] px-1.5 py-0.5 rounded-full font-semibold" style={{ background: "rgba(31,111,100,0.2)", color: "#6fb8aa", border: "1px solid rgba(111,184,170,0.25)" }}>Active</span>}
               </p>
               <div className="flex gap-2">
@@ -409,7 +409,7 @@ export default function WorkerCockpitPage() {
             </div>
 
             <p className="text-[11px] text-[rgba(214,235,230,0.35)] leading-relaxed">
-              High-risk signals and handoff briefs fire an alert to your configured channels automatically.
+              High-risk messages and consented handoffs can alert your saved channels automatically.
             </p>
           </div>
         </aside>
