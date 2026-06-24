@@ -13,6 +13,7 @@ os.environ["SIGNALBRIDGE_DATABASE_URL"] = f"sqlite:///{DB_PATH.as_posix()}"
 os.environ["SIGNALBRIDGE_OPENAI_API_KEY"] = ""
 os.environ["SIGNALBRIDGE_TELEGRAM_BOT_TOKEN"] = "test-token"
 os.environ["SIGNALBRIDGE_TELEGRAM_WEBHOOK_SECRET"] = "test-secret"
+os.environ["SIGNALBRIDGE_ENVIRONMENT"] = "local"
 
 from fastapi.testclient import TestClient
 from jose import jwt
