@@ -12,6 +12,10 @@ class RegisterRequest(BaseModel):
     password: str = Field(min_length=6, max_length=100)
 
 
+class GuestRequest(BaseModel):
+    name: str | None = Field(default=None, max_length=80)
+
+
 class UserPublic(BaseModel):
     id: str
     name: str

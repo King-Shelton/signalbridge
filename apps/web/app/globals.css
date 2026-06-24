@@ -43,6 +43,31 @@ button, input, textarea { font: inherit; }
 
 ::selection { background: rgba(111, 184, 170, 0.30); }
 
+/* Visible keyboard focus. Inputs/textareas across the app use `outline-none`,
+   which strands keyboard users — restore a clear, on-brand focus ring for
+   anyone navigating without a mouse (focus-visible keeps it off mouse clicks). */
+:focus-visible {
+  outline: 2px solid rgba(111, 184, 170, 0.85);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+input:focus-visible,
+textarea:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(111, 184, 170, 0.85);
+}
+
+/* Respect users who ask for less motion: keep the final state of every reveal/
+   ambient animation, but collapse the movement so nothing drifts or pulses. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
 /* Custom scrollbar */
 ::-webkit-scrollbar { width: 7px; }
 ::-webkit-scrollbar-track { background: transparent; }

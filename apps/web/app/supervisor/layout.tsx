@@ -3,8 +3,10 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import { Menu, X } from "lucide-react";
 import { RoleGate } from "@/components/RoleGate";
-import { clearAuthSession, readAuthSession } from "@/lib/auth-session";
+import { readAuthSession } from "@/lib/auth-session";
+import { logout } from "@/lib/api-client";
 
 const NAV = [
   {
@@ -31,14 +33,19 @@ export default function SupervisorLayout({ children }: { children: React.ReactNo
   const pathname = usePathname();
   const router = useRouter();
   const [user, setUser] = useState<{ name?: string } | null>(null);
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
   useEffect(() => {
     const session = readAuthSession();
     if (session?.user) setUser({ name: session.user.name });
   }, []);
 
-  function handleLogout() {
-    clearAuthSession();
+  useEffect(() => {
+    setMobileNavOpen(false);
+  }, [pathname]);
+
+  async function handleLogout() {
+    await logout();
     router.push("/login");
   }
 
@@ -52,8 +59,29 @@ export default function SupervisorLayout({ children }: { children: React.ReactNo
         <div className="absolute inset-0" style={{ opacity: 0.3, backgroundImage: "radial-gradient(rgba(255,255,255,0.04) 1px, transparent 1px)", backgroundSize: "36px 36px" }} />
       </div>
 
-      {/* Sidebar */}
-      <aside className="relative z-10 flex flex-col w-[220px] flex-shrink-0 py-6 px-4" style={{ borderRight: "1px solid rgba(255,255,255,0.08)", background: "rgba(6,13,12,0.8)" }}>
+      {/* Mobile drawer backdrop */}
+      {mobileNavOpen && (
+        <div
+          className="lg:hidden absolute inset-0 z-20 bg-black/60"
+          onClick={() => setMobileNavOpen(false)}
+          aria-hidden="true"
+        />
+      )}
+
+      {/* Sidebar — static on desktop, an off-canvas drawer on mobile */}
+      <aside
+        className={`absolute lg:relative inset-y-0 left-0 z-30 flex flex-col w-[220px] flex-shrink-0 py-6 px-4 transform transition-transform duration-200 lg:translate-x-0 ${mobileNavOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"}`}
+        style={{ borderRight: "1px solid rgba(255,255,255,0.08)", background: "rgba(6,13,12,0.94)", backdropFilter: "blur(8px)" }}
+      >
+        {/* Close button (mobile only) */}
+        <button
+          type="button"
+          onClick={() => setMobileNavOpen(false)}
+          className="lg:hidden absolute top-4 right-4 p-1.5 rounded-[9px] text-[rgba(214,235,230,0.5)] hover:bg-white/5"
+          aria-label="Close menu"
+        >
+          <X size={18} strokeWidth={1.75} />
+        </button>
         {/* Logo */}
         <div className="flex items-center gap-3 px-2 mb-8">
           <div className="w-8 h-8 rounded-[9px] flex items-center justify-center flex-shrink-0" style={{ background: "linear-gradient(160deg, #9a6318, #5a3a0e)", boxShadow: "0 6px 18px rgba(183,121,31,0.35)" }}>
@@ -108,9 +136,24 @@ export default function SupervisorLayout({ children }: { children: React.ReactNo
       </aside>
 
       {/* Main content */}
-      <main className="relative z-10 flex-1 overflow-y-auto">
-        {children}
-      </main>
+      <div className="relative z-10 flex-1 flex flex-col min-w-0">
+        {/* Mobile top bar */}
+        <div className="lg:hidden flex items-center gap-3 px-4 py-3 flex-shrink-0" style={{ borderBottom: "1px solid rgba(255,255,255,0.08)", background: "rgba(6,13,12,0.8)", backdropFilter: "blur(8px)" }}>
+          <button
+            type="button"
+            onClick={() => setMobileNavOpen(true)}
+            className="p-2 rounded-[9px] text-[rgba(214,235,230,0.7)] hover:bg-white/5"
+            aria-label="Open menu"
+          >
+            <Menu size={18} strokeWidth={1.75} />
+          </button>
+          <span className="text-[14px] font-semibold text-[#f1f6f4]">SignalBridge <span className="text-[rgba(214,235,230,0.4)] font-normal">· Supervisor</span></span>
+        </div>
+
+        <main className="flex-1 overflow-y-auto">
+          {children}
+        </main>
+      </div>
     </div>
     </RoleGate>
   );

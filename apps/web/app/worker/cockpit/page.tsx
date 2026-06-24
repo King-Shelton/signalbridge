@@ -4,34 +4,9 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Radar, ShieldAlert, ClipboardList, Sparkles, MessageCircle, ChevronRight, Bell, Send } from "lucide-react";
 import { apiFetch } from "@/lib/api-client";
+import { usePolling } from "@/lib/use-polling";
 import { ConversationItem, label } from "@/lib/operations";
-
-function riskMeta(level: string) {
-  if (level === "high" || level === "critical")
-    return { fg: "#e88d78", soft: "rgba(217,95,72,0.15)", border: "rgba(217,95,72,0.4)" };
-  if (level === "medium")
-    return { fg: "#e9c685", soft: "rgba(183,121,31,0.15)", border: "rgba(183,121,31,0.4)" };
-  return { fg: "#6fb8aa", soft: "rgba(31,111,100,0.15)", border: "rgba(31,111,100,0.4)" };
-}
-
-function initials(name: string) {
-  return name
-    .split(" ")
-    .map((part) => part[0])
-    .filter(Boolean)
-    .slice(0, 2)
-    .join("")
-    .toUpperCase();
-}
-
-function timeAgo(dateStr: string) {
-  const diff = Date.now() - new Date(dateStr).getTime();
-  const minutes = Math.max(0, Math.floor(diff / 60000));
-  if (minutes < 60) return `${minutes}m ago`;
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours}h ago`;
-  return `${Math.floor(hours / 24)}d ago`;
-}
+import { initials, riskMeta, timeAgo } from "@/lib/ui";
 
 function greetingFor(date: Date) {
   const hour = Number(
@@ -129,10 +104,8 @@ export default function WorkerCockpitPage() {
     void loadNotifSettings();
   }, [load, loadNotifSettings]);
 
-  useEffect(() => {
-    const interval = setInterval(() => void load(), 5000);
-    return () => clearInterval(interval);
-  }, [load]);
+  // Live-refresh the queue, but pause while the tab is backgrounded.
+  usePolling(() => void load(), 12000);
 
   const ranked = useMemo(() => {
     const order = { critical: 0, high: 1, medium: 2, low: 3 } as Record<string, number>;

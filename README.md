@@ -126,6 +126,35 @@ All fictional accounts use password `password`.
 
 Deterministic rules establish risk before any model call. A model can improve handoff wording but cannot lower risk or replace critical escalation guidance. Missing credentials, timeout, refusal, malformed structured output, or prohibited clinical wording automatically uses the deterministic fallback. Configure `SIGNALBRIDGE_OPENAI_API_KEY` and optionally `SIGNALBRIDGE_OPENAI_MODEL`.
 
+## Channel Integrations (Telegram & Discord)
+
+Youth can also reach SafeNight through Telegram or Discord, and workers can reply
+back into the same conversation from the cockpit. Both bots are **off** unless
+their tokens are configured.
+
+**Telegram**
+
+1. Set `SIGNALBRIDGE_TELEGRAM_BOT_TOKEN` (from @BotFather) and
+   `SIGNALBRIDGE_PUBLIC_BASE_URL` (the public HTTPS URL of the API).
+2. The API auto-registers the webhook on startup. To register/inspect manually:
+
+   ```bash
+   cd services/api
+   python scripts/set_telegram_webhook.py          # register
+   python scripts/set_telegram_webhook.py --info    # show status
+   ```
+
+3. Optionally set `SIGNALBRIDGE_TELEGRAM_WEBHOOK_SECRET` to reject spoofed webhook calls.
+
+**Discord**
+
+1. Set `SIGNALBRIDGE_DISCORD_BOT_TOKEN`.
+2. In the Discord Developer Portal, enable **Message Content Intent**
+   (Bot → Privileged Gateway Intents). Without it the bot cannot read DMs.
+3. The bot runs inside the API process and replies to direct messages.
+
+Without these, the channels stay disabled and the rest of the app is unaffected.
+
 ## Verification
 
 ```powershell

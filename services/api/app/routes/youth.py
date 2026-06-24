@@ -1,11 +1,14 @@
+import asyncio
 import json
-from datetime import datetime
+import time
+from datetime import datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.responses import StreamingResponse
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.database import get_db
+from app.database import SessionLocal, get_db
 from app.models.audit_log import AuditLog
 from app.models.conversation import Conversation, ConversationStatus
 from app.models.handoff_brief import HandoffBrief
@@ -206,6 +209,7 @@ def create_youth_message(
         conversation_id=conversation.id,
         sender_type=SenderType.youth,
         content=payload.content,
+        created_at=now,
     )
     db.add(message)
     db.flush()
@@ -258,11 +262,14 @@ def create_youth_message(
             conversation_id=conversation.id,
         )
 
+    # +1ms so the AI reply always sorts after the youth message, even though
+    # both are written in the same request (threads order by created_at).
     ai_reply = Message(
         conversation_id=conversation.id,
         sender_type=SenderType.ai,
         content=reply_content,
         safety_status=assessment.safety_status,
+        created_at=now + timedelta(milliseconds=1),
     )
     db.add(ai_reply)
     db.flush()
@@ -394,6 +401,68 @@ def set_handoff_consent(
         consentToHandoff=conversation.consent_to_handoff,
         unresolvedHandoff=conversation.unresolved_handoff,
         nextAction="generate_handoff" if conversation.consent_to_handoff else "continue_safenight_chat",
+    )
+
+
+# How long a single SSE connection stays open before the client reconnects.
+# Kept under the /api proxy's 55s abort window so the stream closes cleanly.
+_STREAM_MAX_SECONDS = 45.0
+_STREAM_POLL_SECONDS = 1.5
+
+
+def _messages_after(conversation_id: str, after: datetime | None) -> list[dict]:
+    """Fetch messages newer than `after` for the SSE stream (own DB session)."""
+    with SessionLocal() as db:
+        query = select(Message).where(Message.conversation_id == conversation_id)
+        if after is not None:
+            query = query.where(Message.created_at > after)
+        rows = db.scalars(query.order_by(Message.created_at.asc())).all()
+        return [
+            {
+                "id": m.id,
+                "conversationId": m.conversation_id,
+                "senderType": m.sender_type.value,
+                "content": m.content,
+                "safetyStatus": m.safety_status,
+                "createdAt": m.created_at.isoformat(),
+            }
+            for m in rows
+        ]
+
+
+@router.get("/conversations/{conversation_id}/stream")
+async def stream_youth_conversation(
+    conversation_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> StreamingResponse:
+    """Server-Sent Events stream of new messages (e.g. a worker's reply) so the
+    youth sees them instantly instead of waiting for the next poll. Auth is the
+    httpOnly cookie EventSource sends automatically (same-origin via /api)."""
+    youth = require_youth_profile(db, current_user)
+    conversation = get_owned_conversation(db, youth.id, conversation_id)
+    conv_id = conversation.id
+
+    async def event_stream():
+        # Only stream messages that arrive *after* the connection opens; the
+        # initial history is already loaded over the normal REST call.
+        existing = await asyncio.to_thread(_messages_after, conv_id, None)
+        last_seen = datetime.fromisoformat(existing[-1]["createdAt"]) if existing else None
+        started = time.monotonic()
+        yield ": connected\n\n"
+        while time.monotonic() - started < _STREAM_MAX_SECONDS:
+            await asyncio.sleep(_STREAM_POLL_SECONDS)
+            new_messages = await asyncio.to_thread(_messages_after, conv_id, last_seen)
+            for message in new_messages:
+                last_seen = datetime.fromisoformat(message["createdAt"])
+                yield f"data: {json.dumps(message)}\n\n"
+            if not new_messages:
+                yield ": ping\n\n"  # heartbeat keeps the connection from idling out
+
+    return StreamingResponse(
+        event_stream(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no", "Connection": "keep-alive"},
     )
 
 

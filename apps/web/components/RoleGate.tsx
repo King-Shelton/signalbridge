@@ -30,7 +30,7 @@ export function RoleGate({ allowedRoles, children }: RoleGateProps) {
       return;
     }
 
-    fetchCurrentUser(storedSession.accessToken)
+    fetchCurrentUser()
       .then((user) => {
         const verifiedSession = { ...storedSession, user };
         saveAuthSession(verifiedSession);

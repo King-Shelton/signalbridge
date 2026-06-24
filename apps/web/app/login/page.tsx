@@ -79,9 +79,13 @@ function YouthAuthPanel() {
     setLoading(true);
     setError(null);
     try {
-      const session = await login("mira@signalbridge.test", "password");
-      const displayName = name.trim();
-      saveAuthSession({ ...session, user: { ...session.user, name: displayName || "You" } });
+      // Each guest gets their own ephemeral account + private conversation,
+      // rather than everyone sharing the demo (Mira) login.
+      const session = await apiFetch<{ accessToken: string; user: { id: string; name: string; email: string; role: "youth" | "worker" | "supervisor" | "admin" } }>(
+        "/auth/guest",
+        { method: "POST", body: JSON.stringify({ name: name.trim() || null }) }
+      );
+      saveAuthSession(session);
       router.push("/youth/chat");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong. Please try again.");
