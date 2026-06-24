@@ -45,7 +45,8 @@ router = APIRouter(prefix="/telegram", tags=["telegram"])
 _WELCOME = (
     "Hi, I'm SafeNight — SignalBridge's after-hours support companion.\n\n"
     "I'm here to listen, and I'll never share what you say without asking you first.\n\n"
-    "To connect this chat to your SignalBridge account, send:\n"
+    "If your worker gave you an invite link, this chat can connect automatically. "
+    "Otherwise, send:\n"
     "/link YOUR_YOUTH_ID\n\n"
     "Once linked, just type normally — no commands needed."
 )
@@ -74,6 +75,27 @@ def _send_telegram_message(token: str, chat_id: str | int, text: str) -> None:
             logger.warning("Telegram reply failed: %s %s", r.status_code, r.text[:200])
     except Exception as exc:
         logger.warning("Telegram reply error: %s", exc)
+
+
+def _link_chat_to_youth(db: Session, token: str, chat_id: str, youth_id: str) -> bool:
+    youth = db.get(YouthProfile, youth_id)
+    if youth is None:
+        _send_telegram_message(token, chat_id, "Youth ID not found. Ask your worker for your exact invite link.")
+        return False
+
+    if youth.telegram_chat_id and youth.telegram_chat_id != chat_id:
+        _send_telegram_message(token, chat_id, _ALREADY_LINKED)
+        return False
+
+    existing = db.scalar(select(YouthProfile).where(YouthProfile.telegram_chat_id == chat_id))
+    if existing and existing.id != youth_id:
+        _send_telegram_message(token, chat_id, "This Telegram account is already linked to another youth profile.")
+        return False
+
+    youth.telegram_chat_id = chat_id
+    db.commit()
+    _send_telegram_message(token, chat_id, _LINKED_OK)
+    return True
 
 
 def _get_active_telegram_conversation(db: Session, youth: YouthProfile) -> Conversation:
@@ -241,8 +263,12 @@ async def telegram_webhook(
     if not chat_id or not text:
         return {"ok": "true"}
 
-    # /start
+    # /start or /start <youth_id> from a Telegram deep link.
     if text.startswith("/start"):
+        parts = text.split(maxsplit=1)
+        if len(parts) == 2 and parts[1].strip():
+            _link_chat_to_youth(db, token, chat_id, parts[1].strip())
+            return {"ok": "true"}
         _send_telegram_message(token, chat_id, _WELCOME)
         return {"ok": "true"}
 
@@ -253,25 +279,7 @@ async def telegram_webhook(
             _send_telegram_message(token, chat_id, _LINK_USAGE)
             return {"ok": "true"}
 
-        youth_id = parts[1].strip()
-        youth = db.get(YouthProfile, youth_id)
-        if youth is None:
-            _send_telegram_message(token, chat_id, "Youth ID not found. Ask your worker for your exact ID.")
-            return {"ok": "true"}
-
-        if youth.telegram_chat_id and youth.telegram_chat_id != chat_id:
-            _send_telegram_message(token, chat_id, _ALREADY_LINKED)
-            return {"ok": "true"}
-
-        # Check if this chat_id is already linked to a different youth
-        existing = db.scalar(select(YouthProfile).where(YouthProfile.telegram_chat_id == chat_id))
-        if existing and existing.id != youth_id:
-            _send_telegram_message(token, chat_id, "This Telegram account is already linked to another youth profile.")
-            return {"ok": "true"}
-
-        youth.telegram_chat_id = chat_id
-        db.commit()
-        _send_telegram_message(token, chat_id, _LINKED_OK)
+        _link_chat_to_youth(db, token, chat_id, parts[1].strip())
         return {"ok": "true"}
 
     # Regular message — look up linked youth profile

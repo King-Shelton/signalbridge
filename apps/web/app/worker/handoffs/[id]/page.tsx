@@ -16,6 +16,7 @@ import {
   Copy,
   Download,
   TriangleAlert,
+  Send,
 } from "lucide-react";
 import { apiFetch, downloadAuthenticated } from "@/lib/api-client";
 import { Handoff, label } from "@/lib/operations";
@@ -64,6 +65,9 @@ export default function HandoffPage({ params }: { params: Promise<{ id: string }
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
+  const [replyText, setReplyText] = useState("");
+  const [replySending, setReplySending] = useState(false);
+  const [replyStatus, setReplyStatus] = useState<{ ok: boolean; text: string } | null>(null);
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
@@ -74,7 +78,9 @@ export default function HandoffPage({ params }: { params: Promise<{ id: string }
     if (!id) return;
     setLoading(true);
     try {
-      setData(await apiFetch<Handoff>(`/worker/handoffs/${id}`));
+      const handoff = await apiFetch<Handoff>(`/worker/handoffs/${id}`);
+      setData(handoff);
+      setReplyText((current) => current || handoff.suggestedWorkerResponse || "");
       setError("");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not load handoff");
@@ -104,6 +110,23 @@ export default function HandoffPage({ params }: { params: Promise<{ id: string }
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     });
+  }
+
+  async function sendReply() {
+    if (!data || !replyText.trim()) return;
+    setReplySending(true);
+    setReplyStatus(null);
+    try {
+      await apiFetch(`/worker/conversations/${data.conversationId}/messages`, {
+        method: "POST",
+        body: JSON.stringify({ content: replyText.trim() }),
+      });
+      setReplyStatus({ ok: true, text: "Reply sent to the youth and saved to the conversation." });
+    } catch (e) {
+      setReplyStatus({ ok: false, text: e instanceof Error ? e.message : "Reply failed." });
+    } finally {
+      setReplySending(false);
+    }
   }
 
   if (loading) {
@@ -200,6 +223,45 @@ export default function HandoffPage({ params }: { params: Promise<{ id: string }
         <div className="rounded-[12px] px-4 py-3.5 text-[14.5px] leading-relaxed text-[rgba(214,235,230,0.85)]" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.1)" }}>
           {data.suggestedWorkerResponse}
         </div>
+      </div>
+
+      {/* Worker reply */}
+      <div className="glass-card p-[22px]">
+        <div className="flex items-center gap-2.5 mb-3">
+          <span className="w-9 h-9 rounded-[10px] flex items-center justify-center" style={{ background: "rgba(111,184,170,0.15)", color: "#6fb8aa" }}>
+            <Send size={17} strokeWidth={1.75} />
+          </span>
+          <div>
+            <p className="sb-eyebrow">Reply through SignalBridge</p>
+            <h3 className="mt-0.5 text-[16px] font-semibold text-[#f1f6f4]">Send this back to the youth</h3>
+          </div>
+        </div>
+        <textarea
+          value={replyText}
+          onChange={(event) => setReplyText(event.target.value)}
+          rows={5}
+          className="w-full resize-none rounded-[12px] px-4 py-3.5 text-[14px] leading-relaxed text-[#f1f6f4] outline-none"
+          style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)" }}
+        />
+        <div className="mt-3 flex items-center justify-between gap-3 flex-wrap">
+          <p className="text-[11.5px] text-[rgba(214,235,230,0.4)]">
+            Telegram conversations are delivered through the bot and saved on the SignalBridge timeline.
+          </p>
+          <button
+            type="button"
+            disabled={replySending || !replyText.trim()}
+            onClick={() => void sendReply()}
+            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-[11px] text-[13px] font-semibold transition-all disabled:opacity-50"
+            style={{ background: "rgba(31,111,100,0.25)", border: "1px solid rgba(111,184,170,0.35)", color: "#6fb8aa" }}
+          >
+            <Send size={15} strokeWidth={1.75} /> {replySending ? "Sending..." : "Send reply"}
+          </button>
+        </div>
+        {replyStatus && (
+          <p className="mt-2 text-[12px]" style={{ color: replyStatus.ok ? "#6fb8aa" : "#e88d78" }}>
+            {replyStatus.text}
+          </p>
+        )}
       </div>
 
       {/* Next step + export */}
