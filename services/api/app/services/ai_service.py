@@ -463,6 +463,34 @@ def build_handoff_brief_with_ai(
         return fallback, AI_MODE
 
 
+def copy_handoff_fields(target: HandoffBrief, source: HandoffBrief) -> HandoffBrief:
+    """Refresh the worker-visible brief while preserving id, review status, and timestamps."""
+    target.main_concern = source.main_concern
+    target.emotional_state = source.emotional_state
+    target.risk_level = source.risk_level
+    target.risk_score = source.risk_score
+    target.key_quote = source.key_quote
+    target.what_ai_did = source.what_ai_did
+    target.what_not_to_repeat = source.what_not_to_repeat
+    target.suggested_worker_response = source.suggested_worker_response
+    target.recommended_next_step = source.recommended_next_step
+    return target
+
+
+def upsert_handoff_brief_with_ai(
+    db: Session,
+    conversation: Conversation,
+    messages: list[Message],
+    assessment: RiskAssessment,
+) -> tuple[HandoffBrief, str]:
+    """Create or refresh the consent-approved handoff for a conversation."""
+    draft, mode = build_handoff_brief_with_ai(db, conversation, messages, assessment)
+    existing = db.scalar(select(HandoffBrief).where(HandoffBrief.conversation_id == conversation.id))
+    if existing is None:
+        return draft, mode
+    return copy_handoff_fields(existing, draft), mode
+
+
 SAFENIGHT_FALLBACK_REPLY = (
     "I am sorry this is happening. I am not a counsellor, but I can stay with you "
     "for this moment, help you slow things down, and prepare a short note for your "

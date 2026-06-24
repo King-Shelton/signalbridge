@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { apiFetch } from "@/lib/api-client";
 import { readYouthSession, type YouthSession } from "@/lib/youth-session";
 import { useRouter } from "next/navigation";
@@ -85,6 +85,11 @@ export default function YouthChatPage() {
     return conversation.messages.filter((m) => m.senderType !== "system");
   }, [conversation]);
 
+  const createConversation = useCallback(async () => {
+    const data = await apiFetch<{ conversation: Conversation }>("/youth/conversations", { method: "POST" });
+    return data.conversation;
+  }, []);
+
   useEffect(() => {
     async function loadConversation() {
       const currentSession = readYouthSession();
@@ -99,7 +104,9 @@ export default function YouthChatPage() {
 
       try {
         const data = await apiFetch<{ conversations: Conversation[] }>("/youth/conversations");
-        setConversation(data.conversations[0] ?? null);
+        const latestUnshared = data.conversations.find((item) => !item.consentToHandoff);
+        const nextConversation = latestUnshared ?? (await createConversation());
+        setConversation(nextConversation);
       } catch (loadError) {
         setError(loadError instanceof Error ? loadError.message : "Could not load chat.");
       } finally {
@@ -107,7 +114,7 @@ export default function YouthChatPage() {
       }
     }
     loadConversation();
-  }, []);
+  }, [createConversation]);
 
   // Restore dismissed consent from sessionStorage when conversation loads
   useEffect(() => {
@@ -253,13 +260,9 @@ export default function YouthChatPage() {
       sessionStorage.removeItem(`consent_dismissed_${conversation.id}`);
     }
     try {
-      const data = await apiFetch<{ conversation: Conversation }>("/youth/conversations", { method: "POST" });
-      setConversation(data.conversation);
-    } catch {
-      // If creating a new conversation isn't supported, clear messages locally
-      if (conversation) {
-        setConversation({ ...conversation, messages: [], consentToHandoff: false });
-      }
+      setConversation(await createConversation());
+    } catch (resetError) {
+      setError(resetError instanceof Error ? resetError.message : "Could not start a new chat.");
     } finally {
       setIsResetting(false);
     }
