@@ -18,6 +18,7 @@ from app.schemas.youth import (
     HandoffConsentResponse,
     MessagePublic,
     SignalPublic,
+    YouthConversationCreateResponse,
     YouthConversationPublic,
     YouthConversationsResponse,
     YouthMessageCreate,
@@ -34,6 +35,7 @@ from app.services.ai_service import (
     generate_safenight_reply,
     get_conversation_messages,
     persist_signals,
+    upsert_handoff_brief_with_ai,
 )
 from app.routes.operations import handoff_payload
 from app.timeutil import naive_utcnow
@@ -158,6 +160,35 @@ def list_youth_conversations(
     )
 
 
+@router.post("/conversations", response_model=YouthConversationCreateResponse, status_code=status.HTTP_201_CREATED)
+def create_youth_conversation(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> YouthConversationCreateResponse:
+    youth = require_youth_profile(db, current_user)
+    now = naive_utcnow()
+    conversation = Conversation(
+        youth_id=youth.id,
+        channel=youth.preferred_channel or "Web Chat",
+        status=ConversationStatus.active,
+        last_message_at=now,
+        created_at=now,
+    )
+    db.add(conversation)
+    db.flush()
+    write_audit_log(
+        db,
+        actor_user_id=current_user.id,
+        event_type="conversation_started",
+        entity_type="conversation",
+        entity_id=conversation.id,
+        details={"conversationId": conversation.id, "channel": conversation.channel},
+    )
+    db.commit()
+    db.refresh(conversation)
+    return YouthConversationCreateResponse(conversation=serialize_conversation(db, conversation))
+
+
 @router.post("/conversations/{conversation_id}/messages", response_model=YouthMessageCreateResponse)
 def create_youth_message(
     conversation_id: str,
@@ -270,6 +301,13 @@ def create_youth_message(
             conversation.status = ConversationStatus.needs_review
             conversation.unresolved_handoff = True
 
+    if conversation.consent_to_handoff:
+        all_messages = list(history) + [message, ai_reply]
+        full_assessment = analyse_risk([m.content for m in all_messages], all_messages)
+        apply_risk_to_conversation(conversation, full_assessment)
+        handoff, _ = upsert_handoff_brief_with_ai(db, conversation, all_messages, full_assessment)
+        db.add(handoff)
+
     write_audit_log(
         db,
         actor_user_id=current_user.id,
@@ -328,14 +366,12 @@ def set_handoff_consent(
     conversation.unresolved_handoff = payload.consentGiven
     if payload.consentGiven:
         conversation.status = ConversationStatus.needs_review
-        existing_handoff = db.scalar(select(HandoffBrief).where(HandoffBrief.conversation_id == conversation.id))
-        if existing_handoff is None:
-            messages = get_conversation_messages(db, conversation.id)
-            assessment = analyse_risk([message.content for message in messages], messages)
-            apply_risk_to_conversation(conversation, assessment)
-            persist_signals(db, conversation, assessment)
-            handoff, _ = build_handoff_brief_with_ai(db, conversation, messages, assessment)
-            db.add(handoff)
+        messages = get_conversation_messages(db, conversation.id)
+        assessment = analyse_risk([message.content for message in messages], messages)
+        apply_risk_to_conversation(conversation, assessment)
+        persist_signals(db, conversation, assessment)
+        handoff, _ = upsert_handoff_brief_with_ai(db, conversation, messages, assessment)
+        db.add(handoff)
 
     write_audit_log(
         db,

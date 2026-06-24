@@ -112,6 +112,7 @@ def test_telegram_deep_link_and_worker_reply_round_trip(monkeypatch) -> None:
     for text in [
         "Someone keeps editing my photos in the class chat and I don't want to go to school tomorrow.",
         "yes please share a short note with my worker",
+        "I am scared he will find me after school.",
     ]:
         response = client.post("/telegram/webhook", headers=headers, json={"message": {"chat": {"id": chat_id}, "text": text}})
         assert response.status_code == 200
@@ -122,6 +123,8 @@ def test_telegram_deep_link_and_worker_reply_round_trip(monkeypatch) -> None:
     assert telegram_row["riskScore"] >= 40
     assert telegram_row["consentToHandoff"] is True
     assert telegram_row["handoffId"]
+    handoff = client.get(f"/worker/handoffs/{telegram_row['handoffId']}", headers=worker_headers).json()
+    assert "after school" in handoff["keyQuote"].lower()
 
     reply = client.post(
         f"/worker/conversations/{telegram_row['id']}/messages",
@@ -183,6 +186,21 @@ def test_consent_required_and_fallback_handoff_generation() -> None:
     approved = client.post(f"/youth/conversations/{conversation_id}/handoff-consent", headers=youth_headers, json={"consentGiven": True})
     assert approved.status_code == 200
     assert client.get("/youth/handoffs", headers=youth_headers).json()["handoffs"]
+
+
+def test_youth_can_start_fresh_conversation_without_reusing_old_messages() -> None:
+    youth_headers = auth("mira@signalbridge.test")
+    before = client.get("/youth/conversations", headers=youth_headers).json()["conversations"]
+
+    created = client.post("/youth/conversations", headers=youth_headers)
+
+    assert created.status_code == 201
+    conversation = created.json()["conversation"]
+    assert conversation["messages"] == []
+    assert conversation["consentToHandoff"] is False
+    after = client.get("/youth/conversations", headers=youth_headers).json()["conversations"]
+    assert len(after) == len(before) + 1
+    assert after[0]["id"] == conversation["id"]
 
 
 def test_critical_language_cannot_be_downgraded() -> None:
