@@ -143,6 +143,36 @@ def test_telegram_deep_link_and_worker_reply_round_trip(monkeypatch) -> None:
         assert conversation.last_message_at == last_message.created_at
 
 
+def test_public_telegram_intake_asks_name_then_syncs_to_worker_cockpit(monkeypatch) -> None:
+    outbound: list[tuple[str, str]] = []
+    monkeypatch.setattr(telegram_bot, "_send_telegram_message", lambda _token, chat_id, text: outbound.append((str(chat_id), text)))
+
+    chat_id = "public_chat_001"
+    headers = {"X-Telegram-Bot-Api-Secret-Token": "test-secret"}
+
+    response = client.post("/telegram/webhook", headers=headers, json={"message": {"chat": {"id": chat_id}, "text": "I feel scared tonight"}})
+    assert response.status_code == 200
+    assert "what name or nickname" in outbound[-1][1].lower()
+
+    response = client.post("/telegram/webhook", headers=headers, json={"message": {"chat": {"id": chat_id}, "text": "Sam"}})
+    assert response.status_code == 200
+    assert "thanks, sam" in outbound[-1][1].lower()
+
+    response = client.post(
+        "/telegram/webhook",
+        headers=headers,
+        json={"message": {"chat": {"id": chat_id}, "text": "Someone keeps editing my photos and I don't want to go school tomorrow."}},
+    )
+    assert response.status_code == 200
+
+    worker_headers = auth("worker1@signalbridge.test")
+    rows = client.get("/worker/cockpit", headers=worker_headers).json()["conversations"]
+    public_row = next(row for row in rows if row["channel"] == "Telegram" and row["youthName"] == "Sam")
+    assert public_row["riskScore"] >= 40
+    assert public_row["case"]["summary"] == "Public Telegram intake for Sam."
+    assert any(message["content"].startswith("Someone keeps editing") for message in public_row["messages"])
+
+
 def test_consent_required_and_fallback_handoff_generation() -> None:
     youth_headers = auth("mira@signalbridge.test")
     conversations = client.get("/youth/conversations", headers=youth_headers).json()["conversations"]
