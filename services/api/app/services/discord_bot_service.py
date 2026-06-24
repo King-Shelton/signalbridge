@@ -1,20 +1,42 @@
-"""Discord bot — youth-facing SafeNight chat via Discord DMs.
+"""Discord bot - youth-facing SafeNight chat via Discord DMs.
 
 Flow:
-  Youth DMs the bot → discord.py gateway receives it → SafeNight AI replies → worker notified.
-  !start  → welcome + link instructions
-  !link   → links the Discord user ID to a youth profile
-  text    → full SafeNight pipeline, reply sent back, worker alerted if risk high
+  Youth DMs the bot -> discord.py gateway receives it -> SafeNight AI replies -> worker notified.
+  !start  -> welcome + link instructions
+  !link   -> links the Discord user ID to a youth profile
+  text    -> full SafeNight pipeline, reply sent back, worker alerted if risk high
 
-Runs as an asyncio task inside FastAPI's lifespan — no separate process needed.
+Runs as an asyncio task inside FastAPI's lifespan - no separate process needed.
 Synchronous DB/AI work is offloaded to a thread executor so the event loop stays free.
 """
 
 import asyncio
 import logging
 
-import discord
 from sqlalchemy import select
+
+try:
+    import discord
+    DISCORD_AVAILABLE = True
+except ModuleNotFoundError:  # pragma: no cover - import-time deployment guard.
+    DISCORD_AVAILABLE = False
+
+    class _DiscordShim:
+        class Client:
+            pass
+
+        class DMChannel:
+            pass
+
+        class Message:
+            pass
+
+        class Intents:
+            @staticmethod
+            def default():
+                raise RuntimeError("discord.py is not installed")
+
+    discord = _DiscordShim()
 
 from app.config import get_settings
 from app.database import SessionLocal
@@ -42,11 +64,11 @@ from app.timeutil import naive_utcnow
 logger = logging.getLogger("signalbridge.discord_bot")
 
 _WELCOME = (
-    "Hi, I'm SafeNight — SignalBridge's after-hours support companion.\n\n"
+    "Hi, I'm SafeNight - SignalBridge's after-hours support companion.\n\n"
     "I'm here to listen, and I'll never share what you say without asking you first.\n\n"
     "To connect this chat to your SignalBridge account, send:\n"
     "!link YOUR_YOUTH_ID\n\n"
-    "Once linked, just type normally — no commands needed."
+    "Once linked, just type normally - no commands needed."
 )
 
 _LINK_USAGE = "Send `!link` followed by your youth ID, e.g.:\n`!link youth_abc123`"
@@ -215,8 +237,8 @@ def _handle_message(discord_user_id: str, content: str) -> str:
                 notify_worker(
                     ns.telegram_chat_id,
                     ns.discord_webhook_url,
-                    title=f"💬 Discord message — {assessment.risk_level.value} risk",
-                    body=f"{youth_name} sent a message on Discord.\nRisk score: {assessment.risk_score}/100\n\"{content[:120]}{'…' if len(content) > 120 else ''}\"",
+                    title=f"Discord message - {assessment.risk_level.value} risk",
+                    body=f"{youth_name} sent a message on Discord.\nRisk score: {assessment.risk_score}/100\n\"{content[:120]}{'...' if len(content) > 120 else ''}\"",
                     risk_level=assessment.risk_level.value,
                 )
 
@@ -262,7 +284,7 @@ class SafeNightDiscordBot(discord.Client):
             await message.channel.send(reply)
             return
 
-        # Regular message — run SafeNight pipeline in thread executor
+        # Regular message - run SafeNight pipeline in thread executor.
         async with message.channel.typing():
             reply = await asyncio.to_thread(_handle_message, discord_user_id, text)
         await message.channel.send(reply)
@@ -272,7 +294,11 @@ def build_discord_bot() -> SafeNightDiscordBot | None:
     """Create and return the bot client, or None if no token is configured."""
     settings = get_settings()
     if not settings.discord_bot_token:
-        logger.info("SIGNALBRIDGE_DISCORD_BOT_TOKEN not set — Discord bot disabled.")
+        logger.info("SIGNALBRIDGE_DISCORD_BOT_TOKEN not set - Discord bot disabled.")
+        return None
+
+    if not DISCORD_AVAILABLE:
+        logger.warning("discord.py is not installed; Discord bot disabled.")
         return None
 
     intents = discord.Intents.default()

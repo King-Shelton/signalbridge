@@ -1,0 +1,656 @@
+{
+  "ai_runs": [
+    {
+      "action": "generate_handoff",
+      "conversation_id": "conv_mira_after_hours",
+      "created_at": "2026-06-24T14:22:10Z",
+      "error": "Deterministic fallback - no OpenAI key required for seed demo",
+      "id": "airun_seed_001",
+      "mode": "fallback_rule_based",
+      "model_name": null,
+      "prompt_version": "handoff-v1",
+      "safety_status": "fallback_passed"
+    }
+  ],
+  "audit_logs": [
+    {
+      "actor_user_id": "user_worker_1",
+      "created_at": "2026-06-24T06:22:05Z",
+      "details": "{\"previous\": {\"status\": \"open\"}, \"current\": {\"status\": \"needs_follow_up\"}}",
+      "entity_id": "case_mira_001",
+      "entity_type": "case",
+      "event_type": "case_status_updated",
+      "id": "audit_case_mira_status"
+    },
+    {
+      "actor_user_id": "user_mira",
+      "created_at": "2026-06-23T15:43:00Z",
+      "details": "{\"consentGiven\": true, \"youthId\": \"youth_mira\"}",
+      "entity_id": "conv_mira_after_hours",
+      "entity_type": "conversation",
+      "event_type": "handoff_consent_received",
+      "id": "audit_seed_consent_mira"
+    },
+    {
+      "actor_user_id": null,
+      "created_at": "2026-06-23T15:43:00Z",
+      "details": "{\"riskLevel\": \"high\", \"riskScore\": 92, \"aiMode\": \"fallback_rule_based\"}",
+      "entity_id": "handoff_mira_current",
+      "entity_type": "handoff_brief",
+      "event_type": "ai_handoff_brief_created",
+      "id": "audit_seed_handoff_mira"
+    },
+    {
+      "actor_user_id": null,
+      "created_at": "2026-06-23T15:43:00Z",
+      "details": "{\"aiMode\": \"safenight_fallback\", \"safetyStatus\": \"fallback_passed\"}",
+      "entity_id": "conv_mira_after_hours",
+      "entity_type": "conversation",
+      "event_type": "ai_response_generated",
+      "id": "audit_seed_response_mira"
+    },
+    {
+      "actor_user_id": null,
+      "created_at": "2026-06-24T02:22:05Z",
+      "details": "{\"riskLevel\": \"medium\", \"riskScore\": 67, \"aiMode\": \"fallback_rule_based\"}",
+      "entity_id": "conv_jay_peer_pressure",
+      "entity_type": "conversation",
+      "event_type": "ai_risk_analysis_completed",
+      "id": "audit_seed_signal_jay"
+    }
+  ],
+  "case_notes": [
+    {
+      "author_user_id": "user_worker_1",
+      "case_id": "case_afiq_001",
+      "content": "Demo context: Routine low-risk check-in.",
+      "created_at": "2026-06-24T13:22:05Z",
+      "follow_up_action": "Continue agreed monitoring.",
+      "id": "note_case_afiq_001_seed"
+    },
+    {
+      "author_user_id": "user_worker_1",
+      "case_id": "case_dan_001",
+      "content": "Demo context: Morning sleep disruption and school readiness check.",
+      "created_at": "2026-06-24T12:22:05Z",
+      "follow_up_action": "Start with the latest handoff and keep the first message short.",
+      "id": "note_case_dan_001_seed"
+    },
+    {
+      "author_user_id": "user_worker_1",
+      "case_id": "case_jay_001",
+      "content": "Demo context: Peer pressure handoff with repeated late-night messaging.",
+      "created_at": "2026-06-24T03:22:05Z",
+      "follow_up_action": "Start with the latest handoff and keep the first message short.",
+      "id": "note_case_jay_001_seed"
+    },
+    {
+      "author_user_id": "user_worker_1",
+      "case_id": "case_leanne_001",
+      "content": "Demo context: Stable post-session follow-up closed.",
+      "created_at": "2026-06-23T14:22:05Z",
+      "follow_up_action": "Continue agreed monitoring.",
+      "id": "note_case_leanne_001_seed"
+    },
+    {
+      "author_user_id": "user_worker_1",
+      "case_id": "case_mira_001",
+      "content": "Demo context: After-hours cyberbullying handoff for Mira.",
+      "created_at": "2026-06-24T06:22:05Z",
+      "follow_up_action": "Start with the latest handoff and keep the first message short.",
+      "id": "note_case_mira_001_seed"
+    }
+  ],
+  "cases": [
+    {
+      "assigned_worker_id": "user_worker_1",
+      "created_at": "2026-06-24T14:22:10Z",
+      "id": "case_afiq_001",
+      "next_follow_up_at": "2026-06-26T14:22:05Z",
+      "priority": "low",
+      "status": "new",
+      "summary": "Routine low-risk check-in.",
+      "updated_at": "2026-06-24T13:22:05Z",
+      "youth_id": "youth_afiq"
+    },
+    {
+      "assigned_worker_id": "user_worker_1",
+      "created_at": "2026-06-24T14:22:10Z",
+      "id": "case_dan_001",
+      "next_follow_up_at": "2026-06-24T15:22:05Z",
+      "priority": "medium",
+      "status": "in_progress",
+      "summary": "Morning sleep disruption and school readiness check.",
+      "updated_at": "2026-06-24T12:22:05Z",
+      "youth_id": "youth_dan"
+    },
+    {
+      "assigned_worker_id": "user_worker_1",
+      "created_at": "2026-06-24T14:22:10Z",
+      "id": "case_jay_001",
+      "next_follow_up_at": "2026-06-24T17:22:05Z",
+      "priority": "medium",
+      "status": "needs_review",
+      "summary": "Peer pressure handoff with repeated late-night messaging.",
+      "updated_at": "2026-06-24T03:22:05Z",
+      "youth_id": "youth_jay"
+    },
+    {
+      "assigned_worker_id": "user_worker_1",
+      "created_at": "2026-06-24T14:22:10Z",
+      "id": "case_leanne_001",
+      "next_follow_up_at": null,
+      "priority": "low",
+      "status": "closed",
+      "summary": "Stable post-session follow-up closed.",
+      "updated_at": "2026-06-23T14:22:05Z",
+      "youth_id": "youth_leanne"
+    },
+    {
+      "assigned_worker_id": "user_worker_1",
+      "created_at": "2026-06-24T14:22:10Z",
+      "id": "case_mira_001",
+      "next_follow_up_at": "2026-06-24T13:22:05Z",
+      "priority": "high",
+      "status": "needs_review",
+      "summary": "After-hours cyberbullying handoff for Mira.",
+      "updated_at": "2026-06-24T06:22:05Z",
+      "youth_id": "youth_mira"
+    }
+  ],
+  "conversations": [
+    {
+      "channel": "GatherTown",
+      "consent_to_handoff": true,
+      "created_at": "2026-06-24T13:19:05Z",
+      "id": "conv_afiq_routine_checkin",
+      "last_message_at": "2026-06-24T13:22:05Z",
+      "risk_level": "low",
+      "risk_score": 24,
+      "status": "active",
+      "unresolved_handoff": false,
+      "youth_id": "youth_afiq"
+    },
+    {
+      "channel": "Instagram",
+      "consent_to_handoff": true,
+      "created_at": "2026-06-24T12:19:05Z",
+      "id": "conv_dan_morning_sleep",
+      "last_message_at": "2026-06-24T12:22:05Z",
+      "risk_level": "medium",
+      "risk_score": 58,
+      "status": "needs_review",
+      "unresolved_handoff": false,
+      "youth_id": "youth_dan"
+    },
+    {
+      "channel": "WhatsApp",
+      "consent_to_handoff": true,
+      "created_at": "2026-06-24T02:19:05Z",
+      "id": "conv_jay_peer_pressure",
+      "last_message_at": "2026-06-24T02:22:05Z",
+      "risk_level": "medium",
+      "risk_score": 67,
+      "status": "needs_review",
+      "unresolved_handoff": true,
+      "youth_id": "youth_jay"
+    },
+    {
+      "channel": "Discord",
+      "consent_to_handoff": true,
+      "created_at": "2026-06-23T11:19:05Z",
+      "id": "conv_leanne_followup",
+      "last_message_at": "2026-06-23T11:22:05Z",
+      "risk_level": "low",
+      "risk_score": 18,
+      "status": "closed",
+      "unresolved_handoff": false,
+      "youth_id": "youth_leanne"
+    },
+    {
+      "channel": "Web Chat",
+      "consent_to_handoff": true,
+      "created_at": "2026-06-23T15:41:00Z",
+      "id": "conv_mira_after_hours",
+      "last_message_at": "2026-06-23T15:44:00Z",
+      "risk_level": "high",
+      "risk_score": 92,
+      "status": "needs_review",
+      "unresolved_handoff": true,
+      "youth_id": "youth_mira"
+    },
+    {
+      "channel": "Web Chat",
+      "consent_to_handoff": true,
+      "created_at": "2026-06-06T14:18:05Z",
+      "id": "conv_mira_previous_checkin",
+      "last_message_at": "2026-06-06T14:22:05Z",
+      "risk_level": "medium",
+      "risk_score": 45,
+      "status": "closed",
+      "unresolved_handoff": false,
+      "youth_id": "youth_mira"
+    }
+  ],
+  "handoff_briefs": [
+    {
+      "conversation_id": "conv_afiq_routine_checkin",
+      "created_at": "2026-06-24T13:22:05Z",
+      "emotional_state": "Settled and responsive.",
+      "id": "handoff_afiq_current",
+      "key_quote": "I'm okay, just busy with school stuff.",
+      "main_concern": "Routine check-in after a quiet evening.",
+      "recommended_next_step": "Send a warm check-in and continue light-touch monitoring.",
+      "review_status": "reviewed",
+      "risk_level": "low",
+      "risk_score": 24,
+      "suggested_worker_response": "Thanks for the update, Afiq. I will keep this light unless anything changes, and you can tell me if you want more support.",
+      "what_ai_did": "Tagged the conversation as stable, captured the low-risk tone, and preserved a light-touch follow-up path.",
+      "what_not_to_repeat": "Do not over-interpret a routine check-in as an escalation.",
+      "youth_id": "youth_afiq"
+    },
+    {
+      "conversation_id": "conv_dan_morning_sleep",
+      "created_at": "2026-06-24T12:22:05Z",
+      "emotional_state": "Tense, tired, and mentally overloaded.",
+      "id": "handoff_dan_current",
+      "key_quote": "I barely slept and now I can't focus.",
+      "main_concern": "Sleep disruption and rising anxiety after online teasing.",
+      "recommended_next_step": "Check school readiness and offer one grounding step before class.",
+      "review_status": "reviewed",
+      "risk_level": "medium",
+      "risk_score": 58,
+      "suggested_worker_response": "I saw the note you agreed to share. We can keep this simple and focus on what you need this morning.",
+      "what_ai_did": "Noted the sleep disruption and anxiety, flagged the morning timing, and kept the handoff short so the worker can act quickly.",
+      "what_not_to_repeat": "Do not turn the morning check-in into a long questionnaire.",
+      "youth_id": "youth_dan"
+    },
+    {
+      "conversation_id": "conv_jay_peer_pressure",
+      "created_at": "2026-06-24T02:22:05Z",
+      "emotional_state": "Uneasy, guarded, and unsure what to do next.",
+      "id": "handoff_jay_current",
+      "key_quote": "I don't know if I should reply anymore.",
+      "main_concern": "Peer conflict and stress from repeated late-night messages.",
+      "recommended_next_step": "Confirm the best contact window and decide whether the concern is conflict, pressure, or overwhelm.",
+      "review_status": "pending",
+      "risk_level": "medium",
+      "risk_score": 67,
+      "suggested_worker_response": "Thanks for letting SignalBridge hold this for you. Let's work out the safest next step together when you're ready.",
+      "what_ai_did": "Captured the stress from repeated late-night messages, kept the tone calm, and queued a worker follow-up instead of escalating early.",
+      "what_not_to_repeat": "Do not push Jay for an immediate reply decision or force a long explanation twice.",
+      "youth_id": "youth_jay"
+    },
+    {
+      "conversation_id": "conv_leanne_followup",
+      "created_at": "2026-06-23T11:22:05Z",
+      "emotional_state": "Calm and settled.",
+      "id": "handoff_leanne_current",
+      "key_quote": "Things are steady today.",
+      "main_concern": "Quiet check-in after a support session.",
+      "recommended_next_step": "Close the loop and keep the next agreed follow-up time.",
+      "review_status": "reviewed",
+      "risk_level": "low",
+      "risk_score": 18,
+      "suggested_worker_response": "I got your update, Leanne. I am noting that things are steady for now and I will check back in as agreed.",
+      "what_ai_did": "Logged the routine follow-up, captured the calm tone, and kept the follow-up path tidy.",
+      "what_not_to_repeat": "Do not reopen the session with unnecessary detail once things are stable.",
+      "youth_id": "youth_leanne"
+    },
+    {
+      "conversation_id": "conv_mira_after_hours",
+      "created_at": "2026-06-23T15:44:00Z",
+      "emotional_state": "Embarrassed, worried about school, and reluctant to repeat the story.",
+      "id": "handoff_mira_current",
+      "key_quote": "I don't want to go school tomorrow.",
+      "main_concern": "Cyberbullying involving edited photos in a class group chat.",
+      "recommended_next_step": "Review the handoff first thing, open with a safety check, and plan a same-day follow-up.",
+      "review_status": "pending",
+      "risk_level": "high",
+      "risk_score": 92,
+      "suggested_worker_response": "Hi Mira, I read the note you allowed SignalBridge to prepare. You do not have to repeat everything unless you want to. Can I first check whether you feel safe going to school today?",
+      "what_ai_did": "Validated distress, identified cyberbullying and school avoidance as the core signals, and prepared the handoff only after consent.",
+      "what_not_to_repeat": "Do not make Mira retell the edited-photo incident unless she chooses to add more detail.",
+      "youth_id": "youth_mira"
+    },
+    {
+      "conversation_id": "conv_mira_previous_checkin",
+      "created_at": "2026-06-06T14:22:05Z",
+      "emotional_state": "Worried but willing to plan.",
+      "id": "handoff_mira_previous",
+      "key_quote": "Can we just make a small plan for Monday?",
+      "main_concern": "Earlier peer stress and request for a small Monday plan.",
+      "recommended_next_step": "Use brief planning language and offer choices.",
+      "review_status": "reviewed",
+      "risk_level": "medium",
+      "risk_score": 45,
+      "suggested_worker_response": "Let's make one small plan first, then decide whether anything else needs attention.",
+      "what_ai_did": "Kept the handoff concise and focused on Mira's preferred planning style.",
+      "what_not_to_repeat": "Do not turn the check-in into a long review of every peer incident.",
+      "youth_id": "youth_mira"
+    }
+  ],
+  "messages": [
+    {
+      "content": "I'm okay, just busy with school stuff.",
+      "conversation_id": "conv_afiq_routine_checkin",
+      "created_at": "2026-06-24T13:20:05Z",
+      "id": "msg_afiq_001",
+      "safety_status": null,
+      "sender_type": "youth"
+    },
+    {
+      "content": "Thanks for the update. I will keep this light unless anything changes.",
+      "conversation_id": "conv_afiq_routine_checkin",
+      "created_at": "2026-06-24T13:21:05Z",
+      "id": "msg_afiq_002",
+      "safety_status": "passed",
+      "sender_type": "ai"
+    },
+    {
+      "content": "I barely slept and now I can't focus. I keep thinking about what they posted.",
+      "conversation_id": "conv_dan_morning_sleep",
+      "created_at": "2026-06-24T12:20:05Z",
+      "id": "msg_dan_001",
+      "safety_status": null,
+      "sender_type": "youth"
+    },
+    {
+      "content": "Let's keep this simple this morning. Are you safe to get ready for school, and would a short worker check-in help?",
+      "conversation_id": "conv_dan_morning_sleep",
+      "created_at": "2026-06-24T12:21:05Z",
+      "id": "msg_dan_002",
+      "safety_status": "passed",
+      "sender_type": "ai"
+    },
+    {
+      "content": "They keep messaging me to pick a side. I don't know if I should reply anymore.",
+      "conversation_id": "conv_jay_peer_pressure",
+      "created_at": "2026-06-24T02:20:05Z",
+      "id": "msg_jay_001",
+      "safety_status": null,
+      "sender_type": "youth"
+    },
+    {
+      "content": "You do not have to decide alone tonight. I can hold the key points for your worker and help you choose one safe next step.",
+      "conversation_id": "conv_jay_peer_pressure",
+      "created_at": "2026-06-24T02:21:05Z",
+      "id": "msg_jay_002",
+      "safety_status": "passed",
+      "sender_type": "ai"
+    },
+    {
+      "content": "Thanks for checking in. Things are steady today.",
+      "conversation_id": "conv_leanne_followup",
+      "created_at": "2026-06-23T11:20:05Z",
+      "id": "msg_leanne_001",
+      "safety_status": null,
+      "sender_type": "youth"
+    },
+    {
+      "content": "I will note that things are steady and keep the next follow-up as agreed.",
+      "conversation_id": "conv_leanne_followup",
+      "created_at": "2026-06-23T11:21:05Z",
+      "id": "msg_leanne_002",
+      "safety_status": "passed",
+      "sender_type": "ai"
+    },
+    {
+      "content": "People in my class group chat keep editing my photos. I don't want to go school tomorrow.",
+      "conversation_id": "conv_mira_after_hours",
+      "created_at": "2026-06-23T15:42:00Z",
+      "id": "msg_mira_001",
+      "safety_status": null,
+      "sender_type": "youth"
+    },
+    {
+      "content": "I am sorry this is happening. I can help prepare a short note for your worker so you do not have to repeat everything tomorrow.",
+      "conversation_id": "conv_mira_after_hours",
+      "created_at": "2026-06-23T15:43:00Z",
+      "id": "msg_mira_002",
+      "safety_status": "passed",
+      "sender_type": "ai"
+    },
+    {
+      "content": "Can we just make a small plan for Monday?",
+      "conversation_id": "conv_mira_previous_checkin",
+      "created_at": "2026-06-06T14:20:05Z",
+      "id": "msg_mira_prev_001",
+      "safety_status": null,
+      "sender_type": "youth"
+    }
+  ],
+  "signals": [
+    {
+      "conversation_id": "conv_afiq_routine_checkin",
+      "created_at": "2026-06-24T13:21:05Z",
+      "id": "signal_afiq_001",
+      "reason": "Youth gave a stable update with no escalation language.",
+      "severity": "low",
+      "source": "worker_observation:scheduled_checkin",
+      "type": "routine_check_in",
+      "youth_id": "youth_afiq"
+    },
+    {
+      "conversation_id": "conv_dan_morning_sleep",
+      "created_at": "2026-06-24T12:21:05Z",
+      "id": "signal_dan_001",
+      "reason": "Youth reported poor sleep after online teasing.",
+      "severity": "medium",
+      "source": "safenight_rule:sleep_disruption",
+      "type": "sleep_disruption",
+      "youth_id": "youth_dan"
+    },
+    {
+      "conversation_id": "conv_dan_morning_sleep",
+      "created_at": "2026-06-24T12:22:05Z",
+      "id": "signal_dan_002",
+      "reason": "Message came before school and may need a same-morning check-in.",
+      "severity": "medium",
+      "source": "timestamp_context:before_school",
+      "type": "morning_escalation",
+      "youth_id": "youth_dan"
+    },
+    {
+      "conversation_id": "conv_jay_peer_pressure",
+      "created_at": "2026-06-24T02:21:05Z",
+      "id": "signal_jay_001",
+      "reason": "Youth described repeated pressure to respond to a peer conflict.",
+      "severity": "medium",
+      "source": "safenight_rule:coercive_peer_contact",
+      "type": "peer_pressure",
+      "youth_id": "youth_jay"
+    },
+    {
+      "conversation_id": "conv_jay_peer_pressure",
+      "created_at": "2026-06-24T02:22:05Z",
+      "id": "signal_jay_002",
+      "reason": "Messages arrived after the usual support window and may affect sleep.",
+      "severity": "medium",
+      "source": "timestamp_context:after_hours",
+      "type": "late_night_contact",
+      "youth_id": "youth_jay"
+    },
+    {
+      "conversation_id": "conv_leanne_followup",
+      "created_at": "2026-06-23T11:21:05Z",
+      "id": "signal_leanne_001",
+      "reason": "Youth confirmed the current support plan is steady.",
+      "severity": "low",
+      "source": "worker_observation:followup_closed",
+      "type": "stable_follow_up",
+      "youth_id": "youth_leanne"
+    },
+    {
+      "conversation_id": "conv_mira_after_hours",
+      "created_at": "2026-06-23T15:43:00Z",
+      "id": "signal_mira_001",
+      "reason": "Youth described edited photos being shared in a class group chat.",
+      "severity": "high",
+      "source": "safenight_rule:explicit_peer_harm",
+      "type": "cyberbullying",
+      "youth_id": "youth_mira"
+    },
+    {
+      "conversation_id": "conv_mira_after_hours",
+      "created_at": "2026-06-23T15:44:00Z",
+      "id": "signal_mira_002",
+      "reason": "Youth said they do not want to attend school tomorrow.",
+      "severity": "medium",
+      "source": "safenight_rule:school_next_day",
+      "type": "school_avoidance",
+      "youth_id": "youth_mira"
+    },
+    {
+      "conversation_id": "conv_mira_after_hours",
+      "created_at": "2026-06-23T15:45:00Z",
+      "id": "signal_mira_003",
+      "reason": "Youth consented to share a short handoff note with the assigned worker.",
+      "severity": "high",
+      "source": "consent_event:youth_approved",
+      "type": "handoff_requested",
+      "youth_id": "youth_mira"
+    },
+    {
+      "conversation_id": "conv_mira_previous_checkin",
+      "created_at": "2026-06-06T14:21:05Z",
+      "id": "signal_mira_prev_001",
+      "reason": "Youth asked for a small concrete plan after earlier peer stress.",
+      "severity": "medium",
+      "source": "worker_observation:historical_context",
+      "type": "planning_support",
+      "youth_id": "youth_mira"
+    }
+  ],
+  "users": [
+    {
+      "created_at": "2026-06-24T14:22:10Z",
+      "email": "afiq@signalbridge.test",
+      "id": "user_afiq",
+      "name": "Afiq Rahman",
+      "password_hash": "$2b$12$hQmWMfUzHm/U8WFezgNgnONOkI3bbb4.fG7kqzruO9iRcgy4ylhAi",
+      "role": "youth"
+    },
+    {
+      "created_at": "2026-06-24T14:22:10Z",
+      "email": "dan@signalbridge.test",
+      "id": "user_dan",
+      "name": "Dan Ng",
+      "password_hash": "$2b$12$OiREt66Hw.G5rR8RMhgZrO3fmov0/RqftN1bklJCWlrbd68ajqiqy",
+      "role": "youth"
+    },
+    {
+      "created_at": "2026-06-24T14:22:10Z",
+      "email": "jay@signalbridge.test",
+      "id": "user_jay",
+      "name": "Jay Lim",
+      "password_hash": "$2b$12$joPugxOUaB3EfkK3WxKCW.b7orRfNrbqyeex2aBuCYClXuShez4Qe",
+      "role": "youth"
+    },
+    {
+      "created_at": "2026-06-24T14:22:10Z",
+      "email": "leanne@signalbridge.test",
+      "id": "user_leanne",
+      "name": "Leanne Tan",
+      "password_hash": "$2b$12$Yk/LG0FWiJwK44hS/jlv9O25pOpxNXcK3KXyEUCmxc2oMm2Lw2MeG",
+      "role": "youth"
+    },
+    {
+      "created_at": "2026-06-24T14:22:10Z",
+      "email": "mira@signalbridge.test",
+      "id": "user_mira",
+      "name": "Mira Tan",
+      "password_hash": "$2b$12$zKQmpyj3dEW.jQkSEAgKX.dwdu9e8Axs57uUz7PGCAhHPXoSfK4fC",
+      "role": "youth"
+    },
+    {
+      "created_at": "2026-06-24T14:22:07Z",
+      "email": "supervisor@signalbridge.test",
+      "id": "user_supervisor",
+      "name": "Daniel Lim",
+      "password_hash": "$2b$12$gPXB3SYyUeY4KrvbB1FC2uG.DgCBtcqzVxEIGKkjPjJy9GwENOPfu",
+      "role": "supervisor"
+    },
+    {
+      "created_at": "2026-06-24T14:22:07Z",
+      "email": "worker1@signalbridge.test",
+      "id": "user_worker_1",
+      "name": "Aisha Rahman",
+      "password_hash": "$2b$12$iAJc/3BGymmJSd/Jqf.ev.rdnjfplRZ2iqQZsTO1u2uRftIpcHuTm",
+      "role": "worker"
+    },
+    {
+      "created_at": "2026-06-24T14:22:07Z",
+      "email": "worker2@signalbridge.test",
+      "id": "user_worker_2",
+      "name": "Marcus Lee",
+      "password_hash": "$2b$12$FpCIBeOMZhae423B6Fu/1.r1DB843I5vGn0ZC51uYg1yr5xDZOkaO",
+      "role": "worker"
+    }
+  ],
+  "worker_notification_settings": [
+    {
+      "discord_webhook_url": null,
+      "id": "wns_4d30620973774ad1a56482a0028efdcf",
+      "telegram_chat_id": null,
+      "user_id": "user_worker_1"
+    }
+  ],
+  "youth_profiles": [
+    {
+      "assigned_worker_id": "user_worker_1",
+      "created_at": "2026-06-24T14:22:10Z",
+      "discord_user_id": null,
+      "id": "youth_afiq",
+      "preferred_channel": "GatherTown",
+      "stressors": "Academic load and quiet withdrawal when stressed.",
+      "support_style": "Prefers light-touch monitoring unless he asks for more support.",
+      "telegram_chat_id": null,
+      "user_id": "user_afiq"
+    },
+    {
+      "assigned_worker_id": "user_worker_1",
+      "created_at": "2026-06-24T14:22:10Z",
+      "discord_user_id": null,
+      "id": "youth_dan",
+      "preferred_channel": "Instagram",
+      "stressors": "Poor sleep, online teasing, and anxiety before class.",
+      "support_style": "Needs short morning check-ins and concrete next steps before school.",
+      "telegram_chat_id": null,
+      "user_id": "user_dan"
+    },
+    {
+      "assigned_worker_id": "user_worker_1",
+      "created_at": "2026-06-24T14:22:10Z",
+      "discord_user_id": null,
+      "id": "youth_jay",
+      "preferred_channel": "WhatsApp",
+      "stressors": "Peer pressure, repeated late-night messages, and conflict avoidance.",
+      "support_style": "Responds best to calm, practical options and a clear next contact window.",
+      "telegram_chat_id": null,
+      "user_id": "user_jay"
+    },
+    {
+      "assigned_worker_id": "user_worker_2",
+      "created_at": "2026-06-24T14:22:10Z",
+      "discord_user_id": null,
+      "id": "youth_leanne",
+      "preferred_channel": "Discord",
+      "stressors": "Post-session follow-up and occasional social anxiety.",
+      "support_style": "Likes tidy follow-through and agreed check-in times.",
+      "telegram_chat_id": null,
+      "user_id": "user_leanne"
+    },
+    {
+      "assigned_worker_id": "user_worker_1",
+      "created_at": "2026-06-24T14:22:10Z",
+      "discord_user_id": null,
+      "id": "youth_mira",
+      "preferred_channel": "Web Chat",
+      "stressors": "Cyberbullying, school avoidance, and peer group pressure.",
+      "support_style": "Prefers gentle check-ins, clear choices, and not having to repeat painful details.",
+      "telegram_chat_id": null,
+      "user_id": "user_mira"
+    }
+  ]
+}

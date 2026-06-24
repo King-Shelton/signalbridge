@@ -68,7 +68,7 @@ def detect_verbal_consent(youth_message: str, last_ai_message: str | None) -> bo
 def build_consent_confirmation_reply() -> str:
     """The AI reply sent immediately after it detects verbal consent and triggers the handoff."""
     return (
-        "I've prepared a short note for your worker — you can see exactly what they'll read before they do. "
+        "I've prepared a short note for your worker - you can see exactly what they'll read before they do. "
         "Nothing is locked in; you're still in control of this."
     )
 
@@ -582,7 +582,7 @@ def _criticises_bot_reply(text: str) -> bool:
 
 _CONSENT_ASK_SUFFIX = (
     " Would it be okay if I prepared a short note for your worker? "
-    "You'd get to see it before they do — nothing goes to them without you knowing."
+    "You'd get to see it before they do - nothing goes to them without you knowing."
 )
 
 
@@ -678,7 +678,7 @@ def build_safenight_fallback_reply(
 
 SAFENIGHT_SYSTEM_PROMPT = (
     "You are SafeNight, a warm after-hours companion for a young person in Singapore who has "
-    "messaged you late at night. Reply the way a calm, caring human would text back — natural, "
+    "messaged you late at night. Reply the way a calm, caring human would text back - natural, "
     "present, and specific to what they just said.\n\n"
     "Style:\n"
     "- 2 to 4 short sentences. No bullet points, no lists, no headings.\n"
@@ -687,10 +687,10 @@ SAFENIGHT_SYSTEM_PROMPT = (
     "- Ask at most one gentle question, and only when it helps.\n\n"
     "About the worker note:\n"
     "- When it fits naturally and you have not asked recently, gently ask if the youth would like you "
-    "to prepare a short note for their worker — frame it as their choice and tell them they can see "
+    "to prepare a short note for their worker - frame it as their choice and tell them they can see "
     "it before the worker does. Embed the ask in your reply, not as a separate sentence at the end.\n"
     "- If the youth says 'sure', 'yes', 'okay', or any clear affirmative in reply to your ask, "
-    "acknowledge that warmly — the system will handle the note automatically.\n"
+    "acknowledge that warmly - the system will handle the note automatically.\n"
     "- Do not mention the note more than once per reply, and do not bring it up if it would "
     "interrupt something urgent.\n\n"
     "Boundaries (never break these):\n"
@@ -753,7 +753,7 @@ def generate_safenight_reply(
         if signal_summary:
             conversation.insert(1, {
                 "role": "system",
-                "content": f"Context only (do not read this back to them): possible signals noticed so far — {signal_summary}.",
+                "content": f"Context only (do not read this back to them): possible signals noticed so far - {signal_summary}.",
             })
 
         # Tell the model whether to ask for consent in this reply
@@ -762,7 +762,7 @@ def generate_safenight_reply(
                 "role": "system",
                 "content": (
                     "The youth has not yet agreed to a worker note. If it fits naturally in this reply, "
-                    "gently ask if they'd like you to prepare one — remind them they can see it first. "
+                    "gently ask if they'd like you to prepare one - remind them they can see it first. "
                     "Phrase it as part of your response, not as a trailing sentence."
                 ),
             })

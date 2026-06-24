@@ -179,10 +179,10 @@ def create_youth_message(
     db.add(message)
     db.flush()
 
-    # ── Verbal consent detection ──────────────────────────────────────────────
+    # Verbal consent detection.
     # If the conversation risk is already medium+, the AI previously asked about
     # sharing a note, and the youth's reply is a short affirmative, the AI
-    # triggers consent automatically — no UI button press required.
+    # triggers consent automatically - no UI button press required.
     ai_triggered_consent = False
     risk_rank = {"low": 1, "medium": 2, "high": 3, "critical": 4}
     conversation_is_medium_plus = risk_rank.get(conversation.risk_level.value, 1) >= 2
@@ -191,7 +191,7 @@ def create_youth_message(
         if detect_verbal_consent(payload.content, last_ai.content if last_ai else None):
             ai_triggered_consent = True
 
-    # ── AI reply ──────────────────────────────────────────────────────────────
+    # AI reply.
     if ai_triggered_consent:
         reply_content = build_consent_confirmation_reply()
         # Trigger the full consent workflow
@@ -234,7 +234,7 @@ def create_youth_message(
     db.add(ai_reply)
     db.flush()
 
-    # Only record each signal type once per conversation — otherwise low-risk
+    # Only record each signal type once per conversation - otherwise low-risk
     # messages keep appending duplicate "after_hours_support" rows that pile up
     # in the worker view and the youth's support-signals card.
     existing_types = {

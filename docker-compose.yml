@@ -24,6 +24,8 @@ services:
       SIGNALBRIDGE_DATABASE_URL: postgresql+psycopg://signalbridge:signalbridge@postgres:5432/signalbridge
       SIGNALBRIDGE_JWT_SECRET: dev-only-change-me
       SIGNALBRIDGE_OPENAI_API_KEY: ${SIGNALBRIDGE_OPENAI_API_KEY:-}
+      SIGNALBRIDGE_DEMO_TELEGRAM_CHAT_ID: ${SIGNALBRIDGE_DEMO_TELEGRAM_CHAT_ID:-}
+      SIGNALBRIDGE_DEMO_DISCORD_WEBHOOK_URL: ${SIGNALBRIDGE_DEMO_DISCORD_WEBHOOK_URL:-}
       PORT: 8000
     command: sh -c "alembic -c /workspace/alembic.ini upgrade head && python seed.py && uvicorn app.main:app --host 0.0.0.0 --port 8000"
     ports:

@@ -162,7 +162,7 @@ def analyse_risk_endpoint(
             _alert_assigned_worker(
                 db,
                 conversation,
-                title=f"⚠️ {assessment.risk_level.value.title()} risk detected",
+                title=f"{assessment.risk_level.value.title()} risk detected",
                 body=f"Risk score: {assessment.risk_score}/100\nSignals: {', '.join(s.type.replace('_', ' ') for s in assessment.signals[:3]) or 'none'}",
                 risk_level=assessment.risk_level.value,
             )
@@ -234,7 +234,7 @@ def generate_handoff_endpoint(
     _alert_assigned_worker(
         db,
         conversation,
-        title="📋 Handoff brief ready",
+        title="Handoff brief ready",
         body=f"A handoff brief has been generated for {get_youth_name(db, conversation.youth_id)}.\nRisk: {assessment.risk_level.value} ({assessment.risk_score}/100)\nMain concern: {handoff.main_concern or 'See brief'}",
         risk_level=assessment.risk_level.value,
     )

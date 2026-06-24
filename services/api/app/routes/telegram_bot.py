@@ -1,10 +1,10 @@
-"""Telegram bot webhook — youth-facing SafeNight chat via Telegram.
+"""Telegram bot webhook - youth-facing SafeNight chat via Telegram.
 
 Flow:
-  Youth messages the bot → Telegram POSTs here → SafeNight AI replies → worker notified.
-  /start  → welcome + link instructions
-  /link   → links the Telegram chat_id to a youth profile
-  text    → full SafeNight pipeline, reply sent back, worker alerted if risk high
+  Youth messages the bot -> Telegram POSTs here -> SafeNight AI replies -> worker notified.
+  /start  -> welcome + link instructions
+  /link   -> links the Telegram chat_id to a youth profile
+  text    -> full SafeNight pipeline, reply sent back, worker alerted if risk high
 """
 
 import logging
@@ -48,7 +48,7 @@ router = APIRouter(prefix="/telegram", tags=["telegram"])
 _PUBLIC_INTAKE_PENDING_STYLE = "__telegram_public_intake_awaiting_name__"
 
 _WELCOME = (
-    "Hi, I'm SafeNight — SignalBridge's after-hours support companion.\n\n"
+    "Hi, I'm SafeNight - SignalBridge's after-hours support companion.\n\n"
     "I'm here to listen, and I'll never share what you say without asking you first.\n\n"
     "Before we start, what name or nickname should I use for you?"
 )
@@ -320,8 +320,8 @@ def _process_youth_message(
             notify_worker(
                 ns.telegram_chat_id,
                 ns.discord_webhook_url,
-                title=f"📱 Telegram message — {assessment.risk_level.value} risk",
-                body=f"{youth_name} sent a message on Telegram.\nRisk score: {assessment.risk_score}/100\n\"{content[:120]}{'…' if len(content) > 120 else ''}\"",
+                title=f"Telegram message - {assessment.risk_level.value} risk",
+                body=f"{youth_name} sent a message on Telegram.\nRisk score: {assessment.risk_score}/100\n\"{content[:120]}{'...' if len(content) > 120 else ''}\"",
                 risk_level=assessment.risk_level.value,
             )
 
@@ -375,7 +375,7 @@ async def telegram_webhook(
         _link_chat_to_youth(db, token, chat_id, parts[1].strip())
         return {"ok": "true"}
 
-    # Regular message — look up linked youth profile
+    # Regular message - look up linked youth profile.
     youth = db.scalar(select(YouthProfile).where(YouthProfile.telegram_chat_id == chat_id))
     if youth is None:
         _get_or_create_public_intake_youth(db, chat_id)
