@@ -538,6 +538,48 @@ def _asks_about_safenight_identity(text: str) -> bool:
     )
 
 
+def _shares_sexual_identity(text: str) -> bool:
+    compact = re.sub(r"[^a-z0-9]+", " ", text).strip()
+    identity_terms = ("gay", "bi", "bisexual", "lesbian", "queer", "trans")
+    first_person_markers = (
+        "i am",
+        "im",
+        "i m",
+        "i think i am",
+        "i think im",
+        "i might be",
+        "i feel like im",
+        "i feel like i am",
+        "kinda",
+        "kind of",
+    )
+    if not any(term in compact.split() for term in identity_terms):
+        return False
+    return any(marker in compact for marker in first_person_markers)
+
+
+def _criticises_bot_reply(text: str) -> bool:
+    compact = re.sub(r"[^a-z0-9]+", " ", text).strip()
+    return any(
+        phrase in compact
+        for phrase in (
+            "what wrong with u",
+            "whats wrong with u",
+            "what is wrong with u",
+            "what wrong with you",
+            "whats wrong with you",
+            "what is wrong with you",
+            "you are not listening",
+            "ur not listening",
+            "you keep saying",
+            "why you keep saying",
+            "that was weird",
+            "you are weird",
+            "ur weird",
+        )
+    )
+
+
 _CONSENT_ASK_SUFFIX = (
     " Would it be okay if I prepared a short note for your worker? "
     "You'd get to see it before they do — nothing goes to them without you knowing."
@@ -569,6 +611,18 @@ def build_safenight_fallback_reply(
         return (
             "I am SafeNight, an AI after-hours companion, so I do not have a sexuality or personal life. "
             "I am here to focus on what is making tonight hard for you, and a real worker can follow up on anything you choose to share."
+        )
+
+    if _shares_sexual_identity(text):
+        return (
+            "Thanks for trusting me with that. There is nothing wrong with being gay, bi, queer, or still figuring things out. "
+            "If it feels heavy tonight, we can talk about what is making it feel hard."
+        )
+
+    if _criticises_bot_reply(text):
+        return (
+            "You're right to call that out. My last reply may have missed what you meant, and I do not want to make this feel scripted. "
+            "Tell me what you wanted me to understand, or just say what is happening tonight."
         )
 
     if _is_off_topic_or_insult_prompt(text):
@@ -665,9 +719,19 @@ def generate_safenight_reply(
     if assessment.risk_level == RiskLevel.critical:
         return CRITICAL_FALLBACK_REPLY
 
+    direct_reply = build_safenight_fallback_reply(new_message, assessment, history, consent_to_handoff)
+    direct_text = new_message.strip().lower()
+    if (
+        _shares_sexual_identity(direct_text)
+        or _criticises_bot_reply(direct_text)
+        or _asks_about_safenight_identity(direct_text)
+        or _is_off_topic_or_insult_prompt(direct_text)
+    ):
+        return direct_reply
+
     settings = get_settings()
     if not settings.openai_api_key:
-        return build_safenight_fallback_reply(new_message, assessment, history, consent_to_handoff)
+        return direct_reply
 
     try:
         from openai import OpenAI
@@ -716,15 +780,15 @@ def generate_safenight_reply(
         )
         reply = (response.choices[0].message.content or "").strip()
         if not reply or len(reply) < 10:
-            return build_safenight_fallback_reply(new_message, assessment, history, consent_to_handoff)
+            return direct_reply
 
         prohibited = ("you have depression", "you have anxiety", "keep this secret", "i promise", "clinically")
         if any(term in reply.lower() for term in prohibited):
-            return build_safenight_fallback_reply(new_message, assessment, history, consent_to_handoff)
+            return direct_reply
 
         return reply
     except Exception:
-        return build_safenight_fallback_reply(new_message, assessment, history, consent_to_handoff)
+        return direct_reply
 
 
 def suggest_worker_reply(assessment: RiskAssessment) -> str:

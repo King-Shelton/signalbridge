@@ -263,6 +263,25 @@ def test_safenight_handles_identity_questions_and_typo_greetings() -> None:
     assert "hi, i am here with you" in greeting_reply.lower()
 
 
+def test_safenight_handles_identity_disclosure_and_bad_reply_feedback() -> None:
+    identity_reply = generate_safenight_reply(
+        "Im kinda gay",
+        [],
+        assess_safe_night_message("Im kinda gay"),
+    )
+    feedback_reply = generate_safenight_reply(
+        "whats wrong with u",
+        [Message(conversation_id="test_conversation", sender_type=SenderType.ai, content=identity_reply)],
+        assess_safe_night_message("whats wrong with u"),
+    )
+
+    assert "nothing wrong" in identity_reply.lower()
+    assert "gay" in identity_reply.lower()
+    assert "worker" not in identity_reply.lower()
+    assert "right to call that out" in feedback_reply.lower()
+    assert "scripted" in feedback_reply.lower()
+
+
 def test_safenight_gives_practical_bullying_help() -> None:
     reply = generate_safenight_reply(
         "if im getting bullied what shld i do",
