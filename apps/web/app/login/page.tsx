@@ -1,8 +1,9 @@
-﻿"use client";
+"use client";
 
-import type { ReactNode } from "react";
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { Suspense, useState, type FormEvent, type ReactNode } from "react";
+import { ArrowLeft, ArrowRight, Loader2, Lock, Mail, Moon, RadioTower, Shield, UserRound, UsersRound } from "lucide-react";
+import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
 import { login } from "@/lib/api-client";
 import { getRoleHome, saveAuthSession } from "@/lib/auth-session";
 import type { Role } from "@/lib/constants";
@@ -14,199 +15,343 @@ const DEMOS: Array<{
   email: string;
   password: string;
   icon: ReactNode;
-  accentClass: string;
-  borderClass: string;
-  iconBg: string;
-  iconColor: string;
+  accent: string;
 }> = [
   {
     role: "youth",
-    label: "Talk to SafeNight",
-    description: "Private. After hours. Here with you tonight.",
+    label: "Guest SafeNight chat",
+    description: "Start privately with a demo youth session.",
     email: "mira@signalbridge.test",
     password: "password",
-    icon: (
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z" />
-      </svg>
-    ),
-    accentClass: "from-[rgba(31,111,100,0.1)] to-[rgba(31,111,100,0.05)]",
-    borderClass: "border-[rgba(31,111,100,0.25)] hover:border-[rgba(31,111,100,0.5)]",
-    iconBg: "bg-[rgba(31,111,100,0.15)]",
-    iconColor: "text-[#6fb8aa]"
+    icon: <Moon size={21} strokeWidth={1.8} />,
+    accent: "#1f6f64",
   },
   {
     role: "worker",
     label: "Youth worker",
-    description: "Your morning queue and case handoffs.",
+    description: "Morning queue, signals, and handoffs.",
     email: "worker1@signalbridge.test",
     password: "password",
-    icon: (
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M19.07 4.93A10 10 0 0 0 6.99 3.34" />
-        <path d="M4 6h.01" />
-        <path d="M2.29 9.62A10 10 0 1 0 21.31 8.35" />
-        <path d="M16.24 7.76A6 6 0 1 0 8.23 16.67" />
-        <path d="M12 18h.01" />
-        <path d="M17.99 11.66A6 6 0 0 1 15.77 16.67" />
-        <circle cx="12" cy="12" r="2" />
-        <path d="m13.41 10.59 5.66-5.66" />
-      </svg>
-    ),
-    accentClass: "from-[rgba(217,95,72,0.1)] to-[rgba(217,95,72,0.05)]",
-    borderClass: "border-[rgba(217,95,72,0.25)] hover:border-[rgba(217,95,72,0.5)]",
-    iconBg: "bg-[rgba(217,95,72,0.15)]",
-    iconColor: "text-[#e88d78]"
+    icon: <UsersRound size={21} strokeWidth={1.8} />,
+    accent: "#d95f48",
   },
   {
     role: "supervisor",
     label: "Supervisor",
-    description: "Team load and case oversight.",
+    description: "Team load, audit trail, and oversight.",
     email: "supervisor@signalbridge.test",
     password: "password",
-    icon: (
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M18 21a8 8 0 0 0-16 0" />
-        <circle cx="10" cy="8" r="5" />
-        <path d="M22 20c0-3.37-2-6.5-4-8a5 5 0 0 0-.45-8.3" />
-      </svg>
-    ),
-    accentClass: "from-[rgba(183,121,31,0.1)] to-[rgba(183,121,31,0.05)]",
-    borderClass: "border-[rgba(183,121,31,0.25)] hover:border-[rgba(183,121,31,0.5)]",
-    iconBg: "bg-[rgba(183,121,31,0.15)]",
-    iconColor: "text-[#e9c685]"
-  }
+    icon: <Shield size={21} strokeWidth={1.8} />,
+    accent: "#b7791f",
+  },
 ];
 
-export default function LoginPage() {
+const ROLE_LABELS: Record<string, string> = {
+  worker: "Youth worker",
+  supervisor: "Supervisor",
+};
+
+function Background() {
+  return (
+    <div className="pointer-events-none absolute inset-0 overflow-hidden">
+      <div className="absolute inset-0 bg-[linear-gradient(180deg,#f6fbf9_0%,#ffffff_56%,#f5f8fb_100%)]" />
+      <div className="absolute -left-[12vw] -top-[18vw] h-[58vw] w-[58vw] rounded-full bg-[radial-gradient(circle,rgba(31,111,100,0.14),transparent_63%)]" />
+      <div className="absolute -right-[10vw] -top-[10vw] h-[44vw] w-[44vw] rounded-full bg-[radial-gradient(circle,rgba(217,95,72,0.09),transparent_62%)]" />
+      <div className="absolute inset-0 opacity-[0.45] [background-image:radial-gradient(rgba(24,33,47,0.07)_1px,transparent_1px)] [background-size:38px_38px]" />
+    </div>
+  );
+}
+
+function BrandMark() {
+  return (
+    <div className="flex h-12 w-12 items-center justify-center rounded-[16px] bg-[linear-gradient(160deg,#2a8576,#164b44)] text-[#eaf6f2] shadow-[0_14px_36px_rgba(31,111,100,0.28)]">
+      <RadioTower size={24} strokeWidth={1.75} />
+    </div>
+  );
+}
+
+function LoadingIcon() {
+  return <Loader2 size={17} strokeWidth={2} className="animate-spin" />;
+}
+
+function YouthGuestStart() {
   const router = useRouter();
-  const [loading, setLoading] = useState<string | null>(null);
+  const [name, setName] = useState("");
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  async function handleDemoLogin(demo: (typeof DEMOS)[number]) {
-    setLoading(demo.role);
+  async function startGuest(e: FormEvent) {
+    e.preventDefault();
+    setLoading(true);
     setError(null);
+
     try {
-      const session = await login(demo.email, demo.password);
-      saveAuthSession(session);
-      router.push(getRoleHome(session.user.role));
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Could not connect to the API.");
+      const session = await login("mira@signalbridge.test", "password");
+      const displayName = name.trim();
+      saveAuthSession({
+        ...session,
+        user: {
+          ...session.user,
+          name: displayName || "Guest",
+        },
+      });
+      router.push("/youth/chat");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not start the guest chat.");
     } finally {
-      setLoading(null);
+      setLoading(false);
     }
   }
 
   return (
-    <div className="fixed inset-0 overflow-hidden bg-[#060d0c] font-sans" style={{ WebkitFontSmoothing: "antialiased" }}>
-      <div className="pointer-events-none absolute inset-0">
-        <div
-          className="absolute rounded-full"
-          style={{
-            top: "-18%",
-            left: "-8%",
-            width: "60vw",
-            height: "60vw",
-            background: "radial-gradient(circle, rgba(31,111,100,0.22), transparent 62%)",
-            filter: "blur(8px)",
-            animation: "sb-drift1 24s ease-in-out infinite"
-          }}
-        />
-        <div
-          className="absolute rounded-full"
-          style={{
-            bottom: "-22%",
-            right: "-10%",
-            width: "52vw",
-            height: "52vw",
-            background: "radial-gradient(circle, rgba(217,95,72,0.1), transparent 62%)",
-            filter: "blur(8px)",
-            animation: "sb-drift2 28s ease-in-out infinite"
-          }}
-        />
-        <div className="absolute inset-0" style={{ opacity: 0.45, backgroundImage: "radial-gradient(rgba(255,255,255,0.05) 1px, transparent 1px)", backgroundSize: "40px 40px" }} />
-        <div
-          className="absolute left-0 right-0 h-px"
-          style={{
-            background: "linear-gradient(90deg, transparent, rgba(111,184,170,0.4), transparent)",
-            animation: "sb-scan 14s linear infinite"
-          }}
-        />
-        <div className="absolute inset-0" style={{ background: "radial-gradient(130% 120% at 50% 38%, transparent 52%, rgba(0,0,0,0.55) 100%)" }} />
-      </div>
-
-      <div className="relative z-10 flex min-h-screen flex-col items-center justify-center px-6 py-12">
-        <div className="mb-14 flex flex-col items-center text-center" style={{ opacity: 0, animation: "sb-rise 1s cubic-bezier(0.2,0,0,1) 0.1s forwards" }}>
-          <div className="relative mb-8 flex h-[88px] w-[88px] items-center justify-center">
-            <div className="absolute h-[26px] w-[26px] rounded-full border border-[rgba(111,184,170,0.7)]" style={{ animation: "sb-ring 3.4s ease-out infinite" }} />
-            <div className="absolute h-[26px] w-[26px] rounded-full border border-[rgba(111,184,170,0.5)]" style={{ animation: "sb-ring 3.4s ease-out 1.7s infinite" }} />
-            <div
-              className="flex h-[52px] w-[52px] items-center justify-center rounded-[16px]"
-              style={{
-                background: "linear-gradient(160deg, #2a8576, #164b44)",
-                boxShadow: "0 18px 50px rgba(31,111,100,0.45), inset 0 1px 0 rgba(255,255,255,0.18)"
-              }}
-            >
-              <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#eaf6f2" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M4.9 16.1C1 12.2 1 5.8 4.9 1.9" />
-                <path d="M7.8 4.7a6.14 6.14 0 0 0-.8 7.5" />
-                <circle cx="12" cy="9" r="2" />
-                <path d="M16.2 4.8c2 2 2.26 5.11.8 7.47" />
-                <path d="M19.1 1.9a9.96 9.96 0 0 1 0 14.1" />
-                <path d="M9.5 18h5" />
-                <path d="m8 22 4-11 4 11" />
-              </svg>
-            </div>
-          </div>
-
-          <h1 className="text-[clamp(32px,5vw,60px)] font-semibold text-[#f1f6f4]" style={{ letterSpacing: "-0.03em", opacity: 0, animation: "sb-rise 1s cubic-bezier(0.2,0,0,1) 0.6s forwards" }}>
-            <span style={{ color: "#6fb8aa" }}>Signal</span>Bridge
-          </h1>
-          <p className="mt-3 max-w-[32ch] text-base text-[rgba(214,235,230,0.6)]" style={{ lineHeight: 1.6, opacity: 0, animation: "sb-soft 1s ease 1s forwards" }}>
-            After-hours support for young people. And a space for the workers who show up for them.
+    <form onSubmit={startGuest} className="rounded-[8px] border border-[#dbe7e3] bg-white/82 p-5 shadow-[0_18px_48px_rgba(24,33,47,0.08)] backdrop-blur">
+      <div className="flex items-start gap-3">
+        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[8px] bg-[#e5f2ef] text-[#1f6f64]">
+          <Moon size={21} strokeWidth={1.8} />
+        </div>
+        <div>
+          <h2 className="text-[20px] font-semibold leading-tight text-[#18212f]">Start SafeNight as a guest</h2>
+          <p className="mt-1 text-[13.5px] leading-6 text-[#64748b]">
+            No password needed. This opens the demo chat from the intro and keeps the handoff story moving.
           </p>
         </div>
-
-        <div className="grid w-full max-w-3xl grid-cols-1 gap-4 sm:grid-cols-3" style={{ opacity: 0, animation: "sb-soft 0.8s ease 1.2s forwards" }}>
-          {DEMOS.map((demo) => (
-            <button
-              key={demo.role}
-              onClick={() => handleDemoLogin(demo)}
-              disabled={loading !== null}
-              className={`group relative rounded-[22px] border bg-gradient-to-b p-6 text-left transition-all duration-200 ${demo.accentClass} ${demo.borderClass} disabled:cursor-not-allowed disabled:opacity-60`}
-              style={{ backdropFilter: "blur(8px)" }}
-            >
-              <div className={`mb-4 flex h-11 w-11 items-center justify-center rounded-[13px] ${demo.iconBg} ${demo.iconColor}`}>
-                {loading === demo.role ? (
-                  <svg className="animate-spin" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M21 12a9 9 0 1 1-6.219-8.56" strokeLinecap="round" />
-                  </svg>
-                ) : (
-                  demo.icon
-                )}
-              </div>
-              <div className="text-[17px] font-semibold leading-tight text-[#f1f6f4]" style={{ letterSpacing: "-0.01em" }}>
-                {demo.label}
-              </div>
-              <p className="mt-3 text-[13px] leading-relaxed text-[rgba(214,235,230,0.55)]">{demo.description}</p>
-              <div className="mt-4 flex items-center gap-2 text-[12.5px] font-semibold text-[rgba(214,235,230,0.5)] transition-colors group-hover:text-[rgba(214,235,230,0.8)]">
-                Enter
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M5 12h14" />
-                  <path d="m12 5 7 7-7 7" />
-                </svg>
-              </div>
-            </button>
-          ))}
-        </div>
-
-        {error && (
-          <div className="mt-6 rounded-xl border border-[rgba(217,95,72,0.2)] bg-[rgba(217,95,72,0.1)] px-4 py-3 text-[13px] text-[#e88d78]">
-            {error}
-          </div>
-        )}
-
       </div>
-    </div>
+
+      <label className="mt-5 block text-[12px] font-semibold uppercase tracking-[0.16em] text-[#64748b]" htmlFor="guest-name">
+        Display name
+      </label>
+      <div className="mt-2 flex items-center gap-2 rounded-[8px] border border-[#dbe7e3] bg-white px-3 py-2.5 focus-within:border-[#6fb8aa]">
+        <UserRound size={17} strokeWidth={1.8} className="text-[#94a3b8]" />
+        <input
+          id="guest-name"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder="Guest"
+          className="min-w-0 flex-1 bg-transparent text-[14px] text-[#18212f] outline-none placeholder:text-[#94a3b8]"
+        />
+      </div>
+
+      {error && (
+        <div className="mt-3 rounded-[8px] border border-[#f0c5ba] bg-[#fff4f1] px-3 py-2 text-[13px] text-[#b44a35]">
+          {error}
+        </div>
+      )}
+
+      <button
+        type="submit"
+        disabled={loading}
+        className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-[8px] bg-[#1f6f64] px-4 py-3 text-[14px] font-semibold text-white transition hover:bg-[#1a5d54] disabled:cursor-not-allowed disabled:opacity-60"
+      >
+        {loading ? <LoadingIcon /> : <ArrowRight size={17} strokeWidth={2} />}
+        {loading ? "Opening SafeNight" : "Continue as guest"}
+      </button>
+    </form>
+  );
+}
+
+function StaffLoginForm({ roleKey }: { roleKey: "worker" | "supervisor" }) {
+  const router = useRouter();
+  const demo = DEMOS.find((item) => item.role === roleKey);
+  const [email, setEmail] = useState(demo?.email ?? "");
+  const [password, setPassword] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function signIn(targetEmail = email, targetPassword = password) {
+    setLoading(true);
+    setError(null);
+    try {
+      const session = await login(targetEmail, targetPassword);
+      saveAuthSession(session);
+      router.push(getRoleHome(session.user.role));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not sign in. Check your credentials.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function handleSubmit(e: FormEvent) {
+    e.preventDefault();
+    void signIn();
+  }
+
+  const roleLabel = ROLE_LABELS[roleKey];
+
+  return (
+    <main className="relative min-h-screen overflow-hidden bg-[#f6fbf9] px-5 py-7 text-[#18212f]">
+      <Background />
+      <div className="relative z-10 mx-auto flex min-h-[calc(100vh-56px)] w-full max-w-5xl flex-col">
+        <Link href="/" className="inline-flex w-fit items-center gap-2 text-[13px] font-semibold text-[#64748b] transition hover:text-[#1f6f64]">
+          <ArrowLeft size={16} strokeWidth={1.8} />
+          Back to intro
+        </Link>
+
+        <div className="grid flex-1 items-center gap-8 py-8 lg:grid-cols-[1fr_390px]">
+          <section>
+            <BrandMark />
+            <p className="mt-6 text-[12px] font-semibold uppercase tracking-[0.24em] text-[#1f6f64]">SignalBridge staff</p>
+            <h1 className="mt-3 max-w-xl text-[clamp(34px,5vw,58px)] font-semibold leading-[1.04] text-[#18212f]">
+              Pick up the overnight context without asking them to start over.
+            </h1>
+            <p className="mt-5 max-w-[48ch] text-[16px] leading-7 text-[#64748b]">
+              Sign in with the seeded staff account, or use the demo shortcut for the hackathon walkthrough.
+            </p>
+          </section>
+
+          <form onSubmit={handleSubmit} className="rounded-[8px] border border-[#dbe7e3] bg-white/86 p-5 shadow-[0_18px_48px_rgba(24,33,47,0.09)] backdrop-blur">
+            <div className="flex items-center gap-3">
+              <div className="flex h-11 w-11 items-center justify-center rounded-[8px] bg-[#e5f2ef] text-[#1f6f64]">
+                {roleKey === "worker" ? <UsersRound size={21} strokeWidth={1.8} /> : <Shield size={21} strokeWidth={1.8} />}
+              </div>
+              <div>
+                <h2 className="text-[21px] font-semibold text-[#18212f]">{roleLabel} sign in</h2>
+                <p className="text-[13px] text-[#64748b]">Email and password access</p>
+              </div>
+            </div>
+
+            <label className="mt-6 block text-[12px] font-semibold uppercase tracking-[0.16em] text-[#64748b]" htmlFor="email">
+              Email
+            </label>
+            <div className="mt-2 flex items-center gap-2 rounded-[8px] border border-[#dbe7e3] bg-white px-3 py-2.5 focus-within:border-[#6fb8aa]">
+              <Mail size={17} strokeWidth={1.8} className="text-[#94a3b8]" />
+              <input
+                id="email"
+                type="email"
+                autoComplete="email"
+                required
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="min-w-0 flex-1 bg-transparent text-[14px] text-[#18212f] outline-none placeholder:text-[#94a3b8]"
+              />
+            </div>
+
+            <label className="mt-4 block text-[12px] font-semibold uppercase tracking-[0.16em] text-[#64748b]" htmlFor="password">
+              Password
+            </label>
+            <div className="mt-2 flex items-center gap-2 rounded-[8px] border border-[#dbe7e3] bg-white px-3 py-2.5 focus-within:border-[#6fb8aa]">
+              <Lock size={17} strokeWidth={1.8} className="text-[#94a3b8]" />
+              <input
+                id="password"
+                type="password"
+                autoComplete="current-password"
+                required
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="password"
+                className="min-w-0 flex-1 bg-transparent text-[14px] text-[#18212f] outline-none placeholder:text-[#94a3b8]"
+              />
+            </div>
+
+            {error && (
+              <div className="mt-4 rounded-[8px] border border-[#f0c5ba] bg-[#fff4f1] px-3 py-2 text-[13px] text-[#b44a35]">
+                {error}
+              </div>
+            )}
+
+            <button
+              type="submit"
+              disabled={loading}
+              className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-[8px] bg-[#1f6f64] px-4 py-3 text-[14px] font-semibold text-white transition hover:bg-[#1a5d54] disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {loading ? <LoadingIcon /> : <ArrowRight size={17} strokeWidth={2} />}
+              {loading ? "Signing in" : "Sign in"}
+            </button>
+
+            {demo && (
+              <button
+                type="button"
+                disabled={loading}
+                onClick={() => void signIn(demo.email, demo.password)}
+                className="mt-3 w-full rounded-[8px] border border-[#dbe7e3] bg-white px-4 py-3 text-[13px] font-semibold text-[#1f6f64] transition hover:border-[#6fb8aa] disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                Use demo account
+              </button>
+            )}
+
+            <p className="mt-3 text-center text-[12px] text-[#64748b]">
+              Demo password: <span className="font-mono text-[#18212f]">password</span>
+            </p>
+          </form>
+        </div>
+      </div>
+    </main>
+  );
+}
+
+function LoginHub() {
+  const router = useRouter();
+
+  return (
+    <main className="relative min-h-screen overflow-hidden bg-[#f6fbf9] px-5 py-7 text-[#18212f]">
+      <Background />
+      <div className="relative z-10 mx-auto flex min-h-[calc(100vh-56px)] w-full max-w-6xl flex-col">
+        <Link href="/" className="inline-flex w-fit items-center gap-2 text-[13px] font-semibold text-[#64748b] transition hover:text-[#1f6f64]">
+          <ArrowLeft size={16} strokeWidth={1.8} />
+          Back to intro
+        </Link>
+
+        <div className="grid flex-1 items-center gap-8 py-8 lg:grid-cols-[0.9fr_1.1fr]">
+          <section>
+            <BrandMark />
+            <p className="mt-6 text-[12px] font-semibold uppercase tracking-[0.24em] text-[#1f6f64]">SignalBridge</p>
+            <h1 className="mt-3 max-w-xl text-[clamp(36px,5.4vw,64px)] font-semibold leading-[1.04] text-[#18212f]">
+              Choose how you want to enter the demo.
+            </h1>
+            <p className="mt-5 max-w-[47ch] text-[16px] leading-7 text-[#64748b]">
+              Youth can start as a guest without a password. Staff can use email and password from their sign-in pages.
+            </p>
+          </section>
+
+          <section className="space-y-4">
+            <YouthGuestStart />
+
+            <div className="grid gap-3 sm:grid-cols-2">
+              {DEMOS.filter((demo) => demo.role !== "youth").map((demo) => (
+                <button
+                  key={demo.role}
+                  type="button"
+                  onClick={() => router.push(`/login?role=${demo.role}`)}
+                  className="group rounded-[8px] border border-[#dbe7e3] bg-white/78 p-4 text-left shadow-[0_14px_36px_rgba(24,33,47,0.06)] transition hover:border-[#6fb8aa] hover:bg-white"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-[8px]" style={{ backgroundColor: `${demo.accent}18`, color: demo.accent }}>
+                      {demo.icon}
+                    </div>
+                    <ArrowRight size={17} strokeWidth={2} className="mt-1 text-[#94a3b8] transition group-hover:translate-x-0.5 group-hover:text-[#1f6f64]" />
+                  </div>
+                  <h2 className="mt-4 text-[17px] font-semibold text-[#18212f]">{demo.label}</h2>
+                  <p className="mt-2 text-[13px] leading-5 text-[#64748b]">{demo.description}</p>
+                </button>
+              ))}
+            </div>
+
+            <div className="rounded-[8px] border border-[#dbe7e3] bg-white/70 p-4 text-[13px] leading-6 text-[#64748b]">
+              Staff demo accounts use <span className="font-mono text-[#18212f]">password</span>. Youth guest mode uses the seeded Mira session so the chat and handoff flow work immediately.
+            </div>
+
+          </section>
+        </div>
+      </div>
+    </main>
+  );
+}
+
+function LoginRouter() {
+  const searchParams = useSearchParams();
+  const role = searchParams.get("role");
+
+  if (role === "worker" || role === "supervisor") {
+    return <StaffLoginForm roleKey={role} />;
+  }
+
+  return <LoginHub />;
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={<main className="min-h-screen bg-[#f6fbf9]" />}>
+      <LoginRouter />
+    </Suspense>
   );
 }
