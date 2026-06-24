@@ -22,6 +22,7 @@ class Settings(BaseSettings):
     telegram_webhook_secret: str | None = None
     discord_webhook_url: str | None = None
     discord_bot_token: str | None = None
+    discord_entry_channel_id: str | None = None
 
     model_config = SettingsConfigDict(env_file=".env", env_prefix="SIGNALBRIDGE_", extra="ignore")
 
