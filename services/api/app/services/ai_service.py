@@ -74,7 +74,7 @@ def build_consent_confirmation_reply() -> str:
 
 
 def _should_ask_consent(
-    assessment: RiskAssessment,
+    assessment: "RiskAssessment",
     history: "list[Message]",
     consent_to_handoff: bool,
 ) -> bool:
