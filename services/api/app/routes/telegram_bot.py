@@ -261,6 +261,8 @@ def _process_youth_message(
         reply_content = generate_safenight_reply(
             content, history, assessment,
             consent_to_handoff=conversation.consent_to_handoff,
+            db=db,
+            conversation_id=conversation.id,
         )
 
     ai_reply = Message(

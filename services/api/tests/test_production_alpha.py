@@ -209,7 +209,7 @@ def test_safenight_fallback_reply_is_contextual_without_ai_key() -> None:
     ]
 
     assert len(set(replies)) == len(samples)
-    assert any("bullying" in reply.lower() for reply in replies)
+    assert any("humiliating" in reply.lower() for reply in replies)
     assert any("dark" in reply.lower() for reply in replies)
     assert CRITICAL_FALLBACK_REPLY == generate_safenight_reply(
         "I want to die",
@@ -233,7 +233,7 @@ def test_safenight_keeps_bullying_context_when_youth_says_scared_of_person() -> 
         assess_safe_night_message("im so scared of mruthulan"),
     )
 
-    assert "bullying" in reply.lower()
+    assert "bullying" in reply.lower() or "bullied" in reply.lower() or "humiliating" in reply.lower()
     assert "dark" not in reply.lower()
 
 
@@ -260,7 +260,7 @@ def test_safenight_handles_identity_questions_and_typo_greetings() -> None:
     assert "ai after-hours companion" in identity_reply.lower()
     assert "sexuality" in identity_reply.lower()
     assert "dark" not in identity_reply.lower()
-    assert "hi, i am here with you" in greeting_reply.lower()
+    assert "start with whatever feels easiest" in greeting_reply.lower()
 
 
 def test_safenight_handles_identity_disclosure_and_bad_reply_feedback() -> None:
@@ -282,6 +282,17 @@ def test_safenight_handles_identity_disclosure_and_bad_reply_feedback() -> None:
     assert "scripted" in feedback_reply.lower()
 
 
+def test_safenight_low_risk_fallback_does_not_push_worker_note() -> None:
+    reply = generate_safenight_reply(
+        "I just feel weird and don't know why",
+        [],
+        assess_safe_night_message("I just feel weird and don't know why"),
+    )
+
+    assert "worker" not in reply.lower()
+    assert "note" not in reply.lower()
+
+
 def test_safenight_gives_practical_bullying_help() -> None:
     reply = generate_safenight_reply(
         "if im getting bullied what shld i do",
@@ -291,7 +302,7 @@ def test_safenight_gives_practical_bullying_help() -> None:
 
     assert "screenshots" in reply.lower()
     assert "trusted adult" in reply.lower()
-    assert "worker" in reply.lower()
+    assert "next small step" in reply.lower()
 
 
 def test_safenight_redirects_off_topic_insult_after_bullying_context() -> None:
