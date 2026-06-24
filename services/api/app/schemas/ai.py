@@ -1,6 +1,6 @@
-from datetime import datetime
-
 from pydantic import BaseModel, Field
+
+from app.timeutil import UtcDateTime
 
 
 class SignalAnalysisRequest(BaseModel):
@@ -31,7 +31,7 @@ class SignalAnalysisItem(BaseModel):
     reason: str
     matchedTerms: list[str] = Field(default_factory=list)
     source: str
-    createdAt: datetime | None = None
+    createdAt: UtcDateTime | None = None
 
 
 class RiskAnalysisResponse(BaseModel):
@@ -59,7 +59,7 @@ class HandoffBriefPublic(BaseModel):
     suggestedWorkerResponse: str | None
     recommendedNextStep: str | None
     reviewStatus: str
-    createdAt: datetime
+    createdAt: UtcDateTime
 
 
 class GenerateHandoffResponse(BaseModel):

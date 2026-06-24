@@ -1,6 +1,8 @@
 import uuid
 from datetime import datetime
 
+from app.timeutil import naive_utcnow
+
 from sqlalchemy import DateTime, ForeignKey, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -13,11 +15,12 @@ class YouthProfile(Base):
     id: Mapped[str] = mapped_column(String, primary_key=True, default=lambda: f"youth_{uuid.uuid4().hex}")
     user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), unique=True, nullable=False)
     assigned_worker_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"), nullable=True)
-    discord_user_id: Mapped[str | None] = mapped_column(String(80), unique=True, nullable=True)
     preferred_channel: Mapped[str] = mapped_column(String(80), default="Web Chat", nullable=False)
+    telegram_chat_id: Mapped[str | None] = mapped_column(String(64), nullable=True, unique=True)
+    discord_user_id: Mapped[str | None] = mapped_column(String(80), nullable=True, unique=True)
     support_style: Mapped[str | None] = mapped_column(Text, nullable=True)
     stressors: Mapped[str | None] = mapped_column(Text, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=naive_utcnow, nullable=False)
 
     user: Mapped["User"] = relationship(
         back_populates="youth_profile",

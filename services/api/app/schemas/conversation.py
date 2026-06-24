@@ -1,6 +1,6 @@
-from datetime import datetime
-
 from pydantic import BaseModel, ConfigDict, Field
+
+from app.timeutil import UtcDateTime
 
 
 class MessagePublic(BaseModel):
@@ -8,7 +8,7 @@ class MessagePublic(BaseModel):
     sender_type: str = Field(alias="senderType")
     content: str
     safety_status: str | None = Field(default=None, alias="safetyStatus")
-    created_at: datetime = Field(alias="createdAt")
+    created_at: UtcDateTime = Field(alias="createdAt")
 
     model_config = ConfigDict(populate_by_name=True)
 
@@ -29,7 +29,7 @@ class ConversationPublic(BaseModel):
     risk_score: int = Field(alias="riskScore")
     consent_to_handoff: bool = Field(alias="consentToHandoff")
     unresolved_handoff: bool = Field(alias="unresolvedHandoff")
-    last_message_at: datetime | None = Field(default=None, alias="lastMessageAt")
+    last_message_at: UtcDateTime | None = Field(default=None, alias="lastMessageAt")
     messages: list[MessagePublic]
     signals: list[SignalPublic]
 

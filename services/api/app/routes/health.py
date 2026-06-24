@@ -10,7 +10,12 @@ router = APIRouter(tags=["health"])
 
 
 @router.get("/health", response_model=HealthResponse)
-def health(db: Session = Depends(get_db)) -> HealthResponse:
+def health() -> HealthResponse:
+    return HealthResponse(status="ok", service="api", database="not_checked")
+
+
+@router.get("/health/db", response_model=HealthResponse)
+def health_db(db: Session = Depends(get_db)) -> HealthResponse:
     db.execute(text("SELECT 1"))
     return HealthResponse(status="ok", service="api", database="ok")
 

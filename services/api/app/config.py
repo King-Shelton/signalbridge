@@ -14,12 +14,16 @@ class Settings(BaseSettings):
     access_token_minutes: int = 60
     cors_origins: str = "http://localhost:3000,http://127.0.0.1:3000"
     openai_api_key: str | None = None
+    openai_base_url: str | None = None
     openai_model: str = "gpt-4.1-mini"
     openai_timeout_seconds: float = 12.0
     ai_prompt_version: str = "handoff-v1"
+    telegram_bot_token: str | None = None
+    telegram_webhook_secret: str | None = None
+    discord_webhook_url: str | None = None
     discord_bot_token: str | None = None
 
-    model_config = SettingsConfigDict(env_file=".env", env_prefix="SIGNALBRIDGE_")
+    model_config = SettingsConfigDict(env_file=".env", env_prefix="SIGNALBRIDGE_", extra="ignore")
 
     @field_validator("database_url", mode="before")
     @classmethod

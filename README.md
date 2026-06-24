@@ -50,9 +50,10 @@ docker compose up --build
 Reset and reseed the fictional database:
 
 ```bash
-docker compose down -v
-docker compose up --build
+docker compose run --rm api python seed.py --reset
 ```
+
+To remove the local PostgreSQL volume completely, run `docker compose down -v` before starting again.
 
 Local backend-only flow:
 
@@ -72,15 +73,30 @@ Primary backend endpoints:
 GET  /health
 GET  /version
 POST /auth/login
+
+GET  /youth/conversations
+POST /youth/conversations/{id}/messages
+POST /youth/conversations/{id}/handoff-consent
+
+POST /ai/handoff/{conversation_id}
+
 GET  /worker/cockpit
-GET  /signals/radar
+GET  /worker/cases/{id}
 PATCH /worker/cases/{id}/status
 POST /worker/cases/{id}/notes
+GET  /worker/handoffs/{id}
+GET  /worker/youths/{id}
+
+GET  /signals/radar
+
 GET  /supervisor/load
+GET  /supervisor/workers
 PATCH /supervisor/cases/{id}/assign
+
 GET  /audit/logs
 GET  /analytics/summary
 POST /simulator/intake
+GET  /constants
 ```
 
 ## Main Fictional Case
@@ -117,11 +133,16 @@ npm run lint
 npm run build
 $env:PYTHONPATH='services/api'; .\.venv\Scripts\python -m pytest services/api/tests -q
 docker compose config
+docker compose up --build
+curl http://localhost:8000/health
+curl http://localhost:8000/version
 ```
 
 ## Cloud Deployment
 
 `render.yaml` provisions the web service, API, and managed PostgreSQL in Singapore. Apply the Blueprint after merging to `dev`, set `SIGNALBRIDGE_OPENAI_API_KEY` if model-assisted summaries are required, and verify `/login` plus the API `/health` endpoint. `infra/k8s/signalbridge.yaml` provides portable deployment, service, secret, and health-probe definitions for a Kubernetes target.
+
+Dell platform deployment requires external project credentials that are not present in this repository. See `docs/deployment-fallback-plan.md` for the Dell access check, deployment method, and fallback demo order.
 
 ## Team Ownership
 

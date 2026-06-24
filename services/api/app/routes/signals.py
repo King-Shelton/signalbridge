@@ -28,4 +28,4 @@ def youth_signals(youth_id: str, current_user: User = Depends(worker_required), 
         from fastapi import HTTPException
         raise HTTPException(status_code=403, detail="Youth is assigned to another worker")
     rows = db.query(Signal).filter(Signal.youth_id == youth_id).order_by(Signal.created_at.desc()).all()
-    return {"signals": [{"id": s.id, "conversationId": s.conversation_id, "type": s.type, "severity": s.severity, "reason": s.reason, "source": s.source, "createdAt": s.created_at.isoformat()} for s in rows]}
+    return {"signals": [{"id": s.id, "conversationId": s.conversation_id, "type": s.type, "severity": s.severity, "reason": s.reason, "source": s.source, "createdAt": s.created_at.isoformat() + "Z"} for s in rows]}

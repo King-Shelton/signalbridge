@@ -25,8 +25,18 @@ from app.schemas.youth import (
 )
 from app.services.auth_service import get_current_user
 from app.services.safenight_service import assess_safe_night_message
-from app.services.ai_service import analyse_risk, apply_risk_to_conversation, build_handoff_brief_with_ai, get_conversation_messages, persist_signals
+from app.services.ai_service import (
+    analyse_risk,
+    apply_risk_to_conversation,
+    build_consent_confirmation_reply,
+    build_handoff_brief_with_ai,
+    detect_verbal_consent,
+    generate_safenight_reply,
+    get_conversation_messages,
+    persist_signals,
+)
 from app.routes.operations import handoff_payload
+from app.timeutil import naive_utcnow
 
 router = APIRouter()
 
@@ -157,8 +167,9 @@ def create_youth_message(
 ) -> YouthMessageCreateResponse:
     youth = require_youth_profile(db, current_user)
     conversation = get_owned_conversation(db, youth.id, conversation_id)
-    now = datetime.utcnow()
+    now = naive_utcnow()
     assessment = assess_safe_night_message(payload.content)
+    history = get_conversation_messages(db, conversation.id)
 
     message = Message(
         conversation_id=conversation.id,
@@ -168,17 +179,74 @@ def create_youth_message(
     db.add(message)
     db.flush()
 
+    # ── Verbal consent detection ──────────────────────────────────────────────
+    # If the conversation risk is already medium+, the AI previously asked about
+    # sharing a note, and the youth's reply is a short affirmative, the AI
+    # triggers consent automatically — no UI button press required.
+    ai_triggered_consent = False
+    risk_rank = {"low": 1, "medium": 2, "high": 3, "critical": 4}
+    conversation_is_medium_plus = risk_rank.get(conversation.risk_level.value, 1) >= 2
+    if not conversation.consent_to_handoff and conversation_is_medium_plus:
+        last_ai = next((m for m in reversed(history) if m.sender_type == SenderType.ai), None)
+        if detect_verbal_consent(payload.content, last_ai.content if last_ai else None):
+            ai_triggered_consent = True
+
+    # ── AI reply ──────────────────────────────────────────────────────────────
+    if ai_triggered_consent:
+        reply_content = build_consent_confirmation_reply()
+        # Trigger the full consent workflow
+        conversation.consent_to_handoff = True
+        conversation.unresolved_handoff = True
+        conversation.status = ConversationStatus.needs_review
+        all_messages = list(history) + [message]
+        full_assessment = analyse_risk([m.content for m in all_messages], all_messages)
+        apply_risk_to_conversation(conversation, full_assessment)
+        existing_handoff = db.scalar(select(HandoffBrief).where(HandoffBrief.conversation_id == conversation.id))
+        if existing_handoff is None:
+            handoff, _ = build_handoff_brief_with_ai(db, conversation, all_messages, full_assessment)
+            db.add(handoff)
+        write_audit_log(
+            db,
+            actor_user_id=None,
+            event_type="ai_triggered_handoff_consent",
+            entity_type="conversation",
+            entity_id=conversation.id,
+            details={
+                "conversationId": conversation.id,
+                "youthMessage": payload.content,
+                "riskLevel": conversation.risk_level.value,
+                "riskScore": conversation.risk_score,
+                "trigger": "verbal_consent_detected",
+            },
+        )
+    else:
+        reply_content = generate_safenight_reply(
+            payload.content, history, assessment,
+            consent_to_handoff=conversation.consent_to_handoff,
+        )
+
     ai_reply = Message(
         conversation_id=conversation.id,
         sender_type=SenderType.ai,
-        content=assessment.reply,
+        content=reply_content,
         safety_status=assessment.safety_status,
     )
     db.add(ai_reply)
     db.flush()
 
+    # Only record each signal type once per conversation — otherwise low-risk
+    # messages keep appending duplicate "after_hours_support" rows that pile up
+    # in the worker view and the youth's support-signals card.
+    existing_types = {
+        signal_type
+        for (signal_type,) in db.execute(
+            select(Signal.type).where(Signal.conversation_id == conversation.id)
+        ).all()
+    }
     created_signals: list[Signal] = []
     for detected_signal in assessment.signals:
+        if detected_signal.type in existing_types:
+            continue
         signal = Signal(
             conversation_id=conversation.id,
             youth_id=youth.id,
@@ -189,15 +257,16 @@ def create_youth_message(
         )
         db.add(signal)
         created_signals.append(signal)
+        existing_types.add(detected_signal.type)
 
     conversation.last_message_at = now
-    risk_rank = {"low": 1, "medium": 2, "high": 3, "critical": 4}
-    if risk_rank[assessment.risk_level.value] >= risk_rank[conversation.risk_level.value]:
-        conversation.risk_level = assessment.risk_level
-    conversation.risk_score = max(conversation.risk_score, assessment.risk_score)
-    if assessment.handoff_recommended:
-        conversation.status = ConversationStatus.needs_review
-        conversation.unresolved_handoff = True
+    if not ai_triggered_consent:
+        if risk_rank[assessment.risk_level.value] >= risk_rank[conversation.risk_level.value]:
+            conversation.risk_level = assessment.risk_level
+        conversation.risk_score = max(conversation.risk_score, assessment.risk_score)
+        if assessment.handoff_recommended:
+            conversation.status = ConversationStatus.needs_review
+            conversation.unresolved_handoff = True
 
     write_audit_log(
         db,
@@ -215,13 +284,14 @@ def create_youth_message(
     write_audit_log(
         db,
         actor_user_id=None,
-        event_type="safenight_fallback_response_created",
+        event_type="safenight_response_created",
         entity_type="message",
         entity_id=ai_reply.id,
         details={
             "conversationId": conversation.id,
             "safetyStatus": assessment.safety_status,
             "handoffRecommended": assessment.handoff_recommended,
+            "aiTriggeredConsent": ai_triggered_consent,
         },
     )
 
@@ -239,6 +309,7 @@ def create_youth_message(
         signals=[serialize_signal(signal) for signal in created_signals],
         handoffRecommended=assessment.handoff_recommended,
         handoffPrompt="Would you like SignalBridge to prepare a short handoff note for your worker?",
+        aiTriggeredConsent=ai_triggered_consent,
     )
 
 
