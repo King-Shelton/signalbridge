@@ -25,7 +25,7 @@ from app.models.message import Message, SenderType
 from app.models.youth_profile import YouthProfile
 from app.routes import operations, telegram_bot
 from app.services.ai_service import CRITICAL_FALLBACK_REPLY, generate_safenight_reply
-from app.services.discord_bot_service import _ensure_thread_conversation, _handle_message
+from app.services.discord_bot_service import _LINKED_OK, _handle_link, _handle_message
 from app.services.safenight_service import assess_safe_night_message
 from seed import seed
 
@@ -47,6 +47,11 @@ client = TestClient(app)
 def token(email: str) -> str:
     response = client.post("/auth/login", json={"email": email, "password": "password"})
     assert response.status_code == 200, response.text
+    # Login now also sets an httpOnly session cookie. The shared TestClient keeps
+    # one cookie jar across all simulated users, which would let a stale cookie
+    # authenticate later "bearer-only" requests. Clear it so each test exercises
+    # the bearer path in isolation (cookie auth is covered separately).
+    client.cookies.clear()
     return response.json()["accessToken"]
 
 
@@ -61,6 +66,22 @@ def test_health_login_and_role_isolation() -> None:
     assert client.get("/auth/me", headers=worker_headers).json()["role"] == "worker"
     assert client.get("/supervisor/load", headers=worker_headers).status_code == 403
     assert client.get("/worker/cockpit").status_code == 401
+
+
+def test_cookie_session_authenticates_without_bearer() -> None:
+    fresh = TestClient(app)
+    login = fresh.post("/auth/login", json={"email": "worker1@signalbridge.test", "password": "password"})
+    assert login.status_code == 200
+    # The httpOnly cookie is set and the jar carries it on the next request — no
+    # Authorization header needed.
+    assert "sb_session" in login.cookies
+    me = fresh.get("/auth/me")
+    assert me.status_code == 200
+    assert me.json()["role"] == "worker"
+    # After logout the cookie is cleared and protected routes 401 again.
+    assert fresh.post("/auth/logout").status_code == 204
+    fresh.cookies.clear()
+    assert fresh.get("/auth/me").status_code == 401
 
 
 def test_auth_rejects_token_with_stale_role_claim() -> None:
@@ -147,22 +168,26 @@ def test_telegram_deep_link_and_worker_reply_round_trip(monkeypatch) -> None:
         assert conversation.last_message_at == last_message.created_at
 
 
-def test_discord_thread_conversation_routes_to_safenight() -> None:
-    discord_user_id = "discord_user_mira_thread_test"
-    discord_thread_id = "discord_thread_mira_001"
+def test_discord_dm_links_and_routes_to_safenight() -> None:
+    discord_user_id = "discord_user_mira_dm_test"
 
-    assert _ensure_thread_conversation(discord_user_id, "youth_mira", discord_thread_id) == "SafeNight is ready here. Keep typing in this thread."
+    # Youth links their existing profile, then DMs the bot.
+    assert _handle_link(discord_user_id, "youth_mira") == _LINKED_OK
 
     reply = _handle_message(
         discord_user_id,
         "Someone keeps editing my photos and I do not want to go to school tomorrow.",
-        discord_thread_id,
     )
 
     assert reply
     with SessionLocal() as db:
         youth = db.get(YouthProfile, "youth_mira")
-        conversation = db.query(Conversation).filter_by(discord_thread_id=discord_thread_id).one()
+        conversation = (
+            db.query(Conversation)
+            .filter_by(youth_id="youth_mira", channel="Discord")
+            .order_by(Conversation.created_at.desc())
+            .first()
+        )
         messages = db.query(Message).filter_by(conversation_id=conversation.id).order_by(Message.created_at.asc()).all()
 
         assert youth.discord_user_id == discord_user_id
@@ -405,3 +430,54 @@ def test_supervisor_reassignment_analytics_audit_and_simulator() -> None:
     simulated = client.post("/simulator/intake", headers=headers, json={"youthId": "youth_mira", "channel": "Discord Simulator", "message": "I do not want to go to school because they keep editing my photos."})
     assert simulated.status_code == 201
     assert simulated.json()["riskScore"] >= 40
+
+
+def test_youth_message_stream_opens_and_requires_auth(monkeypatch) -> None:
+    from app.routes import youth as youth_routes
+
+    # Keep the stream window tiny so the test doesn't sit through the real one.
+    monkeypatch.setattr(youth_routes, "_STREAM_MAX_SECONDS", 0.5)
+
+    # Unauthenticated → 401 before any streaming starts.
+    anon = TestClient(app)
+    assert anon.get("/youth/conversations/whatever/stream").status_code == 401
+
+    # Authenticated youth gets an event stream that emits the initial frame
+    # immediately (so the read returns without waiting the full window).
+    fresh = TestClient(app)
+    assert fresh.post("/auth/login", json={"email": "mira@signalbridge.test", "password": "password"}).status_code == 200
+    conv_id = fresh.post("/youth/conversations").json()["conversation"]["id"]
+    with fresh.stream("GET", f"/youth/conversations/{conv_id}/stream") as r:
+        assert r.status_code == 200
+        assert "text/event-stream" in r.headers["content-type"]
+        first_line = next(line for line in r.iter_lines() if line)
+        assert "connected" in first_line
+
+
+def test_rate_limiter_blocks_after_threshold() -> None:
+    from app.services.rate_limit import allow, reset
+
+    reset()
+    key = "unit-test-key"
+    assert all(allow(key, 3, 60.0) for _ in range(3))
+    # 4th event within the window is rejected.
+    assert allow(key, 3, 60.0) is False
+    # A different key is unaffected.
+    assert allow("other-key", 3, 60.0) is True
+
+
+def test_telegram_webhook_rate_limits_floods(monkeypatch) -> None:
+    from app.services.rate_limit import reset
+
+    reset()
+    sent: list[str] = []
+    monkeypatch.setattr(telegram_bot, "_send_telegram_message", lambda _t, _c, text: sent.append(text))
+
+    chat_id = 999777
+    headers = {"X-Telegram-Bot-Api-Secret-Token": "test-secret"}
+    # Well past the 15/min ceiling.
+    for _ in range(25):
+        body = {"message": {"chat": {"id": chat_id}, "text": "hello"}}
+        assert client.post("/telegram/webhook", json=body, headers=headers).status_code == 200
+
+    assert any("catch up" in text for text in sent), "expected a rate-limit notice to be sent"

@@ -3,7 +3,9 @@
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { apiFetch } from "@/lib/api-client";
+import { usePolling } from "@/lib/use-polling";
 import { Handoff, label } from "@/lib/operations";
+import { caseStatusColor, formatDateTime, riskMeta } from "@/lib/ui";
 
 type Message = { id: string; senderType: string; content: string; createdAt: string };
 type ConvItem = {
@@ -27,26 +29,6 @@ type Youth = {
   notes: Array<{ id: string; content: string; authorUserId: string; createdAt: string }>;
 };
 
-function riskMeta(level: string) {
-  if (level === "high" || level === "critical")
-    return { fg: "#e88d78", soft: "rgba(217,95,72,0.15)", border: "rgba(217,95,72,0.4)" };
-  if (level === "medium")
-    return { fg: "#e9c685", soft: "rgba(183,121,31,0.15)", border: "rgba(183,121,31,0.4)" };
-  return { fg: "#6fb8aa", soft: "rgba(31,111,100,0.15)", border: "rgba(31,111,100,0.4)" };
-}
-
-function caseStatusColor(status: string) {
-  if (status === "open" || status === "active" || status === "needs_review")
-    return { bg: "rgba(217,95,72,0.12)", border: "rgba(217,95,72,0.25)", color: "#e88d78" };
-  if (status === "in_progress")
-    return { bg: "rgba(183,121,31,0.12)", border: "rgba(183,121,31,0.25)", color: "#e9c685" };
-  return { bg: "rgba(255,255,255,0.05)", border: "rgba(255,255,255,0.1)", color: "rgba(214,235,230,0.5)" };
-}
-
-function formatTime(value: string) {
-  return new Intl.DateTimeFormat("en-SG", { hour: "numeric", minute: "2-digit", hour12: true, month: "short", day: "numeric" }).format(new Date(value));
-}
-
 function ChannelBadge({ channel }: { channel: string }) {
   const isTelegram = channel.toLowerCase().includes("telegram");
   const isDiscord = channel.toLowerCase().includes("discord");
@@ -60,25 +42,41 @@ function ChannelBadge({ channel }: { channel: string }) {
   );
 }
 
+const DELIVERY_LABEL: Record<string, string> = {
+  telegram: "Delivered to Telegram.",
+  discord: "Delivered to Discord.",
+  signalbridge: "Sent. Youth will see it in their SafeNight chat.",
+};
+
 function ConversationThread({ conv, youthName }: { conv: ConvItem; youthName: string }) {
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const [replyText, setReplyText] = useState("");
   const [sending, setSending] = useState(false);
   const [replyStatus, setReplyStatus] = useState<{ ok: boolean; text: string } | null>(null);
+  const [sentMessages, setSentMessages] = useState<Message[]>([]);
   const m = riskMeta(conv.riskLevel);
 
-  const visibleMessages = conv.messages.filter((msg) => msg.senderType !== "system");
+  // Merge any optimistically-sent replies with the loaded thread, de-duped by id
+  // so a later parent refetch (which will include the same message) doesn't double it.
+  const merged = [...conv.messages, ...sentMessages];
+  const seen = new Set<string>();
+  const visibleMessages = merged.filter((msg) => {
+    if (msg.senderType === "system" || seen.has(msg.id)) return false;
+    seen.add(msg.id);
+    return true;
+  });
 
   async function sendReply() {
     if (!replyText.trim() || sending) return;
     setSending(true);
     setReplyStatus(null);
     try {
-      await apiFetch(`/worker/conversations/${conv.id}/messages`, {
-        method: "POST",
-        body: JSON.stringify({ content: replyText.trim() }),
-      });
-      setReplyStatus({ ok: true, text: "Reply sent. Youth will see it in their SafeNight chat." });
+      const res = await apiFetch<{ message: Message; deliveryChannel?: string }>(
+        `/worker/conversations/${conv.id}/messages`,
+        { method: "POST", body: JSON.stringify({ content: replyText.trim() }) }
+      );
+      if (res.message) setSentMessages((prev) => [...prev, res.message]);
+      setReplyStatus({ ok: true, text: DELIVERY_LABEL[res.deliveryChannel ?? "signalbridge"] ?? "Reply sent." });
       setReplyText("");
     } catch (e) {
       setReplyStatus({ ok: false, text: e instanceof Error ? e.message : "Reply failed." });
@@ -103,7 +101,7 @@ function ConversationThread({ conv, youthName }: { conv: ConvItem; youthName: st
             </span>
           )}
         </div>
-        <span className="text-[11px] font-mono text-[rgba(214,235,230,0.3)]">{formatTime(conv.lastMessageAt)}</span>
+        <span className="text-[11px] font-mono text-[rgba(214,235,230,0.3)]">{formatDateTime(conv.lastMessageAt)}</span>
       </div>
 
       {/* Messages */}
@@ -139,7 +137,7 @@ function ConversationThread({ conv, youthName }: { conv: ConvItem; youthName: st
                   {msg.content}
                 </div>
                 <p className={`mt-0.5 text-[10px] font-mono px-1 ${isYouth ? "text-left" : "text-right"}`} style={{ color: "rgba(214,235,230,0.25)" }}>
-                  {isYouth ? youthName : isWorker ? "You" : "SafeNight"} · {formatTime(msg.createdAt)}
+                  {isYouth ? youthName : isWorker ? "You" : "SafeNight"} · {formatDateTime(msg.createdAt)}
                 </p>
               </div>
             </div>
@@ -168,9 +166,13 @@ function ConversationThread({ conv, youthName }: { conv: ConvItem; youthName: st
             {sending ? "…" : "Send"}
           </button>
         </div>
-        {replyStatus && (
+        {replyStatus ? (
           <p className="mt-1.5 text-[11.5px]" style={{ color: replyStatus.ok ? "#6fb8aa" : "#e88d78" }}>
             {replyStatus.text}
+          </p>
+        ) : (
+          <p className="mt-1.5 text-[10.5px]" style={{ color: "rgba(214,235,230,0.3)" }}>
+            Delivers via <span style={{ color: "rgba(214,235,230,0.55)" }}>{conv.channel}</span> · Enter to send
           </p>
         )}
       </div>
@@ -188,22 +190,26 @@ export default function YouthPage({ params }: { params: Promise<{ id: string }> 
     void params.then((value) => setId(value.id));
   }, [params]);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (silent = false) => {
     if (!id) return;
-    setLoading(true);
+    if (!silent) setLoading(true);
     try {
       setData(await apiFetch<Youth>(`/worker/youths/${id}`));
       setError("");
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Could not load youth context");
+      if (!silent) setError(e instanceof Error ? e.message : "Could not load youth context");
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, [id]);
 
   useEffect(() => {
     void load();
   }, [load]);
+
+  // Quietly refresh so new youth messages appear without a manual reload —
+  // paused while the tab is in the background.
+  usePolling(() => void load(true), 12000, Boolean(id));
 
   if (loading) {
     return (

@@ -22,7 +22,7 @@ async function proxy(request: NextRequest, { params }: { params: Promise<{ path:
   const url = new URL(`${base}/${path.join("/")}`);
   url.search = request.nextUrl.search;
   const headers = new Headers();
-  for (const name of ["authorization", "content-type", "accept"]) {
+  for (const name of ["authorization", "content-type", "accept", "cookie"]) {
     const value = request.headers.get(name);
     if (value) headers.set(name, value);
   }
@@ -44,6 +44,15 @@ async function proxy(request: NextRequest, { params }: { params: Promise<{ path:
   for (const name of ["content-type", "content-disposition"]) {
     const value = response.headers.get(name);
     if (value) responseHeaders.set(name, value);
+  }
+  // Relay the auth cookie the backend sets on login/register/guest/logout so it
+  // lands on the browser (same web origin), keeping the JWT out of JS storage.
+  const setCookies =
+    typeof response.headers.getSetCookie === "function"
+      ? response.headers.getSetCookie()
+      : ([response.headers.get("set-cookie")].filter(Boolean) as string[]);
+  for (const cookie of setCookies) {
+    responseHeaders.append("set-cookie", cookie);
   }
   return new Response(response.body, { status: response.status, headers: responseHeaders });
 }

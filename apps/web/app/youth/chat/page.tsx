@@ -3,6 +3,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { apiFetch } from "@/lib/api-client";
 import { readYouthSession, type YouthSession } from "@/lib/youth-session";
+import { useSlowHint } from "@/lib/use-slow-hint";
+import { usePolling } from "@/lib/use-polling";
+import { useMessageStream, type StreamedMessage } from "@/lib/use-message-stream";
 import { useRouter } from "next/navigation";
 
 type ApiMessage = {
@@ -45,6 +48,22 @@ type HandoffSummary = {
 
 function formatTime(value: string) {
   return new Intl.DateTimeFormat("en-SG", { hour: "numeric", minute: "2-digit", hour12: true }).format(new Date(value));
+}
+
+function ChatLoadingScreen() {
+  // After a few seconds, reassure the youth that the wait is the API waking up
+  // (Render free tier cold start), not a stuck screen.
+  const slow = useSlowHint(true);
+  return (
+    <div className="fixed inset-0 flex items-center justify-center px-8" style={{ background: "#060d0c" }}>
+      <div className="flex flex-col items-center gap-3 text-center">
+        <div className="w-8 h-8 rounded-full border-2 border-[#6fb8aa] border-t-transparent animate-spin" />
+        <p className="text-[13px]" style={{ color: "rgba(214,235,230,0.4)" }}>
+          {slow ? "Waking SafeNight up — this can take up to a minute the first time." : "Just a moment…"}
+        </p>
+      </div>
+    </div>
+  );
 }
 
 function TypingDots() {
@@ -105,8 +124,12 @@ export default function YouthChatPage() {
 
       try {
         const data = await apiFetch<{ conversations: Conversation[] }>("/youth/conversations");
-        const latestUnshared = data.conversations.find((item) => !item.consentToHandoff);
-        const nextConversation = latestUnshared ?? (await createConversation());
+        // Resume the most recent conversation (the API returns them newest-first)
+        // so a worker's reply lands in the thread the youth actually has open.
+        // Previously we always opened the latest *unshared* thread, which bumped
+        // the youth onto a fresh conversation right after they consented — so
+        // worker replies into the consented thread never appeared.
+        const nextConversation = data.conversations[0] ?? (await createConversation());
         setConversation(nextConversation);
       } catch (loadError) {
         setError(loadError instanceof Error ? loadError.message : "Could not load chat.");
@@ -125,19 +148,35 @@ export default function YouthChatPage() {
     }
   }, [conversation?.id]);
 
-  useEffect(() => {
-    if (!session?.accessToken || !conversation) return;
-    const conversationId = conversation.id;
-    const interval = setInterval(async () => {
-      if (isSending) return;
-      try {
-        const data = await apiFetch<{ conversations: Conversation[] }>("/youth/conversations");
-        const updated = data.conversations.find((item) => item.id === conversationId) ?? data.conversations[0];
-        if (updated) setConversation(updated);
-      } catch { /* silent */ }
-    }, 5000);
-    return () => clearInterval(interval);
-  }, [session?.accessToken, conversation, isSending]);
+  // Poll for worker replies — paused while the tab is hidden or the handoff
+  // preview modal is open, and skipped mid-send so we don't clobber the
+  // optimistic message.
+  usePolling(
+    () => {
+      if (isSending || !conversation) return;
+      const conversationId = conversation.id;
+      void (async () => {
+        try {
+          const data = await apiFetch<{ conversations: Conversation[] }>("/youth/conversations");
+          const updated = data.conversations.find((item) => item.id === conversationId) ?? data.conversations[0];
+          if (updated) setConversation(updated);
+        } catch { /* silent */ }
+      })();
+    },
+    8000,
+    Boolean(session?.accessToken && conversation && !showHandoffPreview)
+  );
+
+  // Instant delivery: append a streamed message (e.g. a worker's reply) the
+  // moment it arrives. De-duped by id so it never doubles a polled message.
+  const handleStreamedMessage = useCallback((message: StreamedMessage) => {
+    setConversation((current) => {
+      if (!current || message.conversationId !== current.id) return current;
+      if (current.messages.some((m) => m.id === message.id)) return current;
+      return { ...current, messages: [...current.messages, message] };
+    });
+  }, []);
+  useMessageStream(conversation?.id ?? null, handleStreamedMessage);
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -270,14 +309,7 @@ export default function YouthChatPage() {
   }
 
   if (isLoading) {
-    return (
-      <div className="fixed inset-0 flex items-center justify-center" style={{ background: "#060d0c" }}>
-        <div className="flex flex-col items-center gap-3">
-          <div className="w-8 h-8 rounded-full border-2 border-[#6fb8aa] border-t-transparent animate-spin" />
-          <p className="text-[13px]" style={{ color: "rgba(214,235,230,0.4)" }}>Just a moment…</p>
-        </div>
-      </div>
-    );
+    return <ChatLoadingScreen />;
   }
 
   if (!conversation) {

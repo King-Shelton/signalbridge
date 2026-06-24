@@ -13,6 +13,7 @@ Synchronous DB/AI work is offloaded to a thread executor so the event loop stays
 import asyncio
 import hashlib
 import logging
+from datetime import timedelta
 
 import discord
 from sqlalchemy import select
@@ -39,8 +40,13 @@ from app.services.ai_service import (
     persist_signals,
 )
 from app.services.notifications import notify_worker
+from app.services.rate_limit import allow as rate_allow
 from app.services.safenight_service import assess_safe_night_message
 from app.timeutil import naive_utcnow
+
+# Per-user message ceiling for the public DM intake (mirrors the Telegram guard).
+_RATE_MAX_EVENTS = 15
+_RATE_WINDOW_SECONDS = 60.0
 
 logger = logging.getLogger("signalbridge.discord_bot")
 
@@ -220,12 +226,14 @@ def _handle_message(discord_user_id: str, content: str, display_name: str = "") 
     try:
         youth = db.scalar(select(YouthProfile).where(YouthProfile.discord_user_id == discord_user_id))
 
-        # Auto-create on first DM — no !link required
+        # First-ever DM: create the profile in awaiting-name state and ask for a
+        # name. Crucially we do NOT treat this opening message as the name —
+        # otherwise "i'm being bullied" would become the youth's display name.
         if youth is None:
-            youth = _get_or_create_public_intake_discord_youth(db, discord_user_id, display_name)
-            db.refresh(youth)
+            _get_or_create_public_intake_discord_youth(db, discord_user_id, display_name)
+            return _WELCOME_NEW
 
-        # Ask for name before the pipeline if this is a brand-new intake
+        # Their next message after the welcome is taken as their name.
         if _is_awaiting_name(youth):
             clean_name = _record_intake_name(db, youth, content)
             db.refresh(youth)
@@ -279,7 +287,8 @@ def _handle_message(discord_user_id: str, content: str, display_name: str = "") 
             sender_type=SenderType.ai,
             content=reply_content,
             safety_status=assessment.safety_status,
-            created_at=now,
+            # +1ms so the reply always sorts after the youth message in the thread.
+            created_at=now + timedelta(milliseconds=1),
         )
         db.add(ai_reply)
         db.flush()
@@ -364,6 +373,12 @@ class SafeNightDiscordBot(discord.Client):
         if not text:
             return
 
+        # Drop floods before any DB work or profile creation.
+        if not rate_allow(f"dc:{discord_user_id}", _RATE_MAX_EVENTS, _RATE_WINDOW_SECONDS):
+            logger.warning("Discord rate limit hit for user %s", discord_user_id)
+            await message.channel.send("You're sending messages very quickly — give me a moment to catch up. 💛")
+            return
+
         # If the youth hasn't been seen before, send the welcome + name prompt
         # by passing the message through _handle_message which handles the intake flow.
         # We still support !link for youths who prefer to link an existing account.
@@ -379,22 +394,9 @@ class SafeNightDiscordBot(discord.Client):
 
         display_name = str(message.author.display_name or message.author.name or "")
 
-        # First-ever DM — check if profile exists; if not, send welcome + name prompt
-        def _is_new_user() -> bool:
-            db = SessionLocal()
-            try:
-                return db.scalar(select(YouthProfile).where(YouthProfile.discord_user_id == discord_user_id)) is None
-            finally:
-                db.close()
-
-        is_new = await asyncio.to_thread(_is_new_user)
-        if is_new:
-            await message.channel.send(_WELCOME_NEW)
-            # Still fall through so the intake creates the profile and stores their first message as the name
-            await asyncio.to_thread(_handle_message, discord_user_id, text, display_name)
-            return
-
-        # Regular message — run SafeNight pipeline in thread executor
+        # _handle_message owns the whole intake flow: it returns the welcome on a
+        # first-ever DM, records the name on the next message, and otherwise runs
+        # the full SafeNight pipeline. One round-trip, no double welcome.
         async with message.channel.typing():
             reply = await asyncio.to_thread(_handle_message, discord_user_id, text, display_name)
         await message.channel.send(reply)
@@ -410,6 +412,10 @@ def build_discord_bot() -> "SafeNightDiscordBot | None":
 
     intents = discord.Intents.default()
     intents.dm_messages = True
+    # Privileged intent: without it message.content is empty and every DM is
+    # dropped. Must ALSO be enabled in the Discord Developer Portal
+    # (Bot → Privileged Gateway Intents → Message Content Intent).
+    intents.message_content = True
     bot = SafeNightDiscordBot(intents=intents)
     _bot_instance = bot
     return bot

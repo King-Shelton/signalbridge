@@ -9,11 +9,13 @@ import {
   ClipboardList,
   UsersRound,
   ScrollText,
-  ShieldCheck,
   LogOut,
+  Menu,
+  X,
 } from "lucide-react";
 import { RoleGate } from "@/components/RoleGate";
-import { clearAuthSession, readAuthSession } from "@/lib/auth-session";
+import { readAuthSession } from "@/lib/auth-session";
+import { logout } from "@/lib/api-client";
 
 const NAV = [
   { href: "/worker/cockpit", label: "Worker Cockpit", desc: "Today's queue", Icon: LayoutDashboard },
@@ -27,14 +29,20 @@ export default function WorkerLayout({ children }: { children: React.ReactNode }
   const pathname = usePathname();
   const router = useRouter();
   const [user, setUser] = useState<{ name?: string } | null>(null);
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
   useEffect(() => {
     const session = readAuthSession();
     if (session?.user) setUser({ name: session.user.name });
   }, []);
 
-  function handleLogout() {
-    clearAuthSession();
+  // Close the mobile drawer whenever the route changes.
+  useEffect(() => {
+    setMobileNavOpen(false);
+  }, [pathname]);
+
+  async function handleLogout() {
+    await logout();
     router.push("/login");
   }
 
@@ -56,8 +64,29 @@ export default function WorkerLayout({ children }: { children: React.ReactNode }
         <div className="absolute inset-0" style={{ opacity: 0.3, backgroundImage: "radial-gradient(rgba(255,255,255,0.04) 1px, transparent 1px)", backgroundSize: "36px 36px" }} />
       </div>
 
-      {/* Sidebar */}
-      <aside className="relative z-10 flex flex-col w-[244px] flex-shrink-0 py-6 px-4" style={{ borderRight: "1px solid rgba(255,255,255,0.08)", background: "rgba(6,13,12,0.8)", backdropFilter: "blur(8px)" }}>
+      {/* Mobile drawer backdrop */}
+      {mobileNavOpen && (
+        <div
+          className="lg:hidden absolute inset-0 z-20 bg-black/60"
+          onClick={() => setMobileNavOpen(false)}
+          aria-hidden="true"
+        />
+      )}
+
+      {/* Sidebar — static on desktop, an off-canvas drawer on mobile */}
+      <aside
+        className={`absolute lg:relative inset-y-0 left-0 z-30 flex flex-col w-[244px] flex-shrink-0 py-6 px-4 transform transition-transform duration-200 lg:translate-x-0 ${mobileNavOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"}`}
+        style={{ borderRight: "1px solid rgba(255,255,255,0.08)", background: "rgba(6,13,12,0.94)", backdropFilter: "blur(8px)" }}
+      >
+        {/* Close button (mobile only) */}
+        <button
+          type="button"
+          onClick={() => setMobileNavOpen(false)}
+          className="lg:hidden absolute top-4 right-4 p-1.5 rounded-[9px] text-[rgba(214,235,230,0.5)] hover:bg-white/5"
+          aria-label="Close menu"
+        >
+          <X size={18} strokeWidth={1.75} />
+        </button>
         {/* Logo */}
         <div className="flex items-center gap-3 px-2 mb-7">
           <div className="w-10 h-10 rounded-[12px] flex items-center justify-center flex-shrink-0" style={{ background: "linear-gradient(160deg, #2a8576, #164b44)", boxShadow: "0 6px 18px rgba(31,111,100,0.4)" }}>
@@ -133,9 +162,33 @@ export default function WorkerLayout({ children }: { children: React.ReactNode }
       </aside>
 
       {/* Main content */}
-      <main className="relative z-10 flex-1 overflow-y-auto">
-        {children}
-      </main>
+      <div className="relative z-10 flex-1 flex flex-col min-w-0">
+        {/* Mobile top bar */}
+        <div className="lg:hidden flex items-center gap-3 px-4 py-3 flex-shrink-0" style={{ borderBottom: "1px solid rgba(255,255,255,0.08)", background: "rgba(6,13,12,0.8)", backdropFilter: "blur(8px)" }}>
+          <button
+            type="button"
+            onClick={() => setMobileNavOpen(true)}
+            className="p-2 rounded-[9px] text-[rgba(214,235,230,0.7)] hover:bg-white/5"
+            aria-label="Open menu"
+          >
+            <Menu size={18} strokeWidth={1.75} />
+          </button>
+          <div className="flex items-center gap-2">
+            <div className="w-7 h-7 rounded-[8px] flex items-center justify-center flex-shrink-0" style={{ background: "linear-gradient(160deg, #2a8576, #164b44)" }}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#eaf6f2" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M4.9 16.1C1 12.2 1 5.8 4.9 1.9"/><path d="M7.8 4.7a6.14 6.14 0 0 0-.8 7.5"/><circle cx="12" cy="9" r="2"/>
+                <path d="M16.2 4.8c2 2 2.26 5.11.8 7.47"/><path d="M19.1 1.9a9.96 9.96 0 0 1 0 14.1"/>
+                <path d="M9.5 18h5"/><path d="m8 22 4-11 4 11"/>
+              </svg>
+            </div>
+            <span className="text-[14px] font-semibold text-[#f1f6f4]"><span className="text-[#6fb8aa]">Signal</span>Bridge</span>
+          </div>
+        </div>
+
+        <main className="flex-1 overflow-y-auto">
+          {children}
+        </main>
+      </div>
     </div>
     </RoleGate>
   );

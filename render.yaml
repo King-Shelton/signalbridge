@@ -27,6 +27,18 @@ services:
         value: openai/gpt-4o-mini
       - key: SIGNALBRIDGE_CORS_ORIGINS
         value: https://signalbridge-web.onrender.com
+      # Lets the API auto-register its Telegram webhook on startup.
+      - key: SIGNALBRIDGE_PUBLIC_BASE_URL
+        value: https://signalbridge-api-6wc6.onrender.com
+      # Set these in the Render dashboard (mark as Secret) to enable the bots.
+      - key: SIGNALBRIDGE_TELEGRAM_BOT_TOKEN
+        sync: false
+      - key: SIGNALBRIDGE_TELEGRAM_WEBHOOK_SECRET
+        sync: false
+      - key: SIGNALBRIDGE_DISCORD_BOT_TOKEN
+        sync: false
+      - key: SIGNALBRIDGE_DISCORD_WEBHOOK_URL
+        sync: false
 
   - type: web
     name: signalbridge-web

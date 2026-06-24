@@ -9,6 +9,7 @@ Flow:
 
 import logging
 import hashlib
+from datetime import timedelta
 from typing import Any
 
 import httpx
@@ -37,7 +38,13 @@ from app.services.ai_service import (
     upsert_handoff_brief_with_ai,
 )
 from app.services.notifications import notify_worker
+from app.services.rate_limit import allow as rate_allow
 from app.services.safenight_service import assess_safe_night_message
+
+# Public intake guard: per-chat message ceiling. Generous enough for a real
+# distressed youth typing fast, low enough to stop a script spamming new profiles.
+_RATE_MAX_EVENTS = 15
+_RATE_WINDOW_SECONDS = 60.0
 from app.models.handoff_brief import HandoffBrief
 from app.timeutil import naive_utcnow
 
@@ -66,6 +73,45 @@ _NAME_RECORDED = "Thanks, {name}. I'm here with you now. What feels hardest toni
 
 def _bot_url(token: str, method: str) -> str:
     return f"https://api.telegram.org/bot{token}/{method}"
+
+
+def register_webhook_if_configured() -> str | None:
+    """Tell Telegram where to deliver updates.
+
+    Called once on API startup. Telegram only delivers updates to a webhook it
+    has been told about, so without this the bot silently receives nothing even
+    when the token is valid. Returns the registered URL, or None if skipped.
+    """
+    settings = get_settings()
+    token = settings.telegram_bot_token
+    base = (settings.public_base_url or "").rstrip("/")
+    if not token or not base:
+        logger.info(
+            "Telegram webhook not registered (token=%s, public_base_url=%s).",
+            "set" if token else "missing",
+            base or "missing",
+        )
+        return None
+
+    webhook_url = f"{base}/telegram/webhook"
+    payload: dict[str, Any] = {
+        "url": webhook_url,
+        "allowed_updates": ["message", "edited_message"],
+        "drop_pending_updates": True,
+    }
+    if settings.telegram_webhook_secret:
+        payload["secret_token"] = settings.telegram_webhook_secret
+
+    try:
+        with httpx.Client(timeout=10) as client:
+            r = client.post(_bot_url(token, "setWebhook"), json=payload)
+        if r.is_success:
+            logger.info("Telegram webhook registered at %s", webhook_url)
+            return webhook_url
+        logger.warning("Telegram setWebhook failed: %s %s", r.status_code, r.text[:200])
+    except Exception as exc:
+        logger.warning("Telegram setWebhook error: %s", exc)
+    return None
 
 
 def _send_telegram_message(token: str, chat_id: str | int, text: str) -> None:
@@ -270,7 +316,8 @@ def _process_youth_message(
         sender_type=SenderType.ai,
         content=reply_content,
         safety_status=assessment.safety_status,
-        created_at=now,
+        # +1ms so the reply always sorts after the youth message in the thread.
+        created_at=now + timedelta(milliseconds=1),
     )
     db.add(ai_reply)
     db.flush()
@@ -362,6 +409,12 @@ async def telegram_webhook(
     text: str = (message.get("text") or "").strip()
 
     if not chat_id or not text:
+        return {"ok": "true"}
+
+    # Drop floods before any DB work or profile creation.
+    if not rate_allow(f"tg:{chat_id}", _RATE_MAX_EVENTS, _RATE_WINDOW_SECONDS):
+        logger.warning("Telegram rate limit hit for chat %s", chat_id)
+        _send_telegram_message(token, chat_id, "You're sending messages very quickly — give me a moment to catch up. 💛")
         return {"ok": "true"}
 
     # /start or /start <youth_id> from a Telegram deep link.
