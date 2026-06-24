@@ -13,8 +13,11 @@ from app.database import get_db
 from app.models import AiRun, AuditLog, Case, CaseNote, Conversation, HandoffBrief, Message, Notification, Signal, User, YouthProfile
 from app.models.case import CaseStatus
 from app.models.handoff_brief import ReviewStatus
+from app.models.message import SenderType
+from app.config import get_settings
 from app.models.user import UserRole
 from app.services.auth_service import require_roles
+from app.services.notifications import send_telegram
 from app.timeutil import naive_utcnow, to_sgt
 
 router = APIRouter(tags=["operations"])
@@ -32,6 +35,10 @@ class NoteCreate(BaseModel):
 
 class ReviewUpdate(BaseModel):
     status: ReviewStatus
+
+
+class WorkerMessageCreate(BaseModel):
+    content: str = Field(min_length=1, max_length=2000)
 
 
 class AssignmentUpdate(BaseModel):
@@ -54,6 +61,16 @@ def require_case_access(db: Session, case_id: str, user: User) -> Case:
         raise HTTPException(status_code=404, detail="Case not found")
     if user.role == UserRole.worker and item.assigned_worker_id != user.id:
         raise HTTPException(status_code=403, detail="Case is assigned to another worker")
+    return item
+
+
+def require_conversation_access(db: Session, conversation_id: str, user: User) -> Conversation:
+    item = db.get(Conversation, conversation_id)
+    if item is None:
+        raise HTTPException(status_code=404, detail="Conversation not found")
+    youth = db.get(YouthProfile, item.youth_id)
+    if user.role == UserRole.worker and (not youth or youth.assigned_worker_id != user.id):
+        raise HTTPException(status_code=403, detail="Conversation is assigned to another worker")
     return item
 
 
@@ -156,13 +173,66 @@ def worker_cockpit(current_user: User = Depends(worker_required), db: Session = 
 
 @router.get("/worker/conversations/{conversation_id}")
 def worker_conversation(conversation_id: str, current_user: User = Depends(worker_required), db: Session = Depends(get_db)) -> dict:
-    item = db.get(Conversation, conversation_id)
-    if item is None:
-        raise HTTPException(status_code=404, detail="Conversation not found")
-    youth = db.get(YouthProfile, item.youth_id)
-    if current_user.role == UserRole.worker and (not youth or youth.assigned_worker_id != current_user.id):
-        raise HTTPException(status_code=403, detail="Conversation is assigned to another worker")
+    item = require_conversation_access(db, conversation_id, current_user)
     return conversation_payload(db, item)
+
+
+@router.post("/worker/conversations/{conversation_id}/messages", status_code=status.HTTP_201_CREATED)
+def create_worker_message(
+    conversation_id: str,
+    payload: WorkerMessageCreate,
+    current_user: User = Depends(worker_required),
+    db: Session = Depends(get_db),
+) -> dict:
+    conversation = require_conversation_access(db, conversation_id, current_user)
+    youth = db.get(YouthProfile, conversation.youth_id)
+    content = payload.content.strip()
+    if not content:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Message content cannot be blank")
+
+    delivery_channel = "signalbridge"
+    if conversation.channel.lower() == "telegram":
+        if youth is None or not youth.telegram_chat_id:
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Youth has not linked Telegram yet")
+        if not get_settings().telegram_bot_token:
+            raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Telegram is not configured")
+        delivery_channel = "telegram"
+
+    now = naive_utcnow()
+    message = Message(
+        conversation_id=conversation.id,
+        sender_type=SenderType.worker,
+        content=content,
+        created_at=now,
+    )
+    conversation.last_message_at = now
+    db.add(message)
+    audit(
+        db,
+        current_user.id,
+        "worker_message_sent",
+        "conversation",
+        conversation.id,
+        {"channel": delivery_channel, "messageId": message.id},
+    )
+    db.commit()
+    db.refresh(message)
+
+    if delivery_channel == "telegram":
+        send_telegram(youth.telegram_chat_id, f"{current_user.name}: {content}")
+
+    return {
+        "message": {
+            "id": message.id,
+            "conversationId": message.conversation_id,
+            "senderType": message.sender_type.value,
+            "content": message.content,
+            "safetyStatus": message.safety_status,
+            "createdAt": message.created_at.isoformat() + "Z",
+        },
+        "conversation": conversation_payload(db, conversation),
+        "deliveryChannel": delivery_channel,
+    }
 
 
 @router.get("/worker/handoffs/{handoff_id}")

@@ -11,14 +11,19 @@ os.environ["SIGNALBRIDGE_DATABASE_URL"] = f"sqlite:///{DB_PATH.as_posix()}"
 # enough because pydantic-settings still reads the key from the .env file; an
 # explicit empty string overrides the .env value so no live model call is made.
 os.environ["SIGNALBRIDGE_OPENAI_API_KEY"] = ""
+os.environ["SIGNALBRIDGE_TELEGRAM_BOT_TOKEN"] = "test-token"
+os.environ["SIGNALBRIDGE_TELEGRAM_WEBHOOK_SECRET"] = "test-secret"
 
 from fastapi.testclient import TestClient
 from jose import jwt
 
 from app.config import get_settings
-from app.database import Base, engine
+from app.database import Base, SessionLocal, engine
 from app.main import app
+from app.models.conversation import Conversation
 from app.models.message import Message, SenderType
+from app.models.youth_profile import YouthProfile
+from app.routes import operations, telegram_bot
 from app.services.ai_service import CRITICAL_FALLBACK_REPLY, generate_safenight_reply
 from app.services.safenight_service import assess_safe_night_message
 from seed import seed
@@ -83,6 +88,59 @@ def test_cockpit_handoff_pdf_case_note_and_status() -> None:
     case_id = mira["case"]["id"]
     assert client.patch(f"/worker/cases/{case_id}/status", headers=headers, json={"status": "in_progress"}).status_code == 200
     assert client.post(f"/worker/cases/{case_id}/notes", headers=headers, json={"content": "Safety check scheduled for this morning."}).status_code == 201
+
+
+def test_telegram_deep_link_and_worker_reply_round_trip(monkeypatch) -> None:
+    outbound: list[tuple[str, str]] = []
+    monkeypatch.setattr(telegram_bot, "_send_telegram_message", lambda _token, chat_id, text: outbound.append((str(chat_id), text)))
+    monkeypatch.setattr(operations, "send_telegram", lambda chat_id, text: outbound.append((str(chat_id), text)))
+
+    chat_id = "test_chat_afiq"
+    headers = {"X-Telegram-Bot-Api-Secret-Token": "test-secret"}
+    start_payload = {
+        "message": {
+            "chat": {"id": chat_id},
+            "text": "/start youth_afiq",
+        }
+    }
+    assert client.post("/telegram/webhook", headers=headers, json=start_payload).status_code == 200
+
+    with SessionLocal() as db:
+        youth = db.get(YouthProfile, "youth_afiq")
+        assert youth.telegram_chat_id == chat_id
+
+    for text in [
+        "Someone keeps editing my photos in the class chat and I don't want to go to school tomorrow.",
+        "yes please share a short note with my worker",
+    ]:
+        response = client.post("/telegram/webhook", headers=headers, json={"message": {"chat": {"id": chat_id}, "text": text}})
+        assert response.status_code == 200
+
+    worker_headers = auth("worker1@signalbridge.test")
+    rows = client.get("/worker/cockpit", headers=worker_headers).json()["conversations"]
+    telegram_row = next(row for row in rows if row["youthId"] == "youth_afiq" and row["channel"] == "Telegram")
+    assert telegram_row["riskScore"] >= 40
+    assert telegram_row["consentToHandoff"] is True
+    assert telegram_row["handoffId"]
+
+    reply = client.post(
+        f"/worker/conversations/{telegram_row['id']}/messages",
+        headers=worker_headers,
+        json={"content": "I read the note you allowed SignalBridge to prepare. You do not have to repeat everything."},
+    )
+
+    assert reply.status_code == 201
+    assert reply.json()["deliveryChannel"] == "telegram"
+    assert outbound[-1] == (
+        chat_id,
+        "Aisha Rahman: I read the note you allowed SignalBridge to prepare. You do not have to repeat everything.",
+    )
+
+    with SessionLocal() as db:
+        conversation = db.get(Conversation, telegram_row["id"])
+        last_message = db.query(Message).filter_by(conversation_id=conversation.id).order_by(Message.created_at.desc()).first()
+        assert last_message.sender_type == SenderType.worker
+        assert conversation.last_message_at == last_message.created_at
 
 
 def test_consent_required_and_fallback_handoff_generation() -> None:
