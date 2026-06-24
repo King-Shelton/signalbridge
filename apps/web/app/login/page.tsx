@@ -12,7 +12,7 @@ const DEMOS = [
     sublabel: "Youth · Mira Tan",
     description: "After-hours chat with consent-gated handoff",
     email: "mira@signalbridge.test",
-    password: "password123",
+    password: "password",
     icon: (
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
         <path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/>
@@ -29,7 +29,7 @@ const DEMOS = [
     sublabel: "Worker · Aisha Rahman",
     description: "Signal Radar, handoff briefs, case workflow",
     email: "worker1@signalbridge.test",
-    password: "password123",
+    password: "password",
     icon: (
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
         <path d="M19.07 4.93A10 10 0 0 0 6.99 3.34"/><path d="M4 6h.01"/><path d="M2.29 9.62A10 10 0 1 0 21.31 8.35"/><path d="M16.24 7.76A6 6 0 1 0 8.23 16.67"/><path d="M12 18h.01"/><path d="M17.99 11.66A6 6 0 0 1 15.77 16.67"/><circle cx="12" cy="12" r="2"/><path d="m13.41 10.59 5.66-5.66"/>
@@ -46,7 +46,7 @@ const DEMOS = [
     sublabel: "Supervisor · Daniel Lim",
     description: "Worker load monitor, audit log, case reassignment",
     email: "supervisor@signalbridge.test",
-    password: "password123",
+    password: "password",
     icon: (
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
         <path d="M18 21a8 8 0 0 0-16 0"/><circle cx="10" cy="8" r="5"/><path d="M22 20c0-3.37-2-6.5-4-8a5 5 0 0 0-.45-8.3"/>

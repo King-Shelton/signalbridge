@@ -4,8 +4,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.config import get_settings
 from app.models import AiRun, AuditLog, Case, CaseNote, Conversation, HandoffBrief, Message, Notification, Signal, User, YouthProfile
 from app.routes import ai, auth, conversations, constants, health, operations, signals, simulator, worker, youth
+from app.services.discord_bot import DiscordBotService
 
 settings = get_settings()
+discord_bot: DiscordBotService | None = None
 
 app = FastAPI(
     title=settings.app_name,
@@ -33,6 +35,20 @@ app.include_router(signals.router)
 app.include_router(simulator.router)
 app.include_router(worker.signals_router, prefix="/signals", tags=["signals"])
 app.include_router(conversations.router, tags=["conversations"])
+
+
+@app.on_event("startup")
+async def start_discord_bot() -> None:
+    global discord_bot
+    if settings.discord_bot_token:
+        discord_bot = DiscordBotService(settings.discord_bot_token)
+        discord_bot.start()
+
+
+@app.on_event("shutdown")
+async def stop_discord_bot() -> None:
+    if discord_bot is not None:
+        await discord_bot.stop()
 
 
 @app.get("/version", tags=["meta"])

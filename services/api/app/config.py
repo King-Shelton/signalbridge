@@ -17,6 +17,7 @@ class Settings(BaseSettings):
     openai_model: str = "gpt-4.1-mini"
     openai_timeout_seconds: float = 12.0
     ai_prompt_version: str = "handoff-v1"
+    discord_bot_token: str | None = None
 
     model_config = SettingsConfigDict(env_file=".env", env_prefix="SIGNALBRIDGE_")
 
