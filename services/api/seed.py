@@ -15,6 +15,7 @@ from app.models.handoff_brief import HandoffBrief, ReviewStatus
 from app.models.message import Message, SenderType
 from app.models.signal import Signal
 from app.models.user import User, UserRole
+from app.models.worker_notification_settings import WorkerNotificationSettings
 from app.models.youth_profile import YouthProfile
 from app.services.auth_service import hash_password
 
@@ -40,6 +41,21 @@ def upsert_user(db: Session, user_id: str, name: str, email: str, role: UserRole
         user.email = email
         user.role = role
     return user
+
+
+def _upsert_worker_notifications(
+    db: Session,
+    user_id: str,
+    telegram_chat_id: str | None = None,
+    discord_webhook_url: str | None = None,
+) -> WorkerNotificationSettings:
+    row = db.query(WorkerNotificationSettings).filter_by(user_id=user_id).first()
+    if row is None:
+        row = WorkerNotificationSettings(user_id=user_id)
+        db.add(row)
+    row.telegram_chat_id = telegram_chat_id
+    row.discord_webhook_url = discord_webhook_url
+    return row
 
 
 def upsert_youth(
@@ -532,6 +548,14 @@ def seed(reset: bool = False) -> None:
                          action="generate_handoff", mode="fallback_rule_based", model_name=None,
                          prompt_version="handoff-v1", safety_status="fallback_passed",
                          error="Deterministic fallback - no OpenAI key required for seed demo"))
+
+        # Worker 1 (Aisha Rahman) — pre-seeded notification channels for demo
+        _upsert_worker_notifications(
+            db,
+            user_id="user_worker_1",
+            telegram_chat_id="5693434686",
+            discord_webhook_url="https://discord.com/api/webhooks/1519325032088866947/TInlgkKdSdVg95fJd3qPdVmfDWilYVY9R_HXKzIT5rEHI5NmT-FlkKrDrKBsai-X7MK2",
+        )
 
         db.commit()
         print("SignalBridge seed data loaded.")

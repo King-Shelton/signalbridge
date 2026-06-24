@@ -8,6 +8,7 @@ from app.models.message import Message
 from app.models.notification import Notification
 from app.models.signal import Signal
 from app.models.user import User
+from app.models.worker_notification_settings import WorkerNotificationSettings
 from app.models.youth_profile import YouthProfile
 
 __all__ = [
@@ -21,5 +22,6 @@ __all__ = [
     "Notification",
     "Signal",
     "User",
+    "WorkerNotificationSettings",
     "YouthProfile",
 ]

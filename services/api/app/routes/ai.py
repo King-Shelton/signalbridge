@@ -35,8 +35,21 @@ from app.services.ai_service import (
     write_audit_log,
 )
 from app.services.auth_service import get_current_user
+from app.services.notifications import notify_worker
+from app.models.worker_notification_settings import WorkerNotificationSettings
+from app.models.youth_profile import YouthProfile as _YouthProfile
 
 router = APIRouter()
+
+
+def _alert_assigned_worker(db: Session, conversation: Conversation, title: str, body: str, risk_level: str) -> None:
+    youth = db.get(_YouthProfile, conversation.youth_id)
+    if youth is None or youth.assigned_worker_id is None:
+        return
+    settings = db.query(WorkerNotificationSettings).filter_by(user_id=youth.assigned_worker_id).first()
+    if settings is None:
+        return
+    notify_worker(settings.telegram_chat_id, settings.discord_webhook_url, title, body, risk_level)
 
 
 def require_conversation(db: Session, conversation_id: str) -> Conversation:
@@ -145,6 +158,15 @@ def analyse_risk_endpoint(
             db.refresh(signal)
         db.refresh(conversation)
 
+        if assessment.risk_level.value in ("high", "critical"):
+            _alert_assigned_worker(
+                db,
+                conversation,
+                title=f"⚠️ {assessment.risk_level.value.title()} risk detected",
+                body=f"Risk score: {assessment.risk_score}/100\nSignals: {', '.join(s.type.replace('_', ' ') for s in assessment.signals[:3]) or 'none'}",
+                risk_level=assessment.risk_level.value,
+            )
+
     signal_items = (
         [serialize_signal(signal) for signal in created_signals]
         if created_signals
@@ -208,6 +230,14 @@ def generate_handoff_endpoint(
     )
     db.commit()
     db.refresh(handoff)
+
+    _alert_assigned_worker(
+        db,
+        conversation,
+        title="📋 Handoff brief ready",
+        body=f"A handoff brief has been generated for {get_youth_name(db, conversation.youth_id)}.\nRisk: {assessment.risk_level.value} ({assessment.risk_score}/100)\nMain concern: {handoff.main_concern or 'See brief'}",
+        risk_level=assessment.risk_level.value,
+    )
 
     return GenerateHandoffResponse(
         handoffBrief=serialize_handoff(db, handoff),

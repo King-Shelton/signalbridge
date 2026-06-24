@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { apiFetch } from "@/lib/api-client";
 import { readYouthSession, type YouthSession } from "@/lib/youth-session";
+import { useRouter } from "next/navigation";
 
 type ApiMessage = {
   id: string;
@@ -32,17 +33,27 @@ type Conversation = {
   signals: ApiSignal[];
 };
 
+type HandoffSummary = {
+  mainConcern: string;
+  emotionalState: string;
+  keyQuote?: string;
+  whatAiDid?: string;
+  whatNotToRepeat?: string;
+  recommendedNextStep?: string;
+  createdAt?: string;
+};
+
 function formatTime(value: string) {
   return new Intl.DateTimeFormat("en-SG", { hour: "numeric", minute: "2-digit", hour12: true }).format(new Date(value));
 }
 
 function TypingDots() {
   return (
-    <div className="flex items-center gap-1.5 px-1 py-1">
+    <div className="flex items-center gap-1.5 px-1 py-0.5">
       {[0, 1, 2].map((i) => (
         <span
           key={i}
-          className="w-[6px] h-[6px] rounded-full bg-[#6fb8aa]"
+          className="w-[5px] h-[5px] rounded-full bg-[#6fb8aa]"
           style={{ animation: `sb-dot 1.3s ease-in-out ${i * 0.22}s infinite` }}
         />
       ))}
@@ -52,42 +63,36 @@ function TypingDots() {
 
 export default function YouthChatPage() {
   const scrollRef = useRef<HTMLDivElement | null>(null);
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const router = useRouter();
   const [session, setSession] = useState<YouthSession | null>(null);
   const [youthName, setYouthName] = useState<string>("You");
   const [conversation, setConversation] = useState<Conversation | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSending, setIsSending] = useState(false);
   const [isSavingConsent, setIsSavingConsent] = useState(false);
+  const [consentDismissed, setConsentDismissed] = useState(false);
   const [error, setError] = useState("");
   const [draft, setDraft] = useState("");
+  const [showHandoffPreview, setShowHandoffPreview] = useState(false);
+  const [handoffData, setHandoffData] = useState<HandoffSummary | null>(null);
+  const [handoffLoading, setHandoffLoading] = useState(false);
+  const [isResetting, setIsResetting] = useState(false);
+  const [showResetConfirm, setShowResetConfirm] = useState(false);
 
   const messages = useMemo(() => {
     if (!conversation) return [];
-    return [
-      {
-        id: "after-hours-banner",
-        conversationId: conversation.id,
-        senderType: "system" as const,
-        content: "It may be after your worker's usual hours. SafeNight can stay with you and help prepare a note only if you allow it.",
-        createdAt: new Date().toISOString(),
-      },
-      ...conversation.messages,
-    ];
+    return conversation.messages.filter((m) => m.senderType !== "system");
   }, [conversation]);
 
-  // Load session + conversation
   useEffect(() => {
     async function loadConversation() {
       const currentSession = readYouthSession();
       setSession(currentSession);
-
-      // Pull youth name from session
-      if (currentSession?.name) {
-        setYouthName(currentSession.name);
-      }
+      if (currentSession?.name) setYouthName(currentSession.name);
 
       if (!currentSession?.accessToken) {
-        setError("Please log in again to continue your conversation.");
+        setError("Please log in again to continue.");
         setIsLoading(false);
         return;
       }
@@ -104,7 +109,14 @@ export default function YouthChatPage() {
     loadConversation();
   }, []);
 
-  // 5-second polling
+  // Restore dismissed consent from sessionStorage when conversation loads
+  useEffect(() => {
+    if (!conversation?.id) return;
+    if (sessionStorage.getItem(`consent_dismissed_${conversation.id}`) === "true") {
+      setConsentDismissed(true);
+    }
+  }, [conversation?.id]);
+
   useEffect(() => {
     if (!session?.accessToken || !conversation) return;
     const conversationId = conversation.id;
@@ -119,17 +131,24 @@ export default function YouthChatPage() {
     return () => clearInterval(interval);
   }, [session?.accessToken, conversation, isSending]);
 
-  // Auto-scroll
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
     }
   }, [messages.length, isSending]);
 
+  function handleDraftChange(e: React.ChangeEvent<HTMLTextAreaElement>) {
+    setDraft(e.target.value);
+    const el = e.target;
+    el.style.height = "auto";
+    el.style.height = `${Math.min(el.scrollHeight, 120)}px`;
+  }
+
   async function sendMessage() {
     const content = draft.trim();
     if (!content || !conversation || !session?.accessToken) return;
     setDraft("");
+    if (textareaRef.current) textareaRef.current.style.height = "auto";
     setError("");
     setIsSending(true);
 
@@ -143,15 +162,35 @@ export default function YouthChatPage() {
     setConversation({ ...conversation, messages: [...conversation.messages, optimisticMessage] });
 
     try {
-      const data = await apiFetch<{ conversation?: Conversation; message?: ApiMessage; aiReply?: ApiMessage }>(
+      const data = await apiFetch<{
+        conversation?: Conversation;
+        message?: ApiMessage;
+        aiReply?: ApiMessage;
+        aiTriggeredConsent?: boolean;
+      }>(
         `/youth/conversations/${conversation.id}/messages`,
         { method: "POST", body: JSON.stringify({ content }) }
       );
       if (data.conversation) {
         setConversation(data.conversation);
+        // If the AI triggered consent on this turn, clear any dismissed state so
+        // the "See what your worker will receive" button appears immediately.
+        if (data.aiTriggeredConsent && data.conversation.id) {
+          sessionStorage.removeItem(`consent_dismissed_${data.conversation.id}`);
+          setConsentDismissed(false);
+        }
       } else if (data.aiReply) {
         setConversation((current) =>
-          current ? { ...current, messages: [...current.messages.filter((m) => m.id !== optimisticMessage.id), { ...optimisticMessage, id: data.message?.id ?? optimisticMessage.id }, data.aiReply!] } : current
+          current
+            ? {
+                ...current,
+                messages: [
+                  ...current.messages.filter((m) => m.id !== optimisticMessage.id),
+                  { ...optimisticMessage, id: data.message?.id ?? optimisticMessage.id },
+                  data.aiReply!,
+                ],
+              }
+            : current
         );
       }
     } catch (sendError) {
@@ -165,6 +204,13 @@ export default function YouthChatPage() {
   }
 
   async function updateConsent(consentGiven: boolean) {
+    if (!consentGiven) {
+      setConsentDismissed(true);
+      if (conversation?.id) {
+        sessionStorage.setItem(`consent_dismissed_${conversation.id}`, "true");
+      }
+      return;
+    }
     if (!conversation || !session?.accessToken) return;
     setError("");
     setIsSavingConsent(true);
@@ -175,18 +221,56 @@ export default function YouthChatPage() {
       );
       setConversation(data.conversation);
     } catch (consentError) {
-      setError(consentError instanceof Error ? consentError.message : "Consent could not be saved.");
+      setError(consentError instanceof Error ? consentError.message : "Could not save your choice.");
     } finally {
       setIsSavingConsent(false);
     }
   }
 
+  async function openHandoffPreview() {
+    setShowHandoffPreview(true);
+    setHandoffLoading(true);
+    try {
+      const d = await apiFetch<{ handoffs: HandoffSummary[] }>("/youth/handoffs");
+      const sorted = [...d.handoffs].sort((a, b) => {
+        if (!a.createdAt || !b.createdAt) return 0;
+        return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+      });
+      setHandoffData(sorted[0] ?? d.handoffs[d.handoffs.length - 1] ?? null);
+    } catch { /* silently fail */ }
+    finally { setHandoffLoading(false); }
+  }
+
+  async function resetChat() {
+    setIsResetting(true);
+    setShowResetConfirm(false);
+    setDraft("");
+    setError("");
+    setHandoffData(null);
+    setShowHandoffPreview(false);
+    setConsentDismissed(false);
+    if (conversation?.id) {
+      sessionStorage.removeItem(`consent_dismissed_${conversation.id}`);
+    }
+    try {
+      const data = await apiFetch<{ conversation: Conversation }>("/youth/conversations", { method: "POST" });
+      setConversation(data.conversation);
+    } catch {
+      // If creating a new conversation isn't supported, clear messages locally
+      if (conversation) {
+        setConversation({ ...conversation, messages: [], consentToHandoff: false });
+      }
+    } finally {
+      setIsResetting(false);
+    }
+  }
+
   if (isLoading) {
     return (
-      <div className="fixed inset-0 bg-[#060d0c] flex items-center justify-center">
-        <div className="flex flex-col items-center gap-4">
-          <div className="w-10 h-10 rounded-full border-2 border-[#6fb8aa] border-t-transparent animate-spin" />
-          <p className="text-[rgba(214,235,230,0.5)] text-sm">Loading your conversation...</p>
+      <div className="fixed inset-0 flex items-center justify-center" style={{ background: "#060d0c" }}>
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-8 h-8 rounded-full border-2 border-[#6fb8aa] border-t-transparent animate-spin" />
+          <p className="text-[13px]" style={{ color: "rgba(214,235,230,0.4)" }}>Just a moment…</p>
         </div>
       </div>
     );
@@ -194,91 +278,154 @@ export default function YouthChatPage() {
 
   if (!conversation) {
     return (
-      <div className="fixed inset-0 bg-[#060d0c] flex items-center justify-center px-6">
+      <div className="fixed inset-0 flex items-center justify-center px-6" style={{ background: "#060d0c" }}>
         <div className="glass-card p-8 max-w-sm w-full text-center">
-          <p className="text-[#f1f6f4] font-semibold mb-2">{error ? "Chat unavailable" : "No conversation yet"}</p>
+          <p className="text-[#f1f6f4] font-semibold mb-2">{error ? "Something went wrong" : "No conversation yet"}</p>
           <p className="text-[rgba(214,235,230,0.55)] text-sm mb-5">{error || "Start a SafeNight conversation to see your messages here."}</p>
-          {error && (
-            <a href="/login" className="inline-block px-5 py-2.5 rounded-[11px] bg-[rgba(31,111,100,0.2)] border border-[rgba(111,184,170,0.25)] text-[#6fb8aa] text-sm font-medium">
-              Return to login
-            </a>
-          )}
+          <a href="/login" className="inline-block px-5 py-2.5 rounded-[11px] text-sm font-medium" style={{ background: "rgba(31,111,100,0.2)", border: "1px solid rgba(111,184,170,0.25)", color: "#6fb8aa" }}>
+            Return to sign in
+          </a>
         </div>
       </div>
     );
   }
 
+  const showConsentBar = !conversation.consentToHandoff && !consentDismissed && messages.length >= 2;
+
   return (
-    <div className="fixed inset-0 bg-[#060d0c] flex flex-col font-sans overflow-hidden" style={{ WebkitFontSmoothing: "antialiased" }}>
-      {/* Ambient blobs */}
+    <div className="fixed inset-0 flex flex-col font-sans overflow-hidden" style={{ background: "#060d0c", WebkitFontSmoothing: "antialiased" }}>
+      {/* Ambient */}
       <div className="pointer-events-none absolute inset-0">
         <div className="absolute" style={{ top: "-15%", left: "-8%", width: "55vw", height: "55vw", background: "radial-gradient(circle, rgba(31,111,100,0.18), transparent 62%)", filter: "blur(8px)", animation: "sb-drift1 24s ease-in-out infinite" }} />
-        <div className="absolute" style={{ bottom: "-20%", right: "-10%", width: "48vw", height: "48vw", background: "radial-gradient(circle, rgba(217,95,72,0.08), transparent 62%)", filter: "blur(8px)", animation: "sb-drift2 28s ease-in-out infinite" }} />
-        <div className="absolute inset-0" style={{ opacity: 0.35, backgroundImage: "radial-gradient(rgba(255,255,255,0.04) 1px, transparent 1px)", backgroundSize: "38px 38px" }} />
-        <div className="absolute left-0 right-0 h-px" style={{ background: "linear-gradient(90deg, transparent, rgba(111,184,170,0.35), transparent)", animation: "sb-scan 14s linear infinite" }} />
+        <div className="absolute" style={{ bottom: "-20%", right: "-10%", width: "48vw", height: "48vw", background: "radial-gradient(circle, rgba(217,95,72,0.07), transparent 62%)", filter: "blur(8px)", animation: "sb-drift2 28s ease-in-out infinite" }} />
+        <div className="absolute inset-0" style={{ opacity: 0.3, backgroundImage: "radial-gradient(rgba(255,255,255,0.04) 1px, transparent 1px)", backgroundSize: "38px 38px" }} />
       </div>
 
       {/* Header */}
-      <div className="relative z-10 flex items-center justify-between px-5 py-4" style={{ borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
+      <div className="relative z-10 flex items-center justify-between px-4 py-3" style={{ borderBottom: "1px solid rgba(255,255,255,0.07)" }}>
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-[9px] flex items-center justify-center" style={{ background: "linear-gradient(160deg, #2a8576, #164b44)", boxShadow: "0 6px 18px rgba(31,111,100,0.4)" }}>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#eaf6f2" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+          <button
+            type="button"
+            onClick={() => router.push("/login")}
+            className="flex items-center justify-center w-7 h-7 rounded-full transition"
+            style={{ color: "rgba(214,235,230,0.4)" }}
+            aria-label="Leave chat"
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M19 12H5"/><path d="m12 19-7-7 7-7"/>
+            </svg>
+          </button>
+
+          <div className="w-7 h-7 rounded-[8px] flex items-center justify-center" style={{ background: "linear-gradient(160deg, #2a8576, #164b44)" }}>
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#eaf6f2" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
               <path d="M4.9 16.1C1 12.2 1 5.8 4.9 1.9"/><path d="M7.8 4.7a6.14 6.14 0 0 0-.8 7.5"/><circle cx="12" cy="9" r="2"/>
               <path d="M16.2 4.8c2 2 2.26 5.11.8 7.47"/><path d="M19.1 1.9a9.96 9.96 0 0 1 0 14.1"/>
               <path d="M9.5 18h5"/><path d="m8 22 4-11 4 11"/>
             </svg>
           </div>
           <div>
-            <div className="text-[14px] font-semibold text-[#f1f6f4]" style={{ letterSpacing: "-0.01em" }}>SafeNight</div>
-            <div className="text-[11px] text-[rgba(214,235,230,0.4)]">Your private space</div>
+            <div className="text-[13px] font-semibold" style={{ color: "#f1f6f4", letterSpacing: "-0.01em" }}>SafeNight</div>
+            <div className="text-[10px]" style={{ color: "rgba(214,235,230,0.35)" }}>Your private space</div>
           </div>
         </div>
 
-        {/* After-hours pill */}
-        <div className="flex items-center gap-2 px-3 py-1.5 rounded-full" style={{ background: "rgba(183,121,31,0.15)", border: "1px solid rgba(183,121,31,0.3)" }}>
-          <div className="w-1.5 h-1.5 rounded-full bg-[#e9c685]" style={{ animation: "sb-core 2.8s ease-in-out infinite" }} />
-          <span className="text-[11px] font-semibold text-[#e9c685]">After hours</span>
+        <div className="flex items-center gap-2">
+          {showResetConfirm ? (
+            <div className="flex items-center gap-1.5">
+              <span className="text-[11px]" style={{ color: "rgba(214,235,230,0.45)" }}>Start fresh?</span>
+              <button
+                type="button"
+                onClick={() => void resetChat()}
+                disabled={isResetting}
+                className="px-2 py-0.5 rounded-[6px] text-[11px] font-semibold transition"
+                style={{ background: "rgba(217,95,72,0.15)", border: "1px solid rgba(217,95,72,0.3)", color: "#e88d78" }}
+              >
+                {isResetting ? "…" : "Yes"}
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowResetConfirm(false)}
+                className="px-2 py-0.5 rounded-[6px] text-[11px] font-medium transition"
+                style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", color: "rgba(214,235,230,0.4)" }}
+              >
+                No
+              </button>
+            </div>
+          ) : (
+            <>
+              <button
+                type="button"
+                onClick={() => setShowResetConfirm(true)}
+                title="Reset chat"
+                className="flex items-center justify-center w-6 h-6 rounded-full transition"
+                style={{ color: "rgba(214,235,230,0.3)" }}
+              >
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
+                  <path d="M3 3v5h5"/>
+                </svg>
+              </button>
+              {conversation.consentToHandoff ? (
+                <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full" style={{ background: "rgba(111,184,170,0.12)", border: "1px solid rgba(111,184,170,0.25)" }}>
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#6fb8aa" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M20 6 9 17l-5-5"/>
+                  </svg>
+                  <span className="text-[10px] font-semibold text-[#6fb8aa]">Worker notified</span>
+                </div>
+              ) : (
+                <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full" style={{ background: "rgba(183,121,31,0.12)", border: "1px solid rgba(183,121,31,0.25)" }}>
+                  <div className="w-1.5 h-1.5 rounded-full bg-[#e9c685]" style={{ animation: "sb-core 2.8s ease-in-out infinite" }} />
+                  <span className="text-[10px] font-semibold text-[#e9c685]">After hours</span>
+                </div>
+              )}
+            </>
+          )}
         </div>
       </div>
 
       {/* Messages */}
-      <div ref={scrollRef} className="relative z-10 flex-1 overflow-y-auto px-4 py-6 space-y-4">
+      <div ref={scrollRef} className="relative z-10 flex-1 overflow-y-auto px-4 py-5 space-y-3">
         {messages.map((message) => {
           const isYouth = message.senderType === "youth";
-          const isSystem = message.senderType === "system";
-
-          if (isSystem) {
-            return (
-              <div key={message.id} className="flex justify-center">
-                <div className="text-center px-4 py-2.5 rounded-[14px] max-w-[80%]" style={{ background: "rgba(183,121,31,0.12)", border: "1px solid rgba(183,121,31,0.25)" }}>
-                  <p className="text-[12px] text-[#e9c685] leading-relaxed">{message.content}</p>
-                </div>
-              </div>
-            );
-          }
+          const isWorker = message.senderType === "worker";
 
           return (
             <div key={message.id} className={`flex ${isYouth ? "justify-end" : "justify-start"}`}>
-              <div className="max-w-[75%]">
+              <div className="max-w-[78%]">
+                {isWorker && (
+                  <div className="flex items-center gap-1.5 mb-1 pl-1">
+                    <div className="w-4 h-4 rounded-full flex items-center justify-center" style={{ background: "rgba(233,198,133,0.15)" }}>
+                      <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="#e9c685" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/>
+                        <path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+                      </svg>
+                    </div>
+                    <span className="text-[10px] font-semibold" style={{ color: "rgba(233,198,133,0.65)" }}>Your worker</span>
+                  </div>
+                )}
                 <div
-                  className="px-4 py-3 text-[14px] leading-relaxed"
+                  className="px-3.5 py-2.5 text-[14px] leading-relaxed"
                   style={isYouth ? {
-                    background: "linear-gradient(180deg, rgba(31,111,100,0.36), rgba(31,111,100,0.2))",
-                    border: "1px solid rgba(111,184,170,0.32)",
-                    borderRadius: "20px 20px 6px 20px",
+                    background: "linear-gradient(180deg, rgba(31,111,100,0.4), rgba(31,111,100,0.25))",
+                    border: "1px solid rgba(111,184,170,0.28)",
+                    borderRadius: "18px 18px 5px 18px",
                     color: "#f1f6f4",
+                  } : isWorker ? {
+                    background: "rgba(183,121,31,0.12)",
+                    border: "1px solid rgba(183,121,31,0.25)",
+                    borderRadius: "18px 18px 18px 5px",
+                    color: "#e8f2ef",
                   } : {
-                    background: "rgba(255,255,255,0.06)",
-                    border: "1px solid rgba(255,255,255,0.1)",
-                    borderRadius: "20px 20px 20px 6px",
-                    backdropFilter: "blur(6px)",
-                    color: "#f1f6f4",
+                    background: "rgba(255,255,255,0.05)",
+                    border: "1px solid rgba(255,255,255,0.09)",
+                    borderRadius: "18px 18px 18px 5px",
+                    color: "#e8f2ef",
                   }}
                 >
                   {message.content}
                 </div>
-                <div className={`mt-1 text-[10.5px] text-[rgba(214,235,230,0.35)] font-mono ${isYouth ? "text-right pr-2" : "pl-2"}`}>
-                  {isYouth ? youthName : "SafeNight"} · {message.id === "after-hours-banner" ? "Now" : formatTime(message.createdAt)}
+                <div className={`mt-1 text-[10px] font-mono ${isYouth ? "text-right pr-2" : "pl-2"}`} style={{ color: "rgba(214,235,230,0.28)" }}>
+                  {isYouth ? youthName : isWorker ? "Your worker" : "SafeNight"} · {formatTime(message.createdAt)}
                 </div>
               </div>
             </div>
@@ -287,132 +434,227 @@ export default function YouthChatPage() {
 
         {isSending && (
           <div className="flex justify-start">
-            <div className="px-4 py-3" style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "20px 20px 20px 6px", backdropFilter: "blur(6px)" }}>
+            <div className="px-3.5 py-2.5" style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.09)", borderRadius: "18px 18px 18px 5px" }}>
               <TypingDots />
             </div>
           </div>
         )}
 
-        {/* Support signals — transparency for the youth about what was noticed */}
-        {conversation.signals.length > 0 && (
-          <div className="glass-card p-4 mt-2">
-            <p className="sb-eyebrow mb-1">Support signals</p>
-            <p className="text-[12px] text-[rgba(214,235,230,0.5)] leading-relaxed mb-3">
-              These help your worker notice what may need care. They are not a diagnosis.
-            </p>
-            <div className="space-y-2">
-              {conversation.signals.slice(0, 4).map((signal) => {
-                const sev = signal.severity.toLowerCase();
-                const tone =
-                  sev === "critical" || sev === "high"
-                    ? { fg: "#e88d78", soft: "rgba(217,95,72,0.15)" }
-                    : sev === "medium"
-                      ? { fg: "#e9c685", soft: "rgba(183,121,31,0.15)" }
-                      : { fg: "rgba(214,235,230,0.6)", soft: "rgba(255,255,255,0.06)" };
-                return (
-                  <div key={signal.id} className="rounded-[12px] px-3 py-2.5" style={{ border: "1px solid rgba(255,255,255,0.1)" }}>
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="text-[13px] font-semibold text-[#f1f6f4]">
-                        {signal.type.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())}
-                      </span>
-                      <span className="text-[10.5px] font-semibold px-2 py-0.5 rounded-full" style={{ background: tone.soft, color: tone.fg }}>
-                        {signal.severity.replace(/\b\w/g, (c) => c.toUpperCase())}
-                      </span>
-                    </div>
-                    <p className="mt-1 text-[12px] leading-relaxed text-[rgba(214,235,230,0.5)]">{signal.reason}</p>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
-
-        {/* Handoff consent card */}
-        {conversation && (
-          <div className="glass-card p-4 mt-2">
-            <div className="flex items-start justify-between gap-4 flex-wrap">
-              <div>
-                <p className="sb-eyebrow mb-1">Worker note consent</p>
-                <p className="text-[13px] text-[rgba(214,235,230,0.6)] leading-relaxed">
-                  Allow SafeNight to prepare a brief for your worker? You stay in control.
-                </p>
-              </div>
-              <div className="flex gap-2 flex-shrink-0">
-                <button
-                  disabled={isSavingConsent}
-                  onClick={() => updateConsent(false)}
-                  className="px-3 py-1.5 rounded-[9px] text-[12px] font-medium transition-all"
-                  style={{
-                    background: !conversation.consentToHandoff ? "rgba(217,95,72,0.2)" : "rgba(255,255,255,0.06)",
-                    border: !conversation.consentToHandoff ? "1px solid rgba(217,95,72,0.35)" : "1px solid rgba(255,255,255,0.1)",
-                    color: !conversation.consentToHandoff ? "#e88d78" : "rgba(214,235,230,0.5)",
-                  }}
-                >
-                  No thanks
-                </button>
-                <button
-                  disabled={isSavingConsent}
-                  onClick={() => updateConsent(true)}
-                  className="px-3 py-1.5 rounded-[9px] text-[12px] font-medium transition-all"
-                  style={{
-                    background: conversation.consentToHandoff ? "rgba(31,111,100,0.25)" : "rgba(255,255,255,0.06)",
-                    border: conversation.consentToHandoff ? "1px solid rgba(111,184,170,0.35)" : "1px solid rgba(255,255,255,0.1)",
-                    color: conversation.consentToHandoff ? "#6fb8aa" : "rgba(214,235,230,0.5)",
-                  }}
-                >
-                  Yes, prepare a note
-                </button>
-              </div>
-            </div>
+        {/* Consent separator — shown after consent is given */}
+        {conversation.consentToHandoff && messages.length > 0 && (
+          <div className="flex items-center gap-3 py-2">
+            <div className="flex-1 h-px" style={{ background: "rgba(111,184,170,0.12)" }} />
+            <span className="text-[10px] shrink-0" style={{ color: "rgba(111,184,170,0.45)" }}>Your worker will see a note from tonight</span>
+            <div className="flex-1 h-px" style={{ background: "rgba(111,184,170,0.12)" }} />
           </div>
         )}
       </div>
 
+      {/* Consent bar — only after 2+ messages and not yet dismissed */}
+      {showConsentBar && (
+        <div className="relative z-10 mx-4 mb-2 flex items-center justify-between gap-3 rounded-[10px] px-3.5 py-2.5" style={{ background: "rgba(31,111,100,0.1)", border: "1px solid rgba(111,184,170,0.18)" }}>
+          <p className="text-[12px] leading-snug flex-1" style={{ color: "rgba(214,235,230,0.6)" }}>
+            Let your worker see a brief note from tonight?
+          </p>
+          <div className="flex gap-2 shrink-0">
+            <button
+              disabled={isSavingConsent}
+              onClick={() => updateConsent(false)}
+              className="px-2.5 py-1 rounded-[7px] text-[11px] font-medium transition"
+              style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)", color: "rgba(214,235,230,0.5)" }}
+            >
+              Not now
+            </button>
+            <button
+              disabled={isSavingConsent}
+              onClick={() => updateConsent(true)}
+              className="px-2.5 py-1 rounded-[7px] text-[11px] font-semibold transition"
+              style={{ background: "rgba(31,111,100,0.3)", border: "1px solid rgba(111,184,170,0.3)", color: "#6fb8aa" }}
+            >
+              Yes, share
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* "See your note" — shown after consent is given */}
+      {conversation.consentToHandoff && (
+        <div className="relative z-10 px-4 pb-2">
+          <button
+            type="button"
+            onClick={() => void openHandoffPreview()}
+            className="flex w-full items-center justify-between gap-2 rounded-[10px] px-3.5 py-2.5 text-left transition"
+            style={{ background: "rgba(31,111,100,0.07)", border: "1px solid rgba(111,184,170,0.15)" }}
+          >
+            <div>
+              <span className="text-[12px] font-medium block" style={{ color: "rgba(214,235,230,0.65)" }}>See what your worker will receive</span>
+              <span className="text-[10px] mt-0.5 block" style={{ color: "rgba(214,235,230,0.3)" }}>The note SafeNight prepared from tonight</span>
+            </div>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="rgba(111,184,170,0.5)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M5 12h14"/><path d="m12 5 7 7-7 7"/>
+            </svg>
+          </button>
+        </div>
+      )}
+
       {/* Error */}
       {error && (
-        <div className="relative z-10 mx-4 mb-2 px-4 py-2.5 rounded-[11px] text-[13px] text-[#e88d78]" style={{ background: "rgba(217,95,72,0.1)", border: "1px solid rgba(217,95,72,0.2)" }}>
+        <div className="relative z-10 mx-4 mb-2 px-3 py-2 rounded-[9px] text-[12px]" style={{ background: "rgba(217,95,72,0.1)", border: "1px solid rgba(217,95,72,0.2)", color: "#e88d78" }}>
           {error}
         </div>
       )}
 
       {/* Composer */}
-      <div className="relative z-10 px-4 pb-5 pt-3" style={{ borderTop: "1px solid rgba(255,255,255,0.08)" }}>
-        <div className="flex items-end gap-3 glass-card p-3">
+      <div className="relative z-10 px-4 pb-4 pt-2" style={{ borderTop: "1px solid rgba(255,255,255,0.07)" }}>
+        <div className="flex items-end gap-2 rounded-[12px] px-3 py-2" style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.09)" }}>
           <textarea
+            ref={textareaRef}
             value={draft}
-            onChange={(e) => setDraft(e.target.value)}
+            onChange={handleDraftChange}
             onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); void sendMessage(); } }}
-            placeholder="What's on your mind tonight..."
+            placeholder="What's on your mind…"
             rows={1}
             disabled={isSending}
-            className="flex-1 bg-transparent text-[14px] text-[#f1f6f4] placeholder-[rgba(214,235,230,0.3)] resize-none outline-none leading-relaxed"
-            style={{ minHeight: "24px", maxHeight: "120px" }}
+            className="flex-1 bg-transparent text-[14px] placeholder-[rgba(214,235,230,0.28)] resize-none outline-none leading-relaxed"
+            style={{ minHeight: "22px", maxHeight: "120px", color: "#f1f6f4" }}
           />
           <button
             onClick={() => void sendMessage()}
             disabled={isSending || !draft.trim()}
-            className="w-9 h-9 rounded-[10px] flex items-center justify-center flex-shrink-0 transition-all"
+            className="w-7 h-7 rounded-[8px] flex items-center justify-center shrink-0 transition-all mb-0.5"
             style={{
-              background: draft.trim() ? "linear-gradient(160deg, #2a8576, #164b44)" : "rgba(255,255,255,0.06)",
-              boxShadow: draft.trim() ? "0 4px 16px rgba(31,111,100,0.4)" : "none",
-              border: draft.trim() ? "none" : "1px solid rgba(255,255,255,0.1)",
+              background: draft.trim() ? "linear-gradient(160deg, #2a8576, #164b44)" : "rgba(255,255,255,0.05)",
+              border: draft.trim() ? "none" : "1px solid rgba(255,255,255,0.08)",
+              boxShadow: draft.trim() ? "0 3px 12px rgba(31,111,100,0.4)" : "none",
             }}
           >
             {isSending ? (
-              <svg className="animate-spin" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2">
+              <svg className="animate-spin" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5">
                 <path d="M21 12a9 9 0 1 1-6.219-8.56" strokeLinecap="round"/>
               </svg>
             ) : (
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={draft.trim() ? "#eaf6f2" : "rgba(214,235,230,0.3)"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke={draft.trim() ? "#eaf6f2" : "rgba(214,235,230,0.25)"} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M22 2 11 13"/><path d="M22 2 15 22 11 13 2 9l20-7z"/>
               </svg>
             )}
           </button>
         </div>
-        <p className="mt-2 text-center text-[10.5px] text-[rgba(214,235,230,0.25)]">
-          SafeNight is an after-hours companion, not a counsellor. You decide what your worker sees.
+        <p className="mt-1.5 text-center text-[10px]" style={{ color: "rgba(214,235,230,0.2)" }}>
+          SafeNight is not a counsellor · You decide what your worker sees
         </p>
       </div>
+
+      {/* Handoff preview modal */}
+      {showHandoffPreview && (
+        <div className="fixed inset-0 z-50 flex flex-col" style={{ background: "#060d0c" }}>
+          {/* Ambient */}
+          <div className="pointer-events-none absolute inset-0">
+            <div className="absolute" style={{ top: "-15%", left: "-8%", width: "55vw", height: "55vw", background: "radial-gradient(circle, rgba(31,111,100,0.18), transparent 62%)", filter: "blur(8px)" }} />
+          </div>
+
+          {/* Header */}
+          <div className="relative z-10 flex items-center px-4 py-3.5" style={{ borderBottom: "1px solid rgba(255,255,255,0.07)" }}>
+            <button
+              type="button"
+              onClick={() => setShowHandoffPreview(false)}
+              className="flex items-center gap-1.5 text-[13px] transition"
+              style={{ color: "rgba(214,235,230,0.5)" }}
+            >
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M19 12H5"/><path d="m12 19-7-7 7-7"/>
+              </svg>
+              Back
+            </button>
+            <div className="flex-1 text-center text-[14px] font-semibold" style={{ color: "#f1f6f4" }}>What your worker will see</div>
+            <div className="w-12" />
+          </div>
+
+          {/* Content */}
+          <div className="relative z-10 flex-1 overflow-y-auto px-4 py-5">
+            {handoffLoading && (
+              <div className="flex items-center justify-center h-full gap-3">
+                <div className="w-5 h-5 rounded-full border-2 border-[#6fb8aa] border-t-transparent animate-spin" />
+                <span className="text-[13px]" style={{ color: "rgba(214,235,230,0.4)" }}>Preparing your note…</span>
+              </div>
+            )}
+
+            {!handoffLoading && !handoffData && (
+              <div className="flex items-center justify-center h-full text-center px-8">
+                <div>
+                  <div className="w-12 h-12 mx-auto rounded-full mb-4 flex items-center justify-center" style={{ background: "rgba(31,111,100,0.15)" }}>
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#6fb8aa" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+                      <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+                    </svg>
+                  </div>
+                  <p className="text-[15px] font-semibold mb-2" style={{ color: "#f1f6f4" }}>Your note is being prepared</p>
+                  <p className="text-[13px] leading-relaxed" style={{ color: "rgba(214,235,230,0.45)" }}>
+                    Continue the conversation — your worker will receive a summary once you&apos;re done for the night.
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {!handoffLoading && handoffData && (
+              <div className="space-y-3 max-w-lg mx-auto pb-6">
+                {/* Header */}
+                <div className="mb-6">
+                  <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full mb-4" style={{ background: "rgba(31,111,100,0.15)", border: "1px solid rgba(111,184,170,0.2)" }}>
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#6fb8aa" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M20 6 9 17l-5-5"/>
+                    </svg>
+                    <span className="text-[10px] font-semibold" style={{ color: "#6fb8aa" }}>Shared with your worker</span>
+                  </div>
+                  <h1 className="text-[22px] font-semibold leading-snug" style={{ color: "#f1f6f4", letterSpacing: "-0.02em" }}>
+                    Your worker is ready for you.
+                  </h1>
+                  <p className="mt-2 text-[13px] leading-relaxed" style={{ color: "rgba(214,235,230,0.5)" }}>
+                    Here&apos;s what they&apos;ll know before they speak to you — you won&apos;t need to explain any of this again.
+                  </p>
+                </div>
+
+                {/* Key quote — most personal, shown first */}
+                {handoffData.keyQuote && (
+                  <div className="rounded-[14px] px-4 py-4 relative overflow-hidden" style={{ background: "rgba(31,111,100,0.08)", border: "1px solid rgba(111,184,170,0.18)" }}>
+                    <div className="absolute top-0 right-3 text-[64px] font-serif leading-none select-none" style={{ color: "rgba(111,184,170,0.09)" }}>&ldquo;</div>
+                    <p className="text-[15px] italic leading-relaxed" style={{ color: "#e8f2ef" }}>&ldquo;{handoffData.keyQuote}&rdquo;</p>
+                  </div>
+                )}
+
+                {/* What happened */}
+                {handoffData.mainConcern && (
+                  <div className="rounded-[14px] px-4 py-3.5" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}>
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.14em] mb-1.5" style={{ color: "rgba(214,235,230,0.3)" }}>What happened tonight</p>
+                    <p className="text-[14px] leading-relaxed" style={{ color: "#e8f2ef" }}>{handoffData.mainConcern}</p>
+                  </div>
+                )}
+
+                {/* How they were feeling */}
+                {handoffData.emotionalState && (
+                  <div className="rounded-[14px] px-4 py-3.5" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}>
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.14em] mb-1.5" style={{ color: "rgba(214,235,230,0.3)" }}>How you were feeling</p>
+                    <p className="text-[14px] leading-relaxed" style={{ color: "#e8f2ef" }}>{handoffData.emotionalState}</p>
+                  </div>
+                )}
+
+                {/* What comes next */}
+                {handoffData.recommendedNextStep && (
+                  <div className="rounded-[14px] px-4 py-3.5" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}>
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.14em] mb-1.5" style={{ color: "rgba(214,235,230,0.3)" }}>What comes next</p>
+                    <p className="text-[14px] leading-relaxed" style={{ color: "#e8f2ef" }}>{handoffData.recommendedNextStep}</p>
+                  </div>
+                )}
+
+                {/* Reassurance */}
+                <div className="rounded-[14px] px-4 py-3.5 mt-1" style={{ background: "rgba(31,111,100,0.06)", border: "1px solid rgba(111,184,170,0.12)" }}>
+                  <p className="text-[12px] leading-relaxed" style={{ color: "rgba(214,235,230,0.45)" }}>
+                    Your worker will read this before they reach out. You&apos;re not starting from scratch — they already know what tonight was about.
+                  </p>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
