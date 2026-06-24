@@ -8,6 +8,7 @@ Flow:
 """
 
 import logging
+import hashlib
 from typing import Any
 
 import httpx
@@ -18,9 +19,11 @@ from sqlalchemy.orm import Session
 from app.config import get_settings
 from app.database import get_db
 from app.models.audit_log import AuditLog
+from app.models.case import Case, CaseStatus
 from app.models.conversation import Conversation, ConversationStatus, RiskLevel
 from app.models.message import Message, SenderType
 from app.models.signal import Signal
+from app.models.user import User, UserRole
 from app.models.worker_notification_settings import WorkerNotificationSettings
 from app.models.youth_profile import YouthProfile
 from app.services.ai_service import (
@@ -42,13 +45,12 @@ logger = logging.getLogger("signalbridge.telegram_bot")
 
 router = APIRouter(prefix="/telegram", tags=["telegram"])
 
+_PUBLIC_INTAKE_PENDING_STYLE = "__telegram_public_intake_awaiting_name__"
+
 _WELCOME = (
     "Hi, I'm SafeNight — SignalBridge's after-hours support companion.\n\n"
     "I'm here to listen, and I'll never share what you say without asking you first.\n\n"
-    "If your worker gave you an invite link, this chat can connect automatically. "
-    "Otherwise, send:\n"
-    "/link YOUR_YOUTH_ID\n\n"
-    "Once linked, just type normally — no commands needed."
+    "Before we start, what name or nickname should I use for you?"
 )
 
 _LINK_USAGE = "Send /link followed by your youth ID, e.g.:\n/link youth_abc123"
@@ -58,6 +60,8 @@ _NOT_LINKED = (
 )
 _LINKED_OK = "Linked! You can now chat with SafeNight right here. Just type whenever you're ready."
 _ALREADY_LINKED = "This chat is already linked to a SignalBridge account."
+_ASK_NAME = "Before we start, what name or nickname should I use for you?"
+_NAME_RECORDED = "Thanks, {name}. I'm here with you now. What feels hardest tonight?"
 
 
 def _bot_url(token: str, method: str) -> str:
@@ -75,6 +79,92 @@ def _send_telegram_message(token: str, chat_id: str | int, text: str) -> None:
             logger.warning("Telegram reply failed: %s %s", r.status_code, r.text[:200])
     except Exception as exc:
         logger.warning("Telegram reply error: %s", exc)
+
+
+def _telegram_hash(chat_id: str) -> str:
+    return hashlib.sha256(chat_id.encode("utf-8")).hexdigest()[:16]
+
+
+def _default_worker_id(db: Session) -> str | None:
+    worker = db.get(User, "user_worker_1")
+    if worker and worker.role == UserRole.worker:
+        return worker.id
+    worker = db.scalar(select(User).where(User.role == UserRole.worker).order_by(User.created_at.asc()))
+    return worker.id if worker else None
+
+
+def _get_or_create_public_intake_youth(db: Session, chat_id: str) -> YouthProfile:
+    suffix = _telegram_hash(chat_id)
+    user_id = f"user_telegram_{suffix}"
+    youth_id = f"youth_telegram_{suffix}"
+    case_id = f"case_telegram_{suffix}"
+
+    youth = db.scalar(select(YouthProfile).where(YouthProfile.telegram_chat_id == chat_id))
+    if youth is not None:
+        return youth
+
+    now = naive_utcnow()
+    user = db.get(User, user_id)
+    if user is None:
+        user = User(
+            id=user_id,
+            name="Telegram youth",
+            email=f"telegram-{suffix}@signalbridge.local",
+            password_hash="telegram-public-intake-no-login",
+            role=UserRole.youth,
+            created_at=now,
+        )
+        db.add(user)
+
+    youth = db.get(YouthProfile, youth_id)
+    if youth is None:
+        youth = YouthProfile(
+            id=youth_id,
+            user_id=user_id,
+            assigned_worker_id=_default_worker_id(db),
+            preferred_channel="Telegram",
+            telegram_chat_id=chat_id,
+            support_style=_PUBLIC_INTAKE_PENDING_STYLE,
+            stressors="Public Telegram intake; details to be confirmed by worker.",
+            created_at=now,
+        )
+        db.add(youth)
+
+    case = db.get(Case, case_id)
+    if case is None:
+        case = Case(
+            id=case_id,
+            youth_id=youth_id,
+            assigned_worker_id=youth.assigned_worker_id,
+            status=CaseStatus.new,
+            priority="medium",
+            summary="Public Telegram intake awaiting youth context.",
+            created_at=now,
+            updated_at=now,
+        )
+        db.add(case)
+
+    db.commit()
+    db.refresh(youth)
+    return youth
+
+
+def _is_awaiting_name(youth: YouthProfile) -> bool:
+    return youth.support_style == _PUBLIC_INTAKE_PENDING_STYLE
+
+
+def _record_public_intake_name(db: Session, youth: YouthProfile, name: str) -> str:
+    clean_name = " ".join(name.split())[:80] or "Telegram youth"
+    user = db.get(User, youth.user_id)
+    if user:
+        user.name = clean_name
+    youth.support_style = "Started through public Telegram intake. Use a calm first response and confirm details gently."
+    case = db.query(Case).filter(Case.youth_id == youth.id).order_by(Case.created_at.desc()).first()
+    if case:
+        case.summary = f"Public Telegram intake for {clean_name}."
+        case.updated_at = naive_utcnow()
+    db.commit()
+    return clean_name
 
 
 def _link_chat_to_youth(db: Session, token: str, chat_id: str, youth_id: str) -> bool:
@@ -269,6 +359,7 @@ async def telegram_webhook(
         if len(parts) == 2 and parts[1].strip():
             _link_chat_to_youth(db, token, chat_id, parts[1].strip())
             return {"ok": "true"}
+        _get_or_create_public_intake_youth(db, chat_id)
         _send_telegram_message(token, chat_id, _WELCOME)
         return {"ok": "true"}
 
@@ -285,7 +376,13 @@ async def telegram_webhook(
     # Regular message — look up linked youth profile
     youth = db.scalar(select(YouthProfile).where(YouthProfile.telegram_chat_id == chat_id))
     if youth is None:
-        _send_telegram_message(token, chat_id, _NOT_LINKED)
+        _get_or_create_public_intake_youth(db, chat_id)
+        _send_telegram_message(token, chat_id, _ASK_NAME)
+        return {"ok": "true"}
+
+    if _is_awaiting_name(youth):
+        name = _record_public_intake_name(db, youth, text)
+        _send_telegram_message(token, chat_id, _NAME_RECORDED.format(name=name))
         return {"ok": "true"}
 
     try:
