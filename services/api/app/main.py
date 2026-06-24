@@ -1,5 +1,7 @@
+import asyncio
 import logging
 import time
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -8,6 +10,7 @@ from starlette.requests import Request
 from app.config import get_settings
 from app.models import AiRun, AuditLog, Case, CaseNote, Conversation, HandoffBrief, Message, Notification, Signal, User, WorkerNotificationSettings, YouthProfile
 from app.routes import ai, auth, conversations, constants, health, notifications, operations, signals, simulator, telegram_bot, worker, youth
+from app.services.discord_bot_service import build_discord_bot
 
 settings = get_settings()
 
@@ -17,10 +20,29 @@ logging.basicConfig(
 )
 logger = logging.getLogger("signalbridge.api")
 
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    bot = build_discord_bot()
+    bot_task = None
+    if bot:
+        bot_task = asyncio.create_task(bot.start(settings.discord_bot_token))
+        logger.info("Discord bot task started.")
+    yield
+    if bot and bot_task:
+        bot_task.cancel()
+        try:
+            await asyncio.wait_for(bot.close(), timeout=5)
+        except Exception:
+            pass
+        logger.info("Discord bot stopped.")
+
+
 app = FastAPI(
     title=settings.app_name,
     version=settings.app_version,
     description="Human-in-the-loop youth support command centre backend.",
+    lifespan=lifespan,
 )
 
 app.add_middleware(
