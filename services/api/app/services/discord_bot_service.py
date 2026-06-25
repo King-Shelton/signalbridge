@@ -1,6 +1,7 @@
 """Discord bot for SafeNight DMs and server-thread conversations."""
 
 import asyncio
+import hashlib
 import logging
 import re
 
@@ -10,10 +11,12 @@ from sqlalchemy import select
 from app.config import get_settings
 from app.database import SessionLocal
 from app.models.audit_log import AuditLog
+from app.models.case import Case, CaseStatus
 from app.models.conversation import Conversation, ConversationStatus, RiskLevel
 from app.models.handoff_brief import HandoffBrief
 from app.models.message import Message, SenderType
 from app.models.signal import Signal
+from app.models.user import User, UserRole
 from app.models.worker_notification_settings import WorkerNotificationSettings
 from app.models.youth_profile import YouthProfile
 from app.services.ai_service import (
@@ -40,7 +43,7 @@ _WELCOME = (
 )
 
 _LINK_USAGE = "Send `!link` followed by your youth ID, e.g.:\n`!link youth_mira`"
-_PUBLIC_USAGE = "Start a SafeNight thread with `!safenight YOUR_YOUTH_ID`, e.g. `!safenight youth_mira`."
+_PUBLIC_USAGE = "Start a SafeNight thread with `!safenight`, or use `!safenight YOUR_YOUTH_ID` if your worker gave you one."
 _NOT_LINKED = (
     "I don't recognise this account yet.\n\n"
     "Send `!link YOUR_YOUTH_ID` in DM, or start from the server with `!safenight YOUR_YOUTH_ID`."
@@ -48,6 +51,86 @@ _NOT_LINKED = (
 _LINKED_OK = "Linked! You can now chat with SafeNight right here. Just type whenever you're ready."
 _ALREADY_LINKED = "This Discord account is already linked to a SignalBridge account."
 _THREAD_READY = "SafeNight is ready here. Keep typing in this thread."
+_PUBLIC_INTAKE_STYLE = "Started through public Discord intake. Use a calm first response and confirm details gently."
+
+
+def _discord_hash(discord_user_id: str) -> str:
+    return hashlib.sha256(discord_user_id.encode("utf-8")).hexdigest()[:16]
+
+
+def _default_worker_id(db) -> str | None:
+    worker = db.get(User, "user_worker_1")
+    if worker and worker.role == UserRole.worker:
+        return worker.id
+    worker = db.scalar(select(User).where(User.role == UserRole.worker).order_by(User.created_at.asc()))
+    return worker.id if worker else None
+
+
+def _get_or_create_public_intake_youth(
+    db,
+    discord_user_id: str,
+    display_name: str,
+) -> YouthProfile:
+    existing = db.scalar(select(YouthProfile).where(YouthProfile.discord_user_id == discord_user_id))
+    if existing is not None:
+        return existing
+
+    suffix = _discord_hash(discord_user_id)
+    user_id = f"user_discord_{suffix}"
+    youth_id = f"youth_discord_{suffix}"
+    case_id = f"case_discord_{suffix}"
+    now = naive_utcnow()
+    clean_name = " ".join(display_name.split())[:80] or "Discord youth"
+
+    user = db.get(User, user_id)
+    if user is None:
+        user = User(
+            id=user_id,
+            name=clean_name,
+            email=f"discord-{suffix}@signalbridge.local",
+            password_hash="discord-public-intake-no-login",
+            role=UserRole.youth,
+            created_at=now,
+        )
+        db.add(user)
+    else:
+        user.name = clean_name
+
+    youth = db.get(YouthProfile, youth_id)
+    if youth is None:
+        youth = YouthProfile(
+            id=youth_id,
+            user_id=user_id,
+            assigned_worker_id=_default_worker_id(db),
+            preferred_channel="Discord",
+            discord_user_id=discord_user_id,
+            support_style=_PUBLIC_INTAKE_STYLE,
+            stressors="Public Discord intake; details to be confirmed by worker.",
+            created_at=now,
+        )
+        db.add(youth)
+    else:
+        youth.discord_user_id = discord_user_id
+        youth.preferred_channel = "Discord"
+        if youth.assigned_worker_id is None:
+            youth.assigned_worker_id = _default_worker_id(db)
+
+    case = db.get(Case, case_id)
+    if case is None:
+        case = Case(
+            id=case_id,
+            youth_id=youth_id,
+            assigned_worker_id=youth.assigned_worker_id,
+            status=CaseStatus.new,
+            priority="medium",
+            summary=f"Public Discord intake for {clean_name}.",
+            created_at=now,
+            updated_at=now,
+        )
+        db.add(case)
+
+    db.flush()
+    return youth
 
 
 def _get_active_discord_conversation(
@@ -105,7 +188,7 @@ def _handle_link(discord_user_id: str, youth_id: str) -> str:
             return _ALREADY_LINKED
 
         existing = db.scalar(select(YouthProfile).where(YouthProfile.discord_user_id == discord_user_id))
-        if existing and existing.id != youth_id:
+        if existing and existing.id != youth.id:
             return "This Discord account is already linked to another youth profile."
 
         youth.discord_user_id = discord_user_id
@@ -115,21 +198,27 @@ def _handle_link(discord_user_id: str, youth_id: str) -> str:
         db.close()
 
 
-def _ensure_thread_conversation(discord_user_id: str, youth_id: str, discord_thread_id: str) -> str:
+def _ensure_thread_conversation(
+    discord_user_id: str,
+    youth_id: str | None,
+    discord_thread_id: str,
+    display_name: str = "Discord youth",
+) -> str:
     db = SessionLocal()
     try:
-        youth = db.get(YouthProfile, youth_id)
+        youth = db.get(YouthProfile, youth_id) if youth_id else None
         if youth is None:
-            return "Youth ID not found. Ask your worker for your exact ID."
+            youth = _get_or_create_public_intake_youth(db, discord_user_id, display_name)
 
         if youth.discord_user_id and youth.discord_user_id != discord_user_id:
             return _ALREADY_LINKED
 
         existing = db.scalar(select(YouthProfile).where(YouthProfile.discord_user_id == discord_user_id))
-        if existing and existing.id != youth_id:
+        if existing and existing.id != youth.id:
             return "This Discord account is already linked to another youth profile."
 
         youth.discord_user_id = discord_user_id
+        youth.preferred_channel = "Discord"
         conversation = _get_active_discord_conversation(db, youth, discord_thread_id)
         conversation.discord_thread_id = discord_thread_id
         db.commit()
@@ -319,11 +408,7 @@ class SafeNightDiscordBot(discord.Client):
             return
 
         parts = text.split(maxsplit=1)
-        if len(parts) < 2 or not parts[1].strip():
-            await message.reply(_PUBLIC_USAGE, mention_author=False)
-            return
-
-        youth_id = parts[1].strip()
+        youth_id = parts[1].strip() if len(parts) == 2 and parts[1].strip() else None
         thread_name = _clean_thread_name(message.author.display_name)
         try:
             thread = await message.channel.create_thread(
@@ -342,6 +427,7 @@ class SafeNightDiscordBot(discord.Client):
             str(message.author.id),
             youth_id,
             str(thread.id),
+            message.author.display_name,
         )
         await thread.send(reply)
         await message.reply("I started a SafeNight thread for you.", mention_author=False)
