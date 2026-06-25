@@ -124,17 +124,19 @@ _PRIVATE_CHANNEL_WELCOME = (
 )
 _REGISTER_WORKER_OK = (
     "✅ Registered! Your Discord account is now linked to your SignalBridge worker profile.\n\n"
-    "You can now use `!open_case @youth` in the server entry channel to create a "
-    "private case channel for any youth you're working with."
+    "You can now use `!open_case <youth mention|username|user id>` in the server entry channel "
+    "or DM me the same command to create a private case channel."
 )
 _REGISTER_WORKER_NOT_FOUND = (
     "I couldn't find a SignalBridge worker account with that ID.\n\n"
     "Usage: `!register_worker <your_signalbridge_worker_id>`\n"
     "You can find your worker ID in the SignalBridge cockpit URL."
 )
-_OPEN_CASE_USAGE = "Usage: `!open_case @youth_mention`"
+_OPEN_CASE_USAGE = "Usage: `!open_case <youth mention|username|user id>`"
+_OPEN_CASE_DM_HINT = "For a private setup, DM me `!open_case <youth name or user id>` and I will open the case without posting it in the server."
 _OPEN_CASE_NOT_WORKER = "Only registered workers can open case channels. DM me `!register_worker <your_id>` first."
 _OPEN_CASE_NO_GUILD = "This command only works inside the SignalBridge server."
+_OPEN_CASE_NO_SERVER = "I need the SignalBridge server configured before I can open a case from DM. Ask an admin to set SIGNALBRIDGE_DISCORD_GUILD_ID."
 _OPEN_CASE_NO_CATEGORY = "The Youth Cases category isn't configured yet. Ask your admin to set SIGNALBRIDGE_DISCORD_YOUTH_CASES_CATEGORY_ID."
 
 
@@ -307,6 +309,55 @@ def _parse_channel_topic(topic: str) -> tuple[str, str] | None:
         return conv_id, worker_id
     except (IndexError, ValueError):
         return None
+
+
+def _normalize_discord_lookup_text(raw_text: str) -> str:
+    text = raw_text.strip()
+    if text.startswith("<@") and text.endswith(">"):
+        text = text[2:-1]
+        if text.startswith("!"):
+            text = text[1:]
+    if text.startswith("@"):
+        text = text[1:]
+    return text.strip()
+
+
+async def _resolve_discord_member(guild: discord.Guild, raw_target: str) -> discord.Member | None:
+    """Resolve a Discord member from a mention, user id, or cached username."""
+    target = _normalize_discord_lookup_text(raw_target)
+    if not target:
+        return None
+
+    if target.isdigit():
+        try:
+            return await guild.fetch_member(int(target))
+        except (discord.NotFound, discord.Forbidden):
+            return None
+        except Exception:
+            logger.exception("Failed to fetch Discord member %s", target)
+            return None
+
+    lowered = target.casefold()
+    exact_matches: list[discord.Member] = []
+    partial_matches: list[discord.Member] = []
+    for member in guild.members:
+        candidates = (
+            member.name,
+            member.display_name,
+            getattr(member, "global_name", None),
+        )
+        if any(candidate and candidate.casefold() == lowered for candidate in candidates):
+            exact_matches.append(member)
+        elif any(candidate and lowered in candidate.casefold() for candidate in candidates):
+            partial_matches.append(member)
+
+    if len(exact_matches) == 1:
+        return exact_matches[0]
+    if len(exact_matches) > 1:
+        return None
+    if len(partial_matches) == 1:
+        return partial_matches[0]
+    return None
 
 
 def _get_or_create_private_channel_youth(
@@ -978,6 +1029,10 @@ class SafeNightDiscordBot(discord.Client):
     async def _handle_dm(self, message: discord.Message, text: str) -> None:
         discord_user_id = str(message.author.id)
 
+        if text.lower().startswith("!open_case"):
+            await self._handle_open_case(message)
+            return
+
         if text.lower().startswith("!link"):
             parts = text.split(maxsplit=1)
             if len(parts) < 2 or not parts[1].strip():
@@ -1082,10 +1137,21 @@ class SafeNightDiscordBot(discord.Client):
         await message.reply("I started a SafeNight thread for you.", mention_author=False)
 
     async def _handle_open_case(self, message: discord.Message) -> None:
-        """Handle !open_case @youth_mention — create a private channel for a worker-youth pair."""
-        if not message.guild:
-            await message.reply(_OPEN_CASE_NO_GUILD, mention_author=False)
-            return
+        """Handle !open_case and create a private channel for a worker-youth pair."""
+        settings = get_settings()
+        guild = message.guild
+        if guild is None:
+            if not settings.discord_guild_id:
+                await message.reply(_OPEN_CASE_NO_SERVER, mention_author=False)
+                return
+            try:
+                guild = self.get_guild(int(settings.discord_guild_id))
+                if guild is None:
+                    guild = await self.fetch_guild(int(settings.discord_guild_id))
+            except Exception:
+                logger.exception("Unable to resolve configured Discord guild for open_case")
+                await message.reply(_OPEN_CASE_NO_SERVER, mention_author=False)
+                return
 
         discord_user_id = str(message.author.id)
 
@@ -1102,17 +1168,25 @@ class SafeNightDiscordBot(discord.Client):
             await message.reply(_OPEN_CASE_NOT_WORKER, mention_author=False)
             return
 
-        settings = get_settings()
         if not settings.discord_youth_cases_category_id:
             await message.reply(_OPEN_CASE_NO_CATEGORY, mention_author=False)
             return
 
-        # Parse the @mention — must be exactly one user mention.
-        if not message.mentions:
+        raw_target = re.sub(r"^!open_case(?:\s+|$)", "", (message.content or "").strip(), flags=re.IGNORECASE).strip()
+        target_text = raw_target or (message.mentions[0].mention if message.mentions else "")
+
+        if not target_text:
             await message.reply(_OPEN_CASE_USAGE, mention_author=False)
             return
 
-        youth_discord_user = message.mentions[0]
+        youth_discord_user = message.mentions[0] if message.mentions else await _resolve_discord_member(guild, target_text)
+        if youth_discord_user is None:
+            await message.reply(
+                _OPEN_CASE_USAGE + "\n" + _OPEN_CASE_DM_HINT,
+                mention_author=False,
+            )
+            return
+
         if youth_discord_user.bot:
             await message.reply("You can't open a case for a bot.", mention_author=False)
             return
@@ -1121,8 +1195,8 @@ class SafeNightDiscordBot(discord.Client):
         youth_name = str(youth_discord_user.display_name or youth_discord_user.name or "youth")
 
         try:
-            worker_member = await message.guild.fetch_member(int(discord_user_id))
-            youth_member = await message.guild.fetch_member(int(youth_discord_id))
+            worker_member = await guild.fetch_member(int(discord_user_id))
+            youth_member = await guild.fetch_member(int(youth_discord_id))
         except discord.NotFound:
             await message.reply(
                 "Both you and the youth need to be members of this server first.",

@@ -1,3 +1,4 @@
+import asyncio
 import os
 import sys
 from pathlib import Path
@@ -27,7 +28,14 @@ from app.models.message import Message, SenderType
 from app.models.youth_profile import YouthProfile
 from app.routes import operations, telegram_bot
 from app.services.ai_service import CRITICAL_FALLBACK_REPLY, generate_safenight_reply
-from app.services.discord_bot_service import _LINKED_OK, _ensure_thread_conversation, _handle_link, _handle_message
+from app.services.discord_bot_service import (
+    _LINKED_OK,
+    _ensure_thread_conversation,
+    _handle_link,
+    _handle_message,
+    _normalize_discord_lookup_text,
+    _resolve_discord_member,
+)
 from app.services.safenight_service import assess_safe_night_message
 from seed import seed
 
@@ -59,6 +67,28 @@ def token(email: str) -> str:
 
 def auth(email: str) -> dict[str, str]:
     return {"Authorization": f"Bearer {token(email)}"}
+
+
+class _FakeDiscordMember:
+    def __init__(self, user_id: int, name: str, display_name: str | None = None, global_name: str | None = None, bot: bool = False) -> None:
+        self.id = user_id
+        self.name = name
+        self.display_name = display_name or name
+        self.global_name = global_name
+        self.bot = bot
+
+    @property
+    def mention(self) -> str:
+        return f"<@{self.id}>"
+
+
+class _FakeDiscordGuild:
+    def __init__(self, members: list[_FakeDiscordMember]) -> None:
+        self.members = members
+        self._members_by_id = {member.id: member for member in members}
+
+    async def fetch_member(self, user_id: int) -> _FakeDiscordMember:
+        return self._members_by_id[user_id]
 
 
 def test_health_login_and_role_isolation() -> None:
@@ -197,6 +227,17 @@ def test_discord_dm_links_and_routes_to_safenight() -> None:
         assert conversation.risk_score >= 40
         assert messages[-2].sender_type == SenderType.youth
         assert messages[-1].sender_type == SenderType.ai
+
+
+def test_discord_open_case_lookup_accepts_mentions_names_and_ids() -> None:
+    member = _FakeDiscordMember(4242, "mikeboythestar", display_name="Mike Boy", global_name="Mike Boy")
+    guild = _FakeDiscordGuild([member])
+
+    assert _normalize_discord_lookup_text("<@4242>") == "4242"
+    assert _normalize_discord_lookup_text("@mikeboythestar") == "mikeboythestar"
+    assert asyncio.run(_resolve_discord_member(guild, "<@4242>")) is member
+    assert asyncio.run(_resolve_discord_member(guild, "mikeboythestar")) is member
+    assert asyncio.run(_resolve_discord_member(guild, "Mike Boy")) is member
 
 
 def test_discord_public_intake_falls_back_when_youth_id_missing() -> None:
