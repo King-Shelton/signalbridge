@@ -25,6 +25,7 @@ from app.main import app
 from app.models.case import Case
 from app.models.conversation import Conversation
 from app.models.message import Message, SenderType
+from app.models.user import User
 from app.models.youth_profile import YouthProfile
 from app.routes import operations, telegram_bot
 from app.services.ai_service import CRITICAL_FALLBACK_REPLY, generate_safenight_reply
@@ -127,6 +128,46 @@ def test_auth_rejects_token_with_stale_role_claim() -> None:
     response = client.get("/auth/me", headers={"Authorization": f"Bearer {tampered_token}"})
 
     assert response.status_code == 401
+
+
+def test_supervisor_can_reset_and_reseed_demo_data_without_deleting_accounts() -> None:
+    with SessionLocal() as db:
+        before_users = db.query(User).count()
+        dirty_conversation = db.get(Conversation, "conv_mira_after_hours")
+        dirty_conversation.risk_score = 3
+        db.commit()
+
+    worker_response = client.post(
+        "/maintenance/demo-reset",
+        headers=auth("worker1@signalbridge.test"),
+        json={"confirm": "RESET_DEMO"},
+    )
+    assert worker_response.status_code == 403
+
+    bad_confirm = client.post(
+        "/maintenance/demo-reset",
+        headers=auth("supervisor@signalbridge.test"),
+        json={"confirm": "yes"},
+    )
+    assert bad_confirm.status_code == 422
+
+    response = client.post(
+        "/maintenance/demo-reset",
+        headers=auth("supervisor@signalbridge.test"),
+        json={"confirm": "RESET_DEMO"},
+    )
+    assert response.status_code == 200
+    assert response.json()["status"] == "ok"
+
+    with SessionLocal() as db:
+        assert db.query(User).count() == before_users
+        assert db.get(Conversation, "conv_mira_after_hours").risk_score == 92
+        assert db.get(Case, "case_leanne_001").assigned_worker_id == "user_worker_2"
+
+    aisha_rows = client.get("/worker/cockpit", headers=auth("worker1@signalbridge.test")).json()["conversations"]
+    marcus_rows = client.get("/worker/cockpit", headers=auth("worker2@signalbridge.test")).json()["conversations"]
+    assert {row["youthId"] for row in aisha_rows} == {"youth_mira", "youth_jay", "youth_dan", "youth_afiq"}
+    assert {row["youthId"] for row in marcus_rows} == {"youth_leanne"}
 
 
 def test_cockpit_handoff_pdf_case_note_and_status() -> None:

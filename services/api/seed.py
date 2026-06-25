@@ -487,21 +487,21 @@ def seed(reset: bool = False) -> None:
         )
 
         case_rows = [
-            ("case_mira_001", "youth_mira", CaseStatus.needs_review, "high",
+            ("case_mira_001", "youth_mira", worker, CaseStatus.needs_review, "high",
              "After-hours cyberbullying handoff for Mira.", now - timedelta(hours=8), now - timedelta(hours=1)),
-            ("case_jay_001", "youth_jay", CaseStatus.needs_review, "medium",
+            ("case_jay_001", "youth_jay", worker, CaseStatus.needs_review, "medium",
              "Peer pressure handoff with repeated late-night messaging.", now - timedelta(hours=11), now + timedelta(hours=3)),
-            ("case_dan_001", "youth_dan", CaseStatus.in_progress, "medium",
+            ("case_dan_001", "youth_dan", worker, CaseStatus.in_progress, "medium",
              "Morning sleep disruption and school readiness check.", now - timedelta(hours=2), now + timedelta(hours=1)),
-            ("case_afiq_001", "youth_afiq", CaseStatus.new, "low",
+            ("case_afiq_001", "youth_afiq", worker, CaseStatus.new, "low",
              "Routine low-risk check-in.", now - timedelta(hours=1), now + timedelta(days=2)),
-            ("case_leanne_001", "youth_leanne", CaseStatus.closed, "low",
+            ("case_leanne_001", "youth_leanne", worker_two, CaseStatus.closed, "low",
              "Stable post-session follow-up closed.", now - timedelta(days=1), None),
         ]
-        for case_id, youth_id, status, priority, summary, updated_at, follow_up in case_rows:
-            upsert_case(db, case_id, youth_id, worker, status, priority, summary, updated_at, follow_up)
+        for case_id, youth_id, case_worker, status, priority, summary, updated_at, follow_up in case_rows:
+            upsert_case(db, case_id, youth_id, case_worker, status, priority, summary, updated_at, follow_up)
             add_case_note(
-                db, f"note_{case_id}_seed", case_id, worker,
+                db, f"note_{case_id}_seed", case_id, case_worker,
                 f"Demo context: {summary}",
                 "Start with the latest handoff and keep the first message short." if priority in {"high", "medium"} else "Continue agreed monitoring.",
                 updated_at,

@@ -17,6 +17,7 @@ from app.models.message import SenderType
 from app.config import get_settings
 from app.models.user import UserRole
 from app.services.auth_service import require_roles
+from app.services.demo_reset import clear_demo_content
 from app.services.notifications import send_telegram
 from app.timeutil import naive_utcnow, to_sgt
 
@@ -43,6 +44,10 @@ class WorkerMessageCreate(BaseModel):
 
 class AssignmentUpdate(BaseModel):
     workerId: str
+
+
+class DemoResetRequest(BaseModel):
+    confirm: str
 
 
 LOAD_CASE_WEIGHT = 10
@@ -515,3 +520,25 @@ def analytics(_: User = Depends(supervisor_required), db: Session = Depends(get_
 def notifications(current_user: User = Depends(worker_required), db: Session = Depends(get_db)) -> dict:
     rows = db.query(Notification).filter(Notification.recipient_user_id == current_user.id).order_by(Notification.created_at.desc()).limit(50).all()
     return {"notifications": [{"id": n.id, "title": n.title, "message": n.message, "severity": n.severity, "read": n.read, "createdAt": n.created_at.isoformat() + "Z"} for n in rows]}
+
+
+@router.post("/maintenance/demo-reset")
+def maintenance_demo_reset(
+    payload: DemoResetRequest,
+    _: User = Depends(supervisor_required),
+    db: Session = Depends(get_db),
+) -> dict:
+    if payload.confirm != "RESET_DEMO":
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Confirmation must be RESET_DEMO")
+
+    deleted = clear_demo_content(db)
+
+    # Import lazily to avoid pulling seed-time setup into normal app startup.
+    from seed import seed
+
+    seed(reset=False)
+    return {
+        "status": "ok",
+        "message": "Demo data reset and seeded. User accounts, worker profiles, and worker notification settings were preserved.",
+        "deleted": deleted,
+    }
