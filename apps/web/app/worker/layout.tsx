@@ -9,6 +9,7 @@ import {
   ClipboardList,
   UsersRound,
   ScrollText,
+  Settings,
   LogOut,
   Menu,
   X,
@@ -23,6 +24,7 @@ const NAV = [
   { href: "/worker/handoffs", label: "Handoffs", desc: "Briefs to review", Icon: ClipboardList },
   { href: "/worker/cases", label: "Cases", desc: "Continuity notes", Icon: UsersRound },
   { href: "/worker/audit", label: "Audit Log", desc: "Safety trail", Icon: ScrollText },
+  { href: "/worker/settings", label: "Settings", desc: "Channel connections", Icon: Settings },
 ];
 
 export default function WorkerLayout({ children }: { children: React.ReactNode }) {

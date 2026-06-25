@@ -1,3 +1,5 @@
+import json
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -10,6 +12,7 @@ from app.models.handoff_brief import HandoffBrief, ReviewStatus
 from app.models.message import Message
 from app.models.signal import Signal
 from app.models.user import User
+from app.models.worker_profile import WorkerProfile
 from app.models.youth_profile import YouthProfile
 from app.schemas.worker import (
     CaseNoteCreate,
@@ -26,6 +29,8 @@ from app.schemas.worker import (
     WorkerCockpitStats,
     WorkerConversationPublic,
     WorkerConversationResponse,
+    WorkerChannelSettingsPublic,
+    WorkerChannelSettingsUpdate,
     WorkerHandoffPublic,
     WorkerHandoffResponse,
     WorkerMessagePublic,
@@ -124,6 +129,7 @@ def serialize_conversation(db: Session, conversation: Conversation, include_mess
         youthId=conversation.youth_id,
         youthName=youth_name(db, youth),
         channel=conversation.channel,
+        channelType=conversation.channel_type,
         status=conversation.status.value,
         riskLevel=conversation.risk_level.value,
         riskScore=conversation.risk_score,
@@ -153,6 +159,9 @@ def serialize_handoff(db: Session, handoff: HandoffBrief) -> WorkerHandoffPublic
         recommendedNextStep=handoff.recommended_next_step,
         reviewStatus=handoff.review_status.value,
         createdAt=handoff.created_at,
+        platform=handoff.platform,
+        preHandoffContext=json.loads(handoff.pre_handoff_context) if handoff.pre_handoff_context else None,
+        memoryCardSnapshot=json.loads(handoff.memory_card_snapshot) if handoff.memory_card_snapshot else None,
     )
 
 
@@ -536,3 +545,74 @@ def update_case_status(
     db.commit()
     db.refresh(case)
     return CaseStatusUpdateResponse(case=serialize_case(db, case, include_notes=True))
+
+
+@router.get("/youths/{youth_id}/memory-card")
+def get_youth_memory_card(
+    youth_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> dict:
+    """Return the persistent memory card for a youth — longitudinal context across sessions."""
+    require_worker_scope(current_user)
+    youth = db.get(YouthProfile, youth_id)
+    if youth is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Youth not found.")
+    # Workers can only read youths assigned to them (supervisors see all).
+    if current_user.role.value == "worker" and youth.assigned_worker_id != current_user.id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not your assigned youth.")
+    from app.services.memory_card_service import snapshot_memory_card
+    return snapshot_memory_card(youth_id, db)
+
+
+@router.get("/channel-settings", response_model=WorkerChannelSettingsPublic)
+def get_channel_settings(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> WorkerChannelSettingsPublic:
+    """Return the worker's Telegram Business / Discord connection status and work hours."""
+    require_worker_scope(current_user)
+    profile = db.query(WorkerProfile).filter_by(user_id=current_user.id).first()
+    return WorkerChannelSettingsPublic(
+        telegramBusinessConnected=bool(profile and profile.telegram_business_connection_id),
+        discordConnected=bool(profile and profile.discord_user_id),
+        workHoursStart=profile.work_hours_start if profile else 9,
+        workHoursEnd=profile.work_hours_end if profile else 18,
+    )
+
+
+@router.patch("/channel-settings", response_model=WorkerChannelSettingsPublic)
+def update_channel_settings(
+    payload: WorkerChannelSettingsUpdate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> WorkerChannelSettingsPublic:
+    """Update the worker's after-hours window. Connection IDs are set by the bots, not here."""
+    require_worker_scope(current_user)
+    profile = db.query(WorkerProfile).filter_by(user_id=current_user.id).first()
+    if profile is None:
+        import uuid
+        profile = WorkerProfile(
+            id=f"wkp_{uuid.uuid4().hex}",
+            user_id=current_user.id,
+        )
+        db.add(profile)
+        db.flush()
+    if payload.workHoursStart is not None:
+        if not (0 <= payload.workHoursStart <= 23):
+            from fastapi import HTTPException, status as http_status
+            raise HTTPException(status_code=http_status.HTTP_422_UNPROCESSABLE_ENTITY, detail="workHoursStart must be 0–23.")
+        profile.work_hours_start = payload.workHoursStart
+    if payload.workHoursEnd is not None:
+        if not (0 <= payload.workHoursEnd <= 23):
+            from fastapi import HTTPException, status as http_status
+            raise HTTPException(status_code=http_status.HTTP_422_UNPROCESSABLE_ENTITY, detail="workHoursEnd must be 0–23.")
+        profile.work_hours_end = payload.workHoursEnd
+    db.commit()
+    db.refresh(profile)
+    return WorkerChannelSettingsPublic(
+        telegramBusinessConnected=bool(profile.telegram_business_connection_id),
+        discordConnected=bool(profile.discord_user_id),
+        workHoursStart=profile.work_hours_start,
+        workHoursEnd=profile.work_hours_end,
+    )

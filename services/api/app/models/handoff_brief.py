@@ -33,4 +33,10 @@ class HandoffBrief(Base):
     suggested_worker_response: Mapped[str | None] = mapped_column(Text, nullable=True)
     recommended_next_step: Mapped[str | None] = mapped_column(Text, nullable=True)
     review_status: Mapped[ReviewStatus] = mapped_column(Enum(ReviewStatus), default=ReviewStatus.pending)
+    # Platform the conversation happened on — mirrors Conversation.channel_type.
+    platform: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    # JSON-encoded list[str] of the last worker messages before going offline.
+    pre_handoff_context: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # JSON snapshot of YouthMemoryCard at the moment the handoff was created.
+    memory_card_snapshot: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=naive_utcnow, nullable=False)

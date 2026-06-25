@@ -2,11 +2,40 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Radar, ShieldAlert, ClipboardList, Sparkles, MessageCircle, ChevronRight, Bell, Send } from "lucide-react";
+import { MessageCircle, ChevronRight, ArrowRight, Bell, Send, Check, Hash, Globe, Bot, Wifi, WifiOff } from "lucide-react";
 import { apiFetch } from "@/lib/api-client";
 import { usePolling } from "@/lib/use-polling";
 import { ConversationItem, label } from "@/lib/operations";
 import { initials, riskMeta, timeAgo } from "@/lib/ui";
+
+type ChannelType = "telegram_business" | "telegram_bot" | "discord_private_channel" | "discord_dm" | "web_chat" | string;
+
+function channelMeta(ct: ChannelType) {
+  switch (ct) {
+    case "telegram_business":
+      return { icon: <MessageCircle size={11} strokeWidth={2} />, label: "TG Business", fg: "#5ba3e8", bg: "rgba(91,163,232,0.12)", border: "rgba(91,163,232,0.3)" };
+    case "telegram_bot":
+      return { icon: <Bot size={11} strokeWidth={2} />, label: "Telegram", fg: "#5ba3e8", bg: "rgba(91,163,232,0.12)", border: "rgba(91,163,232,0.3)" };
+    case "discord_private_channel":
+      return { icon: <Hash size={11} strokeWidth={2} />, label: "Discord", fg: "#a08de8", bg: "rgba(88,101,242,0.12)", border: "rgba(88,101,242,0.3)" };
+    case "discord_dm":
+      return { icon: <Hash size={11} strokeWidth={2} />, label: "Discord DM", fg: "#a08de8", bg: "rgba(88,101,242,0.12)", border: "rgba(88,101,242,0.3)" };
+    default:
+      return { icon: <Globe size={11} strokeWidth={2} />, label: "Web", fg: "#6fb8aa", bg: "rgba(31,111,100,0.15)", border: "rgba(111,184,170,0.25)" };
+  }
+}
+
+function ChannelBadge({ channelType }: { channelType: ChannelType }) {
+  const m = channelMeta(channelType);
+  return (
+    <span
+      className="inline-flex items-center gap-1 text-[10.5px] font-semibold px-2 py-0.5 rounded-full flex-shrink-0"
+      style={{ background: m.bg, color: m.fg, border: `1px solid ${m.border}` }}
+    >
+      {m.icon} {m.label}
+    </span>
+  );
+}
 
 function greetingFor(date: Date) {
   const hour = Number(
@@ -20,12 +49,21 @@ function greetingFor(date: Date) {
 }
 
 type NotifSettings = { telegramChatId: string | null; discordWebhookUrl: string | null };
+type ChannelSettings = { workHoursStart: number; workHoursEnd: number; telegramBusinessConnected: boolean; discordConnected: boolean };
+
+function isInWorkHours(settings: ChannelSettings, now: Date): boolean {
+  const sgtHour = Number(
+    new Intl.DateTimeFormat("en-SG", { hour: "numeric", hour12: false, timeZone: "Asia/Singapore" }).format(now)
+  );
+  return sgtHour >= settings.workHoursStart && sgtHour < settings.workHoursEnd;
+}
 
 export default function WorkerCockpitPage() {
   const [items, setItems] = useState<ConversationItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [now, setNow] = useState<Date | null>(null);
+  const [channelSettings, setChannelSettings] = useState<ChannelSettings | null>(null);
 
   const [notifSettings, setNotifSettings] = useState<NotifSettings>({ telegramChatId: null, discordWebhookUrl: null });
   const [telegramInput, setTelegramInput] = useState("");
@@ -56,10 +94,14 @@ export default function WorkerCockpitPage() {
 
   const loadNotifSettings = useCallback(async () => {
     try {
-      const data = await apiFetch<NotifSettings>("/worker/notification-settings");
-      setNotifSettings(data);
-      setTelegramInput(data.telegramChatId ?? "");
-      setDiscordInput(data.discordWebhookUrl ?? "");
+      const [notif, chSettings] = await Promise.all([
+        apiFetch<NotifSettings>("/worker/notification-settings"),
+        apiFetch<ChannelSettings>("/worker/channel-settings"),
+      ]);
+      setNotifSettings(notif);
+      setTelegramInput(notif.telegramChatId ?? "");
+      setDiscordInput(notif.discordWebhookUrl ?? "");
+      setChannelSettings(chSettings);
     } catch { /* non-critical */ }
   }, []);
 
@@ -114,57 +156,73 @@ export default function WorkerCockpitPage() {
     );
   }, [items]);
 
-  const stats = useMemo(
-    () => ({
-      queue: items.length,
-      high: items.filter((item) => ["high", "critical"].includes(item.riskLevel)).length,
-      handoffs: items.filter((item) => item.unresolvedHandoff).length,
-      open: items.filter((item) => item.case && item.case.status !== "closed").length,
-    }),
+  const statline = useMemo(
+    () => [
+      { value: items.length, label: "youth waiting", color: "#6fb8aa" },
+      { value: items.filter((i) => ["high", "critical"].includes(i.riskLevel)).length, label: "high priority", color: "#e88d78" },
+      { value: items.filter((i) => i.unresolvedHandoff).length, label: "to review", color: "#e9c685" },
+    ],
     [items]
   );
 
-  const tiles: [string, number | string, string, React.ReactNode][] = [
-    ["Youth waiting", stats.queue, "#6fb8aa", <Radar key="i" size={20} strokeWidth={1.75} />],
-    ["Needs quick review", stats.high, "#e88d78", <ShieldAlert key="i" size={20} strokeWidth={1.75} />],
-    ["Handoffs to read", stats.handoffs, "#e9c685", <ClipboardList key="i" size={20} strokeWidth={1.75} />],
-    ["Open cases", stats.open, "#6fb8aa", <Sparkles key="i" size={20} strokeWidth={1.75} />],
-  ];
+  const spotlight = ranked[0] ?? null;
+  const rest = ranked.slice(1);
 
   return (
-    <div className="p-6 lg:p-8 space-y-6 max-w-6xl mx-auto">
+    <div className="p-6 lg:p-8 max-w-6xl mx-auto space-y-6">
       {/* Header */}
       <header className="flex items-end justify-between gap-5 flex-wrap">
-        <div className="max-w-xl">
-          <p className="sb-eyebrow mb-2">Worker queue{now ? ` · ${greetingFor(now)}` : ""}</p>
-          <h1 className="text-[30px] font-semibold text-[#f1f6f4]" style={{ letterSpacing: "-0.025em" }}>
+        <div>
+          <p className="text-[12px] text-[rgba(214,235,230,0.45)]" style={{ letterSpacing: "0.02em" }}>
+            Today&apos;s queue{now ? ` · ${greetingFor(now)}` : ""}
+          </p>
+          <h1 className="mt-2 text-[30px] font-semibold text-[#f4f9f7]" style={{ letterSpacing: "-0.03em" }}>
             Start with the youths who need you soonest.
           </h1>
-          <p className="mt-3 text-[14px] leading-relaxed text-[rgba(214,235,230,0.55)]">
-            The list combines recent messages, consented handoffs, and risk level so you can choose the next human step.
+          <p className="mt-2 text-[14.5px] leading-relaxed text-[rgba(214,235,230,0.6)] max-w-[50ch]">
+            Risk level, consented handoffs and recent messages — all in one place so you can choose the right next step.
           </p>
         </div>
-        <div className="text-[12px] font-mono text-[rgba(214,235,230,0.35)]">
-          {now ? now.toLocaleString("en-SG", { weekday: "short", hour: "2-digit", minute: "2-digit" }) : ""}
+        <div className="flex flex-col items-end gap-2">
+          <div className="flex items-center gap-2 text-[12px] font-mono text-[rgba(214,235,230,0.4)]">
+            <span
+              className="w-1.5 h-1.5 rounded-full bg-[#6fb8aa]"
+              style={{ boxShadow: "0 0 8px 1px rgba(111,184,170,0.7)", animation: "sb-core 2.4s ease-in-out infinite" }}
+            />
+            {now ? now.toLocaleString("en-SG", { weekday: "short", hour: "2-digit", minute: "2-digit" }) : ""}
+          </div>
+          {/* Worker online/offline badge */}
+          {channelSettings && now && (() => {
+            const online = isInWorkHours(channelSettings, now);
+            return (
+              <span
+                className="inline-flex items-center gap-1.5 text-[11.5px] font-semibold px-2.5 py-1 rounded-full"
+                style={online
+                  ? { background: "rgba(31,111,100,0.2)", color: "#6fb8aa", border: "1px solid rgba(111,184,170,0.3)" }
+                  : { background: "rgba(183,121,31,0.15)", color: "#e9c685", border: "1px solid rgba(183,121,31,0.35)" }
+                }
+              >
+                {online
+                  ? <><Wifi size={12} strokeWidth={2} /> You&apos;re online · SafeNight inactive</>
+                  : <><WifiOff size={12} strokeWidth={2} /> You&apos;re offline · SafeNight covering</>
+                }
+              </span>
+            );
+          })()}
         </div>
       </header>
 
-      {/* Stat tiles */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        {tiles.map(([name, value, color, icon]) => (
-          <div key={name} className="glass-card p-4 flex items-start justify-between gap-2">
-            <div>
-              <p className="sb-eyebrow mb-2">{name}</p>
-              <p className="text-[30px] font-semibold leading-none" style={{ color, letterSpacing: "-0.03em" }}>
-                {value}
-              </p>
-            </div>
-            <span className="w-9 h-9 rounded-[11px] flex items-center justify-center flex-shrink-0" style={{ background: "rgba(255,255,255,0.05)", color }}>
-              {icon}
+      {/* Slim stat line */}
+      {items.length > 0 && (
+        <div className="flex items-center gap-5 flex-wrap text-[13px] text-[rgba(214,235,230,0.5)]">
+          {statline.map((s) => (
+            <span key={s.label} className="flex items-center gap-2">
+              <span className="text-[17px] font-semibold" style={{ color: s.color, letterSpacing: "-0.02em" }}>{s.value}</span>
+              {s.label}
             </span>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
 
       {error && (
         <div className="text-[13px] text-[#e88d78] bg-[rgba(217,95,72,0.1)] border border-[rgba(217,95,72,0.2)] rounded-xl px-4 py-3 flex items-center gap-3">
@@ -173,97 +231,179 @@ export default function WorkerCockpitPage() {
         </div>
       )}
 
+      {loading && items.length === 0 && (
+        <div className="flex items-center gap-3 text-[rgba(214,235,230,0.5)] text-sm">
+          <div className="w-4 h-4 rounded-full border-2 border-[#6fb8aa] border-t-transparent animate-spin" />
+          Loading conversations…
+        </div>
+      )}
+
       <div className="grid gap-5 lg:grid-cols-[1.55fr_0.85fr] items-start">
-        {/* Ranked queue */}
-        <div className="glass-card p-5">
-          <div className="flex items-center justify-between pb-4 mb-4" style={{ borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
-            <div>
-              <p className="sb-eyebrow">Today&apos;s queue</p>
-              <h2 className="mt-1 text-[18px] font-semibold text-[#f1f6f4]">Case order</h2>
-            </div>
-            <span className="text-[11.5px] font-semibold text-[rgba(214,235,230,0.55)] px-3 py-1.5 rounded-full" style={{ background: "rgba(255,255,255,0.06)" }}>
-              Review first
-            </span>
-          </div>
+        {/* Left: spotlight + ranked list */}
+        <div className="space-y-4">
 
-          {loading && items.length === 0 && (
-            <div className="flex items-center gap-3 text-[rgba(214,235,230,0.5)] text-sm py-4">
-              <div className="w-4 h-4 rounded-full border-2 border-[#6fb8aa] border-t-transparent animate-spin" />
-              Loading conversations...
-            </div>
-          )}
-
-          <div className="space-y-3">
-            {ranked.map((item, i) => {
-              const m = riskMeta(item.riskLevel);
-              const href = item.handoffId ? `/worker/handoffs/${item.handoffId}` : `/worker/youths/${item.youthId}`;
-              return (
-                <Link
-                  key={item.id}
-                  href={href}
-                  className="block rounded-[16px] p-4 transition-all duration-200 hover:-translate-y-0.5"
-                  style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)" }}
+          {/* "Start here" spotlight */}
+          {spotlight && (() => {
+            const m = riskMeta(spotlight.riskLevel);
+            const briefHref = spotlight.handoffId ? `/worker/handoffs/${spotlight.handoffId}` : null;
+            const memoryHref = `/worker/youths/${spotlight.youthId}`;
+            const firstName = spotlight.youthName.split(" ")[0];
+            return (
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[rgba(214,235,230,0.4)] mb-2">Start here</p>
+                <div
+                  className="rounded-[22px] p-6"
+                  style={{
+                    background: `linear-gradient(180deg, ${
+                      spotlight.riskLevel === "high" || spotlight.riskLevel === "critical"
+                        ? "rgba(217,95,72,0.1)"
+                        : spotlight.riskLevel === "medium"
+                        ? "rgba(183,121,31,0.09)"
+                        : "rgba(31,111,100,0.1)"
+                    }, rgba(255,255,255,0.02))`,
+                    border: "1px solid rgba(255,255,255,0.1)",
+                    borderLeft: `3px solid ${m.fg}`,
+                    boxShadow: "0 18px 50px rgba(0,0,0,0.28)",
+                  }}
                 >
-                  <div className="flex items-center gap-3">
-                    <span className="text-[12px] font-bold w-5 flex-shrink-0 text-[rgba(214,235,230,0.3)]">{i + 1}</span>
-                    <span className="w-10 h-10 flex-shrink-0 rounded-full flex items-center justify-center text-[13px] font-semibold" style={{ background: m.soft, color: m.fg, border: `1px solid ${m.border}` }}>
-                      {initials(item.youthName)}
-                    </span>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2.5 flex-wrap">
-                        <span className="text-[16px] font-semibold text-[#f1f6f4]">{item.youthName}</span>
-                        <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full" style={{ background: m.soft, color: m.fg, border: `1px solid ${m.border}` }}>
-                          {label(item.riskLevel)} · {item.riskScore}
-                        </span>
-                        {item.consentToHandoff && (
-                          <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full flex items-center gap-1" style={{ background: "rgba(31,111,100,0.15)", color: "#6fb8aa", border: "1px solid rgba(111,184,170,0.3)" }}>
-                            <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
-                            Consent
+                  <div className="flex items-start justify-between gap-4 flex-wrap">
+                    <div className="flex items-center gap-3.5">
+                      <span
+                        className="w-13 h-13 rounded-full flex items-center justify-center text-[18px] font-semibold flex-shrink-0 text-[#f4f9f7]"
+                        style={{ width: 52, height: 52, background: m.soft, border: `1px solid ${m.border}` }}
+                      >
+                        {initials(spotlight.youthName)}
+                      </span>
+                      <div>
+                        <div className="flex items-center gap-2.5 flex-wrap">
+                          <span className="text-[21px] font-semibold text-[#f4f9f7]" style={{ letterSpacing: "-0.02em" }}>
+                            {spotlight.youthName}
                           </span>
-                        )}
+                          <span
+                            className="inline-flex items-center gap-1.5 text-[11.5px] font-semibold px-3 py-1 rounded-full"
+                            style={{ background: m.soft, border: `1px solid ${m.border}`, color: m.fg }}
+                          >
+                            <span className="w-1.5 h-1.5 rounded-full" style={{ background: m.fg }} />
+                            {label(spotlight.riskLevel)} · {spotlight.riskScore}
+                          </span>
+                        </div>
+                        <div className="mt-1 flex items-center gap-2">
+                          <ChannelBadge channelType={spotlight.channelType} />
+                          <span className="text-[12px] font-mono text-[rgba(214,235,230,0.42)]">{timeAgo(spotlight.lastMessageAt)}</span>
+                        </div>
                       </div>
-                      <p className="mt-0.5 text-[12.5px] text-[rgba(214,235,230,0.4)] flex items-center gap-1.5">
-                        <MessageCircle size={13} strokeWidth={1.75} /> {item.channel} · {timeAgo(item.lastMessageAt)}
-                      </p>
                     </div>
-                    <ChevronRight size={20} strokeWidth={1.75} className="text-[rgba(214,235,230,0.3)] flex-shrink-0" />
+                    {spotlight.consentToHandoff && (
+                      <span
+                        className="inline-flex items-center gap-1.5 text-[11.5px] font-semibold px-3 py-1.5 rounded-full"
+                        style={{ background: "rgba(31,111,100,0.18)", border: "1px solid rgba(111,184,170,0.3)", color: "#8fcfc3" }}
+                      >
+                        <Check size={12} strokeWidth={2.4} />
+                        Consent on file
+                      </span>
+                    )}
                   </div>
 
-                  {(() => {
-                    const youthMessages = item.messages.filter((m) => m.senderType === "youth");
-                    const last = youthMessages[youthMessages.length - 1];
-                    return last ? (
-                      <p className="mt-3 text-[13px] leading-snug text-[rgba(214,235,230,0.5)] truncate">
-                        <span className="text-[rgba(214,235,230,0.3)] mr-1">&ldquo;</span>
-                        {last.content.length > 90 ? last.content.slice(0, 90) + "…" : last.content}
-                        <span className="text-[rgba(214,235,230,0.3)] ml-0.5">&rdquo;</span>
-                      </p>
-                    ) : null;
-                  })()}
-
-                  {item.suggestedAction && (
-                    <p className="mt-2 text-[12px] leading-relaxed text-[rgba(214,235,230,0.5)] italic">{item.suggestedAction}</p>
+                  {spotlight.suggestedAction && (
+                    <p className="mt-4 text-[15px] leading-relaxed text-[rgba(238,244,242,0.82)] max-w-[58ch]">
+                      {spotlight.suggestedAction}
+                    </p>
                   )}
 
-                  {item.signals.length > 0 && (
-                    <div className="flex flex-wrap gap-2 mt-3">
-                      {item.signals.slice(0, 3).map((signal) => (
-                        <span key={signal.id} className="px-2.5 py-1 rounded-full text-[11px] font-medium" style={{ background: "rgba(255,255,255,0.07)", color: "rgba(214,235,230,0.6)", border: "1px solid rgba(255,255,255,0.1)" }}>
-                          {label(signal.type)}
+                  {spotlight.signals.filter((s) => s.type !== "after_hours_support").length > 0 && (
+                    <div className="mt-3.5 flex flex-wrap gap-1.5">
+                      {spotlight.signals.filter((s) => s.type !== "after_hours_support").slice(0, 4).map((sig) => (
+                        <span
+                          key={sig.id}
+                          className="inline-flex items-center gap-1.5 text-[11.5px] font-medium px-2.5 py-1 rounded-full"
+                          style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", color: "rgba(214,235,230,0.66)" }}
+                        >
+                          <span className="w-1 h-1 rounded-full" style={{ background: m.fg }} />
+                          {label(sig.type)}
                         </span>
                       ))}
                     </div>
                   )}
-                </Link>
-              );
-            })}
 
-            {!loading && !error && items.length === 0 && (
-              <div className="p-8 text-center text-[rgba(214,235,230,0.5)] text-sm">
-                No active conversations. All caught up.
+                  <div className="mt-5 flex flex-wrap gap-2.5">
+                    {briefHref && (
+                      <Link
+                        href={briefHref}
+                        className="inline-flex items-center gap-2 text-[13.5px] font-semibold px-5 py-3 rounded-[12px] text-white transition-all hover:-translate-y-0.5"
+                        style={{ background: "#1f6f64", boxShadow: "0 10px 26px rgba(31,111,100,0.3)" }}
+                      >
+                        Open {firstName}&apos;s handoff brief
+                        <ArrowRight size={16} strokeWidth={2} />
+                      </Link>
+                    )}
+                    <Link
+                      href={memoryHref}
+                      className="inline-flex items-center gap-2 text-[13.5px] font-semibold px-5 py-3 rounded-[12px] transition-all"
+                      style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.12)", color: "rgba(214,235,230,0.72)" }}
+                    >
+                      Memory card
+                    </Link>
+                  </div>
+                </div>
               </div>
-            )}
-          </div>
+            );
+          })()}
+
+          {/* "Then, in order" hairline list */}
+          {rest.length > 0 && (
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[rgba(214,235,230,0.4)] mb-2.5">Then, in order</p>
+              <div className="rounded-[18px] overflow-hidden" style={{ border: "1px solid rgba(255,255,255,0.08)", background: "rgba(255,255,255,0.02)" }}>
+                {rest.map((item, i) => {
+                  const m = riskMeta(item.riskLevel);
+                  const href = item.handoffId ? `/worker/handoffs/${item.handoffId}` : `/worker/youths/${item.youthId}`;
+                  const firstSig = item.signals.filter((s) => s.type !== "after_hours_support")[0];
+                  const reason = firstSig ? label(firstSig.type) : (item.suggestedAction ?? "");
+                  return (
+                    <Link
+                      key={item.id}
+                      href={href}
+                      className="flex items-center gap-3.5 px-5 py-3.5 transition-colors hover:bg-[rgba(255,255,255,0.03)]"
+                      style={{ borderBottom: i < rest.length - 1 ? "1px solid rgba(255,255,255,0.06)" : "none" }}
+                    >
+                      <span className="text-[12px] font-bold font-mono w-4 flex-shrink-0 text-[rgba(214,235,230,0.28)]">
+                        {i + 2}
+                      </span>
+                      <span
+                        className="w-9 h-9 rounded-full flex items-center justify-center text-[13px] font-semibold flex-shrink-0 text-[#f4f9f7]"
+                        style={{ background: m.soft, border: `1px solid ${m.border}` }}
+                      >
+                        {initials(item.youthName)}
+                      </span>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-[14.5px] font-semibold text-[#f4f9f7]">{item.youthName}</span>
+                          <span
+                            className="text-[11px] font-semibold px-2 py-0.5 rounded-full"
+                            style={{ background: m.soft, border: `1px solid ${m.border}`, color: m.fg }}
+                          >
+                            {label(item.riskLevel)} · {item.riskScore}
+                          </span>
+                        </div>
+                        <p className="text-[12.5px] text-[rgba(214,235,230,0.5)] truncate mt-0.5">{reason}</p>
+                      </div>
+                      <div className="hidden sm:flex items-center gap-1.5 flex-shrink-0">
+                        <ChannelBadge channelType={item.channelType} />
+                        <span className="text-[11px] font-mono text-[rgba(214,235,230,0.35)] whitespace-nowrap">{timeAgo(item.lastMessageAt)}</span>
+                      </div>
+                      <ChevronRight size={16} strokeWidth={2} className="text-[rgba(214,235,230,0.3)] flex-shrink-0" />
+                    </Link>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {!loading && !error && items.length === 0 && (
+            <div className="glass-card p-10 text-center text-[rgba(214,235,230,0.5)] text-sm">
+              No active conversations. All caught up.
+            </div>
+          )}
         </div>
 
         {/* Aside */}

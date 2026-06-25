@@ -1,12 +1,30 @@
 """Telegram bot webhook — youth-facing SafeNight chat via Telegram.
 
-Flow:
+Flow (public intake / existing):
   Youth messages the bot → Telegram POSTs here → SafeNight AI replies → worker notified.
   /start  → welcome + link instructions
   /link   → links the Telegram chat_id to a youth profile
   text    → full SafeNight pipeline, reply sent back, worker alerted if risk high
+
+Flow (Telegram Business — new):
+  Worker buys Telegram Business/Premium and connects this bot under
+  Settings → Telegram Business → Chatbots.
+  Telegram then delivers two new update types:
+    business_connection → worker registered/unregistered the bot; we store the connection_id.
+    business_message    → someone in the worker's personal DM space messaged them.
+  During work hours: messages are logged only (worker handles it themselves).
+  After work hours:  SafeNight AI takes over and replies on behalf of the worker's account.
+
+Worker setup:
+  1. Worker DMs this bot: /register_business
+     → We record their Telegram user_id in WorkerProfile.telegram_user_id.
+  2. Worker connects the bot in TG Business settings.
+     → business_connection update fires; we store the connection_id.
+  3. A youth messages the worker's personal Telegram after 6 pm.
+     → business_message update fires; SafeNight replies under the worker's name.
 """
 
+import json
 import logging
 import hashlib
 from datetime import timedelta
@@ -26,7 +44,15 @@ from app.models.message import Message, SenderType
 from app.models.signal import Signal
 from app.models.user import User, UserRole
 from app.models.worker_notification_settings import WorkerNotificationSettings
+from app.models.worker_profile import WorkerProfile
 from app.models.youth_profile import YouthProfile
+from app.services.after_hours_service import (
+    ensure_worker_profile,
+    get_worker_id_from_business_connection,
+    get_worker_id_from_telegram_user,
+    is_after_hours,
+)
+from app.services.memory_card_service import update_memory_card
 from app.services.ai_service import (
     analyse_risk,
     apply_risk_to_conversation,
@@ -70,6 +96,23 @@ _ALREADY_LINKED = "This chat is already linked to a SignalBridge account."
 _ASK_NAME = "Before we start, what name or nickname should I use for you?"
 _NAME_RECORDED = "Thanks, {name}. I'm here with you now. What feels hardest tonight?"
 
+# ── Telegram Business strings ────────────────────────────────────────────────
+_BIZ_REGISTER_OK = (
+    "✅ Registered! Your Telegram ID is now linked to your SignalBridge worker account.\n\n"
+    "Next step: open Telegram → Settings → Telegram Business → Chatbots, "
+    "then add this bot. Once connected, SafeNight will cover your DMs outside your work hours."
+)
+_BIZ_REGISTER_NOT_FOUND = (
+    "I couldn't find a SignalBridge worker account linked to this Telegram chat.\n\n"
+    "Make sure you've added your Telegram chat ID in the SignalBridge cockpit under "
+    "Notification Settings first, then try /register_business again."
+)
+_BIZ_CONNECTED = (
+    "🔗 Telegram Business connected. SafeNight will now reply on your behalf "
+    "when you're outside your work hours."
+)
+_BIZ_DISCONNECTED = "Telegram Business disconnected. SafeNight will no longer reply on your behalf."
+
 
 def _bot_url(token: str, method: str) -> str:
     return f"https://api.telegram.org/bot{token}/{method}"
@@ -96,7 +139,11 @@ def register_webhook_if_configured() -> str | None:
     webhook_url = f"{base}/telegram/webhook"
     payload: dict[str, Any] = {
         "url": webhook_url,
-        "allowed_updates": ["message", "edited_message"],
+        # business_connection: fires when a worker connects/disconnects the bot
+        #   via Telegram Business settings (requires Telegram Premium/Business).
+        # business_message: fires when someone DMs the worker's personal account
+        #   while the bot is connected as their Business chatbot.
+        "allowed_updates": ["message", "edited_message", "business_connection", "business_message"],
         "drop_pending_updates": True,
     }
     if settings.telegram_webhook_secret:
@@ -309,6 +356,7 @@ def _process_youth_message(
             consent_to_handoff=conversation.consent_to_handoff,
             db=db,
             conversation_id=conversation.id,
+            youth_id=youth.id,
         )
 
     ai_reply = Message(
@@ -354,7 +402,7 @@ def _process_youth_message(
         all_messages = list(history) + [youth_msg, ai_reply]
         full_assessment = analyse_risk([m.content for m in all_messages], all_messages)
         apply_risk_to_conversation(conversation, full_assessment)
-        handoff, _ = upsert_handoff_brief_with_ai(db, conversation, all_messages, full_assessment)
+        handoff, _ = upsert_handoff_brief_with_ai(db, conversation, all_messages, full_assessment, youth_id=youth.id)
         db.add(handoff)
 
     db.add(AuditLog(
@@ -365,6 +413,16 @@ def _process_youth_message(
         details=f'{{"riskLevel":"{assessment.risk_level.value}","riskScore":{assessment.risk_score}}}',
     ))
     db.commit()
+
+    # Update memory card after committing the main session data.
+    update_memory_card(
+        youth_id=youth.id,
+        signal_types={s.type for s in assessment.signals},
+        risk_level=assessment.risk_level,
+        risk_score=assessment.risk_score,
+        message_text=content,
+        db=db,
+    )
 
     # Notify assigned worker if risk is elevated
     if youth.assigned_worker_id and assessment.risk_level.value in ("high", "critical"):
@@ -384,6 +442,359 @@ def _process_youth_message(
     return reply_content
 
 
+# ── Telegram Business helpers ────────────────────────────────────────────────
+
+def _send_business_reply(token: str, connection_id: str, chat_id: str | int, text: str) -> None:
+    """Send a message on behalf of the worker's Telegram Business account."""
+    try:
+        with httpx.Client(timeout=8) as client:
+            r = client.post(
+                _bot_url(token, "sendMessage"),
+                json={
+                    "business_connection_id": connection_id,
+                    "chat_id": chat_id,
+                    "text": text,
+                },
+            )
+        if not r.is_success:
+            logger.warning("Business reply failed: %s %s", r.status_code, r.text[:200])
+    except Exception as exc:
+        logger.warning("Business reply error: %s", exc)
+
+
+def _get_or_create_business_youth(
+    db: Session, youth_chat_id: str, worker_id: str
+) -> YouthProfile:
+    """Find or create a YouthProfile for a youth contacting the worker via TG Business."""
+    # Reuse an existing profile if this chat_id was already seen (public intake or prior session).
+    youth = db.scalar(select(YouthProfile).where(YouthProfile.telegram_chat_id == youth_chat_id))
+    if youth is not None:
+        return youth
+
+    suffix = _telegram_hash(youth_chat_id)
+    user_id = f"user_tgbiz_{suffix}"
+    youth_id = f"youth_tgbiz_{suffix}"
+    case_id = f"case_tgbiz_{suffix}"
+    now = naive_utcnow()
+
+    user = db.get(User, user_id)
+    if user is None:
+        user = User(
+            id=user_id,
+            name="Business Telegram youth",
+            email=f"tgbiz-{suffix}@signalbridge.local",
+            password_hash="telegram-business-no-login",
+            role=UserRole.youth,
+            created_at=now,
+        )
+        db.add(user)
+
+    youth = db.get(YouthProfile, youth_id)
+    if youth is None:
+        youth = YouthProfile(
+            id=youth_id,
+            user_id=user_id,
+            assigned_worker_id=worker_id,
+            preferred_channel="Telegram Business",
+            telegram_chat_id=youth_chat_id,
+            support_style=_PUBLIC_INTAKE_PENDING_STYLE,
+            stressors="Reached out via worker's personal Telegram (Business).",
+            created_at=now,
+        )
+        db.add(youth)
+
+    db.flush()
+
+    case = db.get(Case, case_id)
+    if case is None:
+        case = Case(
+            id=case_id,
+            youth_id=youth_id,
+            assigned_worker_id=worker_id,
+            status=CaseStatus.new,
+            priority="medium",
+            summary="Youth contacted worker directly via Telegram Business.",
+            created_at=now,
+            updated_at=now,
+        )
+        db.add(case)
+
+    db.commit()
+    db.refresh(youth)
+    return youth
+
+
+def _get_active_business_conversation(db: Session, youth: YouthProfile) -> Conversation:
+    """Return the open Telegram Business conversation for this youth, or create one."""
+    conv = db.scalar(
+        select(Conversation)
+        .where(
+            Conversation.youth_id == youth.id,
+            Conversation.channel == "Telegram Business",
+            Conversation.status != ConversationStatus.closed,
+        )
+        .order_by(Conversation.last_message_at.desc().nullslast(), Conversation.created_at.desc())
+    )
+    if conv is None:
+        conv = Conversation(
+            youth_id=youth.id,
+            channel="Telegram Business",
+            channel_type="telegram_business",
+            status=ConversationStatus.active,
+            risk_level=RiskLevel.low,
+            risk_score=0,
+        )
+        db.add(conv)
+        db.flush()
+    return conv
+
+
+def _get_worker_pre_handoff_messages(messages: list[Message], n: int = 5) -> list[str]:
+    """Last N messages the worker sent before going offline — context for the handoff brief."""
+    return [m.content for m in messages if m.sender_type == SenderType.worker][-n:]
+
+
+def _process_business_youth_message(
+    db: Session,
+    youth: YouthProfile,
+    content: str,
+    worker_id: str,
+) -> str:
+    """Run the SafeNight pipeline for a business DM and return the AI reply text."""
+    conversation = _get_active_business_conversation(db, youth)
+    now = naive_utcnow()
+
+    assessment = assess_safe_night_message(content)
+    history = get_conversation_messages(db, conversation.id)
+
+    youth_msg = Message(
+        conversation_id=conversation.id,
+        sender_type=SenderType.youth,
+        content=content,
+        created_at=now,
+    )
+    db.add(youth_msg)
+    db.flush()
+
+    ai_triggered_consent = False
+    risk_rank = {"low": 1, "medium": 2, "high": 3, "critical": 4}
+    if not conversation.consent_to_handoff and risk_rank.get(conversation.risk_level.value, 1) >= 2:
+        last_ai = next((m for m in reversed(history) if m.sender_type == SenderType.ai), None)
+        if detect_verbal_consent(content, last_ai.content if last_ai else None):
+            ai_triggered_consent = True
+
+    if ai_triggered_consent:
+        reply_content = build_consent_confirmation_reply()
+        conversation.consent_to_handoff = True
+        conversation.unresolved_handoff = True
+        conversation.status = ConversationStatus.needs_review
+        all_messages = list(history) + [youth_msg]
+        full_assessment = analyse_risk([m.content for m in all_messages], all_messages)
+        apply_risk_to_conversation(conversation, full_assessment)
+        existing_handoff = db.scalar(
+            select(HandoffBrief).where(HandoffBrief.conversation_id == conversation.id)
+        )
+        if existing_handoff is None:
+            handoff, _ = build_handoff_brief_with_ai(db, conversation, all_messages, full_assessment)
+            handoff.platform = "telegram_business"
+            handoff.pre_handoff_context = json.dumps(_get_worker_pre_handoff_messages(all_messages))
+            db.add(handoff)
+    else:
+        reply_content = generate_safenight_reply(
+            content, history, assessment,
+            consent_to_handoff=conversation.consent_to_handoff,
+            db=db,
+            conversation_id=conversation.id,
+            youth_id=youth.id,
+        )
+
+    ai_reply = Message(
+        conversation_id=conversation.id,
+        sender_type=SenderType.ai,
+        content=reply_content,
+        safety_status=assessment.safety_status,
+        created_at=now + timedelta(milliseconds=1),
+    )
+    db.add(ai_reply)
+    db.flush()
+
+    existing_types = {
+        t for (t,) in db.execute(
+            select(Signal.type).where(Signal.conversation_id == conversation.id)
+        ).all()
+    }
+    for detected in assessment.signals:
+        if detected.type in existing_types:
+            continue
+        db.add(Signal(
+            conversation_id=conversation.id,
+            youth_id=youth.id,
+            type=detected.type,
+            severity=detected.severity,
+            reason=detected.reason,
+            source="safenight_telegram_business",
+        ))
+        existing_types.add(detected.type)
+
+    conversation.last_message_at = now
+    if not ai_triggered_consent:
+        if risk_rank.get(assessment.risk_level.value, 1) >= risk_rank.get(conversation.risk_level.value, 1):
+            conversation.risk_level = assessment.risk_level
+        conversation.risk_score = max(conversation.risk_score, assessment.risk_score)
+        if assessment.handoff_recommended:
+            conversation.status = ConversationStatus.needs_review
+            conversation.unresolved_handoff = True
+
+    if conversation.consent_to_handoff:
+        all_messages = list(history) + [youth_msg, ai_reply]
+        full_assessment = analyse_risk([m.content for m in all_messages], all_messages)
+        apply_risk_to_conversation(conversation, full_assessment)
+        handoff, _ = upsert_handoff_brief_with_ai(db, conversation, all_messages, full_assessment, youth_id=youth.id)
+        handoff.platform = "telegram_business"
+        handoff.pre_handoff_context = json.dumps(_get_worker_pre_handoff_messages(all_messages))
+        db.add(handoff)
+
+    db.add(AuditLog(
+        actor_user_id=youth.user_id,
+        event_type="telegram_business_message_received",
+        entity_type="conversation",
+        entity_id=conversation.id,
+        details=f'{{"riskLevel":"{assessment.risk_level.value}","riskScore":{assessment.risk_score},"workerId":"{worker_id}"}}',
+    ))
+    db.commit()
+
+    update_memory_card(
+        youth_id=youth.id,
+        signal_types={s.type for s in assessment.signals},
+        risk_level=assessment.risk_level,
+        risk_score=assessment.risk_score,
+        message_text=content,
+        db=db,
+    )
+
+    # Notify assigned worker
+    if youth.assigned_worker_id and assessment.risk_level.value in ("high", "critical"):
+        ns = db.query(WorkerNotificationSettings).filter_by(user_id=youth.assigned_worker_id).first()
+        if ns:
+            user = db.get(User, youth.user_id)
+            youth_name = user.name if user else "A youth"
+            notify_worker(
+                ns.telegram_chat_id,
+                ns.discord_webhook_url,
+                title=f"💼 Business DM — {assessment.risk_level.value} risk",
+                body=(
+                    f"{youth_name} messaged your personal Telegram after hours.\n"
+                    f"Risk score: {assessment.risk_score}/100\n"
+                    f"\"{content[:120]}{'…' if len(content) > 120 else ''}\""
+                ),
+                risk_level=assessment.risk_level.value,
+            )
+
+    return reply_content
+
+
+def _handle_business_connection(conn: dict[str, Any], db: Session, token: str) -> None:
+    """Store or clear the business_connection_id when a worker connects/disconnects the bot."""
+    connection_id: str = conn["id"]
+    worker_tg_user_id: str = str(conn["user"]["id"])
+    is_enabled: bool = conn.get("is_enabled", False)
+    can_reply: bool = conn.get("can_reply", False)
+
+    # Find the WorkerProfile by their personal Telegram user_id (set via /register_business).
+    worker_profile = (
+        db.query(WorkerProfile).filter_by(telegram_user_id=worker_tg_user_id).first()
+    )
+    if worker_profile is None:
+        logger.info(
+            "business_connection from unknown TG user %s — worker must /register_business first.",
+            worker_tg_user_id,
+        )
+        return
+
+    if is_enabled and can_reply:
+        worker_profile.telegram_business_connection_id = connection_id
+        db.commit()
+        logger.info("Business connection %s stored for worker %s", connection_id, worker_profile.user_id)
+        # Send a confirmation DM to the worker (via their regular chat_id stored in WorkerNotificationSettings).
+        ns = db.query(WorkerNotificationSettings).filter_by(user_id=worker_profile.user_id).first()
+        if ns and ns.telegram_chat_id:
+            _send_telegram_message(token, ns.telegram_chat_id, _BIZ_CONNECTED)
+    else:
+        worker_profile.telegram_business_connection_id = None
+        db.commit()
+        logger.info("Business connection cleared for worker %s", worker_profile.user_id)
+        ns = db.query(WorkerNotificationSettings).filter_by(user_id=worker_profile.user_id).first()
+        if ns and ns.telegram_chat_id:
+            _send_telegram_message(token, ns.telegram_chat_id, _BIZ_DISCONNECTED)
+
+
+def _handle_business_message(msg: dict[str, Any], db: Session, token: str) -> None:
+    """Route an incoming business_message: log it, and reply via SafeNight if after hours."""
+    connection_id: str = msg.get("business_connection_id", "")
+    youth_chat_id: str = str(msg.get("chat", {}).get("id", ""))
+    sender_tg_id: str = str(msg.get("from", {}).get("id", ""))
+    text: str = (msg.get("text") or "").strip()
+
+    if not connection_id or not youth_chat_id or not text:
+        return
+
+    # Look up the worker who owns this business connection.
+    worker_id = get_worker_id_from_business_connection(connection_id, db)
+    if worker_id is None:
+        logger.warning("business_message for unknown connection_id %s", connection_id)
+        return
+
+    # Determine whether the sender is the worker themselves or a youth.
+    worker_profile = db.query(WorkerProfile).filter_by(user_id=worker_id).first()
+    is_worker_message = (
+        worker_profile is not None
+        and worker_profile.telegram_user_id is not None
+        and sender_tg_id == worker_profile.telegram_user_id
+    )
+
+    # Rate-limit youth side only (the worker typing fast is fine).
+    if not is_worker_message:
+        if not rate_allow(f"tgbiz:{youth_chat_id}", _RATE_MAX_EVENTS, _RATE_WINDOW_SECONDS):
+            logger.warning("Business DM rate limit hit for chat %s", youth_chat_id)
+            return
+
+    # Find or create the youth profile for this youth_chat_id.
+    youth = _get_or_create_business_youth(db, youth_chat_id, worker_id)
+
+    # Log every message — both sides — so the handoff brief has full context.
+    conversation = _get_active_business_conversation(db, youth)
+    sender_type = SenderType.worker if is_worker_message else SenderType.youth
+    db.add(Message(
+        conversation_id=conversation.id,
+        sender_type=sender_type,
+        content=text,
+        created_at=naive_utcnow(),
+    ))
+    conversation.last_message_at = naive_utcnow()
+    db.commit()
+
+    if is_worker_message:
+        # Worker is online and handling it — nothing else to do.
+        return
+
+    # Youth sent this message. Check if worker is after hours.
+    if not is_after_hours(worker_id, db):
+        # Within work hours — worker will respond themselves.
+        logger.debug("Business DM received during work hours for worker %s — logging only.", worker_id)
+        return
+
+    # ── After hours: SafeNight AI takes over ────────────────────────────────
+    try:
+        reply = _process_business_youth_message(db, youth, text, worker_id)
+        _send_business_reply(token, connection_id, youth_chat_id, reply)
+    except Exception as exc:
+        logger.exception("Error processing business DM: %s", exc)
+        _send_business_reply(
+            token, connection_id, youth_chat_id,
+            "I ran into a problem. Please try again in a moment, or contact your worker directly.",
+        )
+
+
 @router.post("/webhook", status_code=status.HTTP_200_OK)
 async def telegram_webhook(
     request: Request,
@@ -401,6 +812,16 @@ async def telegram_webhook(
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Invalid webhook secret.")
 
     body: dict[str, Any] = await request.json()
+
+    # ── Telegram Business update types (handled before regular message routing) ──
+    if "business_connection" in body:
+        _handle_business_connection(body["business_connection"], db, token)
+        return {"ok": "true"}
+
+    if "business_message" in body:
+        _handle_business_message(body["business_message"], db, token)
+        return {"ok": "true"}
+
     message: dict[str, Any] | None = body.get("message") or body.get("edited_message")
     if not message:
         return {"ok": "true"}
@@ -435,6 +856,23 @@ async def telegram_webhook(
             return {"ok": "true"}
 
         _link_chat_to_youth(db, token, chat_id, parts[1].strip())
+        return {"ok": "true"}
+
+    # /register_business — worker links their personal Telegram to SignalBridge.
+    # The worker must have already added their Telegram chat_id in the cockpit
+    # (WorkerNotificationSettings.telegram_chat_id) before running this command.
+    if text.strip() == "/register_business":
+        from_user_id: str = str(message.get("from", {}).get("id", ""))
+        # For DMs, chat_id == from.id, but we use from.id explicitly.
+        ns = db.query(WorkerNotificationSettings).filter_by(telegram_chat_id=chat_id).first()
+        if ns is None:
+            _send_telegram_message(token, chat_id, _BIZ_REGISTER_NOT_FOUND)
+            return {"ok": "true"}
+        worker_profile = ensure_worker_profile(ns.user_id, db)
+        worker_profile.telegram_user_id = from_user_id
+        db.commit()
+        logger.info("Worker %s registered TG user_id %s via /register_business", ns.user_id, from_user_id)
+        _send_telegram_message(token, chat_id, _BIZ_REGISTER_OK)
         return {"ok": "true"}
 
     # Regular message — look up linked youth profile

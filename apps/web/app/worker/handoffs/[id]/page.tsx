@@ -17,9 +17,18 @@ import {
   Download,
   TriangleAlert,
   Send,
+  MessageCircle,
+  Hash,
+  Globe,
+  Brain,
+  Layers,
+  AlertCircle,
+  Users,
+  Zap,
+  Bot,
 } from "lucide-react";
 import { apiFetch, downloadAuthenticated } from "@/lib/api-client";
-import { Handoff, label } from "@/lib/operations";
+import { Handoff, MemoryCardSnapshot, label } from "@/lib/operations";
 
 function riskMeta(level: string) {
   if (level === "high" || level === "critical")
@@ -31,6 +40,21 @@ function riskMeta(level: string) {
 
 function initials(name: string) {
   return name.split(" ").map((p) => p[0]).filter(Boolean).slice(0, 2).join("").toUpperCase();
+}
+
+function platformMeta(platform: string | null | undefined) {
+  switch (platform) {
+    case "telegram_business":
+      return { label: "Telegram Business", icon: <MessageCircle size={12} strokeWidth={2} />, fg: "#5ba3e8", bg: "rgba(91,163,232,0.12)", border: "rgba(91,163,232,0.3)" };
+    case "telegram_bot":
+      return { label: "Telegram", icon: <Bot size={12} strokeWidth={2} />, fg: "#5ba3e8", bg: "rgba(91,163,232,0.12)", border: "rgba(91,163,232,0.3)" };
+    case "discord_private_channel":
+      return { label: "Discord Private", icon: <Hash size={12} strokeWidth={2} />, fg: "#a08de8", bg: "rgba(88,101,242,0.12)", border: "rgba(88,101,242,0.3)" };
+    case "discord_dm":
+      return { label: "Discord DM", icon: <Hash size={12} strokeWidth={2} />, fg: "#a08de8", bg: "rgba(88,101,242,0.12)", border: "rgba(88,101,242,0.3)" };
+    default:
+      return { label: "Web Chat", icon: <Globe size={12} strokeWidth={2} />, fg: "#6fb8aa", bg: "rgba(31,111,100,0.15)", border: "rgba(111,184,170,0.3)" };
+  }
 }
 
 function Section({
@@ -55,6 +79,128 @@ function Section({
         <h3 className="text-[14px] font-semibold text-[#f1f6f4]">{title}</h3>
       </div>
       <div className="text-[14px] leading-relaxed text-[rgba(214,235,230,0.75)]">{children}</div>
+    </div>
+  );
+}
+
+function TagList({ items, tone }: { items: string[]; tone: "pine" | "amber" | "coral" | "purple" }) {
+  const colors = {
+    pine: { bg: "rgba(31,111,100,0.18)", text: "#6fb8aa", border: "rgba(111,184,170,0.25)" },
+    amber: { bg: "rgba(183,121,31,0.15)", text: "#e9c685", border: "rgba(183,121,31,0.3)" },
+    coral: { bg: "rgba(217,95,72,0.15)", text: "#e88d78", border: "rgba(217,95,72,0.3)" },
+    purple: { bg: "rgba(160,141,232,0.12)", text: "#a08de8", border: "rgba(160,141,232,0.25)" },
+  };
+  const c = colors[tone];
+  if (!items.length) return <span className="text-[13px] text-[rgba(214,235,230,0.35)] italic">None recorded yet</span>;
+  return (
+    <div className="flex flex-wrap gap-1.5">
+      {items.map((item) => (
+        <span key={item} className="text-[12px] font-medium px-2.5 py-1 rounded-full" style={{ background: c.bg, color: c.text, border: `1px solid ${c.border}` }}>
+          {item}
+        </span>
+      ))}
+    </div>
+  );
+}
+
+function MemoryCard({ snapshot }: { snapshot: MemoryCardSnapshot }) {
+  const rm = riskMeta(snapshot.last_risk_level ?? "low");
+
+  return (
+    <div className="glass-card p-[22px]" style={{ borderLeft: "3px solid rgba(160,141,232,0.5)" }}>
+      <div className="flex items-center gap-2.5 mb-4">
+        <span className="w-9 h-9 rounded-[10px] flex items-center justify-center" style={{ background: "rgba(160,141,232,0.12)", color: "#a08de8" }}>
+          <Brain size={18} strokeWidth={1.75} />
+        </span>
+        <div className="flex-1">
+          <p className="sb-eyebrow">Youth memory card</p>
+          <h3 className="mt-0.5 text-[16px] font-semibold text-[#f1f6f4]">Longitudinal profile · across all sessions</h3>
+        </div>
+        <div className="flex items-center gap-3">
+          <div className="text-center">
+            <p className="text-[22px] font-semibold text-[#f1f6f4]">{snapshot.session_count}</p>
+            <p className="text-[10px] uppercase tracking-wide text-[rgba(214,235,230,0.4)]">sessions</p>
+          </div>
+          {snapshot.last_risk_level && (
+            <span className="text-[11.5px] font-semibold px-2.5 py-1 rounded-full" style={{ background: rm.soft, color: rm.fg, border: `1px solid ${rm.border}` }}>
+              Last: {label(snapshot.last_risk_level)}
+            </span>
+          )}
+        </div>
+      </div>
+
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div>
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-[rgba(214,235,230,0.4)] mb-2 flex items-center gap-1.5">
+            <AlertCircle size={12} strokeWidth={2} /> Key concerns
+          </p>
+          <TagList items={snapshot.key_concerns} tone="coral" />
+        </div>
+        <div>
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-[rgba(214,235,230,0.4)] mb-2 flex items-center gap-1.5">
+            <Zap size={12} strokeWidth={2} /> Known triggers
+          </p>
+          <TagList items={snapshot.triggers} tone="amber" />
+        </div>
+        <div>
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-[rgba(214,235,230,0.4)] mb-2 flex items-center gap-1.5">
+            <Sparkles size={12} strokeWidth={2} /> What&apos;s helped before
+          </p>
+          <TagList items={snapshot.coping_strategies} tone="pine" />
+        </div>
+        <div>
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-[rgba(214,235,230,0.4)] mb-2 flex items-center gap-1.5">
+            <Users size={12} strokeWidth={2} /> Support network
+          </p>
+          <TagList items={snapshot.support_network} tone="purple" />
+        </div>
+      </div>
+
+      {snapshot.cumulative_risk_score > 0 && (
+        <div className="mt-4 pt-4 border-t border-[rgba(255,255,255,0.06)] flex items-center gap-3">
+          <p className="text-[12px] text-[rgba(214,235,230,0.45)]">Cumulative risk score (EMA):</p>
+          <div className="flex-1 h-1.5 rounded-full" style={{ background: "rgba(255,255,255,0.07)" }}>
+            <div
+              className="h-full rounded-full transition-all"
+              style={{
+                width: `${Math.min(100, snapshot.cumulative_risk_score)}%`,
+                background: snapshot.cumulative_risk_score >= 70 ? "#e88d78" : snapshot.cumulative_risk_score >= 40 ? "#e9c685" : "#6fb8aa",
+              }}
+            />
+          </div>
+          <p className="text-[12px] font-semibold text-[rgba(214,235,230,0.6)]">{snapshot.cumulative_risk_score.toFixed(1)}</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function PreHandoffContext({ messages, platform }: { messages: string[]; platform: string | null | undefined }) {
+  const pm = platformMeta(platform);
+  return (
+    <div className="glass-card p-[22px]">
+      <div className="flex items-center gap-2.5 mb-4">
+        <span className="w-9 h-9 rounded-[10px] flex items-center justify-center" style={{ background: pm.bg, color: pm.fg }}>
+          <Layers size={18} strokeWidth={1.75} />
+        </span>
+        <div>
+          <p className="sb-eyebrow">Worker context before handoff</p>
+          <h3 className="mt-0.5 text-[16px] font-semibold text-[#f1f6f4]">Last {messages.length} message{messages.length !== 1 ? "s" : ""} the worker sent</h3>
+        </div>
+      </div>
+      <div className="space-y-2">
+        {messages.map((msg, i) => (
+          <div key={i} className="flex items-start gap-3">
+            <span className="mt-0.5 text-[10px] font-mono text-[rgba(214,235,230,0.3)] w-5 flex-shrink-0 text-right">{i + 1}</span>
+            <p className="text-[13.5px] leading-relaxed text-[rgba(214,235,230,0.75)] rounded-[10px] px-3.5 py-2.5 flex-1" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.07)" }}>
+              {msg}
+            </p>
+          </div>
+        ))}
+      </div>
+      <p className="mt-3 text-[11.5px] text-[rgba(214,235,230,0.35)]">
+        Pick up the conversation naturally — the youth already knows this person.
+      </p>
     </div>
   );
 }
@@ -93,10 +239,10 @@ export default function HandoffPage({ params }: { params: Promise<{ id: string }
     void load();
   }, [load]);
 
-  async function review(status: string) {
+  async function review(reviewStatus: string) {
     setSaving(true);
     try {
-      setData(await apiFetch<Handoff>(`/worker/handoffs/${id}/review`, { method: "PATCH", body: JSON.stringify({ status }) }));
+      setData(await apiFetch<Handoff>(`/worker/handoffs/${id}/review`, { method: "PATCH", body: JSON.stringify({ status: reviewStatus }) }));
     } catch (e) {
       setError(e instanceof Error ? e.message : "Review failed");
     } finally {
@@ -150,6 +296,7 @@ export default function HandoffPage({ params }: { params: Promise<{ id: string }
   }
 
   const m = riskMeta(data.riskLevel);
+  const pm = platformMeta(data.platform);
 
   return (
     <div className="p-6 lg:p-8 space-y-5 max-w-4xl mx-auto">
@@ -169,6 +316,9 @@ export default function HandoffPage({ params }: { params: Promise<{ id: string }
                 <h1 className="text-[26px] font-semibold text-[#f1f6f4]" style={{ letterSpacing: "-0.02em" }}>{data.youthName}</h1>
                 <span className="text-[12px] font-semibold px-2.5 py-1 rounded-full" style={{ background: m.soft, color: m.fg, border: `1px solid ${m.border}` }}>
                   {label(data.riskLevel)} · {data.riskScore}
+                </span>
+                <span className="inline-flex items-center gap-1 text-[11.5px] font-semibold px-2.5 py-1 rounded-full" style={{ background: pm.bg, color: pm.fg, border: `1px solid ${pm.border}` }}>
+                  {pm.icon} {pm.label}
                 </span>
               </div>
               <p className="mt-1.5 text-[13px] text-[rgba(214,235,230,0.4)] flex items-center gap-1.5">
@@ -198,6 +348,11 @@ export default function HandoffPage({ params }: { params: Promise<{ id: string }
         <p className="text-[20px] font-medium italic text-[#f1f6f4] leading-snug">&ldquo;{data.keyQuote}&rdquo;</p>
       </div>
 
+      {/* Worker pre-handoff context */}
+      {data.preHandoffContext && data.preHandoffContext.length > 0 && (
+        <PreHandoffContext messages={data.preHandoffContext} platform={data.platform} />
+      )}
+
       {/* Sections grid */}
       <div className="grid gap-4 sm:grid-cols-2">
         <Section icon={<HeartPulse size={17} strokeWidth={1.75} />} title="Main concern" tone="pine">{data.mainConcern}</Section>
@@ -205,6 +360,11 @@ export default function HandoffPage({ params }: { params: Promise<{ id: string }
         <Section icon={<Sparkles size={17} strokeWidth={1.75} />} title="What was covered" tone="pine">{data.whatAiDid}</Section>
         <Section icon={<CircleSlash size={17} strokeWidth={1.75} />} title="Sensitive areas" tone="coral">{data.whatNotToRepeat}</Section>
       </div>
+
+      {/* Youth memory card */}
+      {data.memoryCardSnapshot && data.memoryCardSnapshot.session_count > 0 && (
+        <MemoryCard snapshot={data.memoryCardSnapshot} />
+      )}
 
       {/* Suggested first response */}
       <div className="rounded-[18px] p-[22px]" style={{ background: "rgba(31,111,100,0.1)", border: "1px solid rgba(111,184,170,0.25)" }}>
@@ -245,7 +405,11 @@ export default function HandoffPage({ params }: { params: Promise<{ id: string }
         />
         <div className="mt-3 flex items-center justify-between gap-3 flex-wrap">
           <p className="text-[11.5px] text-[rgba(214,235,230,0.4)]">
-            Telegram conversations are delivered through the bot and saved on the SignalBridge timeline.
+            {data.platform === "telegram_business"
+              ? "Reply will be sent via Telegram Business and saved to the SignalBridge timeline."
+              : data.platform === "discord_private_channel" || data.platform === "discord_dm"
+              ? "Reply will be posted to the Discord channel and saved to the SignalBridge timeline."
+              : "Telegram conversations are delivered through the bot and saved on the SignalBridge timeline."}
           </p>
           <button
             type="button"

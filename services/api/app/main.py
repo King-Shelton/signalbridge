@@ -8,7 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from starlette.requests import Request
 
 from app.config import get_settings
-from app.models import AiRun, AuditLog, Case, CaseNote, Conversation, HandoffBrief, Message, Notification, Signal, User, WorkerNotificationSettings, YouthProfile
+from app.models import AiRun, AuditLog, Case, CaseNote, Conversation, HandoffBrief, Message, Notification, Signal, User, WorkerNotificationSettings, WorkerProfile, YouthMemoryCard, YouthProfile
 from app.routes import ai, auth, constants, health, notifications, operations, signals, simulator, telegram_bot, worker, youth
 from app.routes.telegram_bot import register_webhook_if_configured
 from app.services.discord_bot_service import build_discord_bot

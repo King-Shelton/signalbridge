@@ -68,7 +68,7 @@ export default function HandoffPreviewPage() {
               <article key={title} className="rounded-2xl border bg-white p-4">
                 <p className="text-xs font-semibold uppercase text-slate-500">{title}</p>
                 <p className="mt-2 text-sm leading-6 text-slate-700">
-                  {data[key] || "No detail added yet."}
+                  {(data[key] as string | null | undefined) || "No detail added yet."}
                 </p>
               </article>
             ))}

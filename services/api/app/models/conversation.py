@@ -30,6 +30,11 @@ class Conversation(Base):
     youth_id: Mapped[str] = mapped_column(ForeignKey("youth_profiles.id"), nullable=False)
     channel: Mapped[str] = mapped_column(String(80), default="Web Chat", nullable=False)
     discord_thread_id: Mapped[str | None] = mapped_column(String(80), nullable=True, unique=True)
+    # Private Discord channel created for this worker-youth pair.
+    discord_channel_id: Mapped[str | None] = mapped_column(String(80), nullable=True, unique=True)
+    # Source platform — drives after-hours routing and handoff brief labels.
+    # Values: web_chat | telegram_bot | telegram_business | discord_dm | discord_private_channel
+    channel_type: Mapped[str] = mapped_column(String(80), default="web_chat", nullable=False)
     status: Mapped[ConversationStatus] = mapped_column(Enum(ConversationStatus), default=ConversationStatus.active)
     risk_level: Mapped[RiskLevel] = mapped_column(Enum(RiskLevel), default=RiskLevel.low)
     risk_score: Mapped[int] = mapped_column(default=0, nullable=False)

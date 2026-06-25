@@ -9,6 +9,8 @@ from app.models.notification import Notification
 from app.models.signal import Signal
 from app.models.user import User
 from app.models.worker_notification_settings import WorkerNotificationSettings
+from app.models.worker_profile import WorkerProfile
+from app.models.youth_memory_card import YouthMemoryCard
 from app.models.youth_profile import YouthProfile
 
 __all__ = [
@@ -23,5 +25,7 @@ __all__ = [
     "Signal",
     "User",
     "WorkerNotificationSettings",
+    "WorkerProfile",
+    "YouthMemoryCard",
     "YouthProfile",
 ]

@@ -26,6 +26,10 @@ class Settings(BaseSettings):
     discord_webhook_url: str | None = None
     discord_bot_token: str | None = None
     discord_entry_channel_id: str | None = None
+    # Discord server (guild) ID for the SignalBridge support server.
+    discord_guild_id: str | None = None
+    # ID of the "Youth Cases" category where private per-case channels are created.
+    discord_youth_cases_category_id: str | None = None
 
     model_config = SettingsConfigDict(env_file=".env", env_prefix="SIGNALBRIDGE_", extra="ignore")
 

@@ -428,10 +428,19 @@ def build_handoff_brief_with_ai(
     conversation: Conversation,
     messages: list[Message],
     assessment: RiskAssessment,
+    youth_id: str | None = None,
 ) -> tuple[HandoffBrief, str]:
     """Use structured model output when configured, with a deterministic safe fallback."""
     settings = get_settings()
     fallback = build_handoff_brief(conversation, messages, assessment)
+
+    # Attach memory card snapshot to the brief regardless of AI availability.
+    if youth_id:
+        from app.services.memory_card_service import snapshot_memory_card
+        snap = snapshot_memory_card(youth_id, db)
+        if snap:
+            fallback.memory_card_snapshot = json.dumps(snap)
+
     if not settings.openai_api_key:
         db.add(AiRun(conversation_id=conversation.id, action="generate_handoff", mode=AI_MODE,
                      model_name=None, prompt_version=settings.ai_prompt_version,
@@ -447,6 +456,15 @@ def build_handoff_brief_with_ai(
         )
         transcript = "\n".join(f"{message.sender_type.value}: {message.content}" for message in messages)[-5000:]
         schema = HandoffDraft.model_json_schema()
+
+        # Include memory card snapshot in the prompt so the AI can reference history.
+        memory_context = ""
+        if youth_id:
+            from app.services.memory_card_service import snapshot_memory_card
+            snap = snapshot_memory_card(youth_id, db)
+            if snap:
+                memory_context = f"\nYouth memory card (longitudinal context): {json.dumps(snap)}"
+
         response = client.chat.completions.create(
             model=settings.openai_model,
             max_tokens=1000,
@@ -457,7 +475,7 @@ def build_handoff_brief_with_ai(
                     "Preserve youth agency. The worker must not need the youth to repeat themselves. "
                     f"Respond ONLY with JSON matching this schema: {schema}"
                 )},
-                {"role": "user", "content": f"Risk level (fixed by safety rules): {assessment.risk_level.value}.\nTranscript:\n{transcript}"},
+                {"role": "user", "content": f"Risk level (fixed by safety rules): {assessment.risk_level.value}.{memory_context}\nTranscript:\n{transcript}"},
             ],
             response_format={"type": "json_object"},
         )
@@ -500,6 +518,13 @@ def copy_handoff_fields(target: HandoffBrief, source: HandoffBrief) -> HandoffBr
     target.what_not_to_repeat = source.what_not_to_repeat
     target.suggested_worker_response = source.suggested_worker_response
     target.recommended_next_step = source.recommended_next_step
+    # Propagate platform metadata and memory snapshot on refresh.
+    if source.platform:
+        target.platform = source.platform
+    if source.pre_handoff_context:
+        target.pre_handoff_context = source.pre_handoff_context
+    if source.memory_card_snapshot:
+        target.memory_card_snapshot = source.memory_card_snapshot
     return target
 
 
@@ -508,9 +533,10 @@ def upsert_handoff_brief_with_ai(
     conversation: Conversation,
     messages: list[Message],
     assessment: RiskAssessment,
+    youth_id: str | None = None,
 ) -> tuple[HandoffBrief, str]:
     """Create or refresh the consent-approved handoff for a conversation."""
-    draft, mode = build_handoff_brief_with_ai(db, conversation, messages, assessment)
+    draft, mode = build_handoff_brief_with_ai(db, conversation, messages, assessment, youth_id=youth_id)
     existing = db.scalar(select(HandoffBrief).where(HandoffBrief.conversation_id == conversation.id))
     if existing is None:
         return draft, mode
@@ -784,6 +810,7 @@ def generate_safenight_reply(
     consent_to_handoff: bool = False,
     db: Session | None = None,
     conversation_id: str | None = None,
+    youth_id: str | None = None,
 ) -> str:
     """Generate SafeNight's reply.
 
@@ -842,6 +869,14 @@ def generate_safenight_reply(
             role = "assistant" if message.sender_type in (SenderType.ai, SenderType.worker) else "user"
             conversation.append({"role": role, "content": message.content})
         conversation.append({"role": "user", "content": new_message})
+
+        # Inject memory card context so the AI remembers prior sessions.
+        if youth_id and db is not None:
+            from app.services.memory_card_service import get_or_create_memory_card, get_memory_card_context
+            card = get_or_create_memory_card(youth_id, db)
+            memory_context = get_memory_card_context(card)
+            if memory_context:
+                conversation.insert(1, {"role": "system", "content": memory_context})
 
         # Give the model the deterministic signals as quiet context, not as script.
         signal_summary = ", ".join(sorted({signal.type.replace("_", " ") for signal in assessment.signals}))

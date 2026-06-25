@@ -43,6 +43,7 @@ class WorkerConversationPublic(BaseModel):
     youthId: str
     youthName: str
     channel: str
+    channelType: str
     status: str
     riskLevel: str
     riskScore: int
@@ -70,6 +71,9 @@ class WorkerHandoffPublic(BaseModel):
     recommendedNextStep: str | None
     reviewStatus: str
     createdAt: UtcDateTime
+    platform: str | None = None
+    preHandoffContext: list[str] | None = None
+    memoryCardSnapshot: dict | None = None
 
 
 class WorkerCaseNotePublic(BaseModel):
@@ -169,6 +173,18 @@ class YouthSignalsResponse(BaseModel):
     conversations: list[WorkerConversationPublic]
     previousHandoffs: list[WorkerHandoffPublic]
     explanation: list[str]
+
+
+class WorkerChannelSettingsPublic(BaseModel):
+    telegramBusinessConnected: bool
+    discordConnected: bool
+    workHoursStart: int
+    workHoursEnd: int
+
+
+class WorkerChannelSettingsUpdate(BaseModel):
+    workHoursStart: int | None = None
+    workHoursEnd: int | None = None
 
 
 class CaseNoteCreate(BaseModel):
