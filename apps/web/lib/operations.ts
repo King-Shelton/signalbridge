@@ -24,6 +24,8 @@ export type Handoff = {
   platform?: string | null;
   preHandoffContext?: string[] | null;
   memoryCardSnapshot?: MemoryCardSnapshot | null;
+  caseId?: string | null;
+  caseStatus?: string | null;
 };
 export const caseStatuses = ["new", "needs_review", "in_progress", "followed_up", "escalated", "closed"];
 export const label = (value: string) => value.replaceAll("_", " ").replace(/\b\w/g, (letter) => letter.toUpperCase());

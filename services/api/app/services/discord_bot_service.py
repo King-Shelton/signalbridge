@@ -37,7 +37,7 @@ import re
 from datetime import timedelta
 
 import discord
-from sqlalchemy import select
+from sqlalchemy import func as sqlfunc, select
 
 from app.config import get_settings
 from app.database import SessionLocal
@@ -481,6 +481,20 @@ def _handle_private_channel_message_sync(
             return None  # within work hours — worker handles it
 
         # ── After hours: SafeNight takes over ───────────────────────────────
+        # Return a one-time handover notice as a prefix so the youth knows
+        # they're talking to an AI, not the worker directly.
+        has_prior_ai = db.scalar(
+            select(sqlfunc.count(Message.id)).where(
+                Message.conversation_id == conversation.id,
+                Message.sender_type == SenderType.ai,
+            )
+        ) or 0
+        handover_prefix = (
+            "👋 Just so you know — your worker is offline right now. "
+            "I'm SafeNight, an AI support companion covering for them after hours. "
+            "Everything you share stays private, and your worker will see this when they're back.\n\n"
+        ) if has_prior_ai == 0 else ""
+
         ai_triggered_consent = False
         risk_rank = {"low": 1, "medium": 2, "high": 3, "critical": 4}
         if not conversation.consent_to_handoff and risk_rank.get(conversation.risk_level.value, 1) >= 2:
@@ -595,7 +609,7 @@ def _handle_private_channel_message_sync(
                     risk_level=assessment.risk_level.value,
                 )
 
-        return reply_content
+        return handover_prefix + reply_content
 
     except Exception:
         logger.exception("Error processing private channel message from %s", discord_user_id)

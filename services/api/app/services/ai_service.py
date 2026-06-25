@@ -470,12 +470,25 @@ def build_handoff_brief_with_ai(
             max_tokens=1000,
             messages=[
                 {"role": "system", "content": (
-                    "Write a concise youth-support handoff for a trained worker. "
-                    "No diagnosis, no clinical labels, no invented facts, no promises of confidentiality. "
-                    "Preserve youth agency. The worker must not need the youth to repeat themselves. "
-                    f"Respond ONLY with JSON matching this schema: {schema}"
+                    "You are SafeNight's handoff writer for a trained youth-support worker in Singapore. "
+                    "Your job: give the worker everything they need to pick up this case cold — no asking the youth to repeat themselves.\n\n"
+                    "Rules:\n"
+                    "- Write only from what is in the transcript. Never invent facts, speculate on diagnosis, or use clinical labels.\n"
+                    "- mainConcern: one plain sentence. What did the youth actually come about? Use their words where possible.\n"
+                    "- emotionalState: describe affect and tone you observed, not a clinical label.\n"
+                    "- keyQuote: the most revealing thing the youth said, verbatim (max 30 words). Pick the line that gives the worker the sharpest read on how the youth is feeling.\n"
+                    "- whatAiDid: bullet points. What did SafeNight acknowledge, normalise, or offer?\n"
+                    "- whatNotToRepeat: anything the youth reacted badly to, said they're tired of hearing, or asked not to be asked again.\n"
+                    "- suggestedWorkerResponse: a first message the worker can send. Warm, concrete, no generic openers. Reference something specific the youth said.\n"
+                    "- recommendedNextStep: one clear action — schedule a call, share a resource, escalate, or close case. Be specific.\n\n"
+                    "Preserve youth agency. Never promise confidentiality the platform cannot keep. "
+                    f"Respond ONLY with JSON matching: {schema}"
                 )},
-                {"role": "user", "content": f"Risk level (fixed by safety rules): {assessment.risk_level.value}.{memory_context}\nTranscript:\n{transcript}"},
+                {"role": "user", "content": (
+                    f"Risk level: {assessment.risk_level.value}. Risk score: {assessment.risk_score}.\n"
+                    f"{memory_context}\n"
+                    f"Full conversation transcript:\n{transcript}"
+                )},
             ],
             response_format={"type": "json_object"},
         )

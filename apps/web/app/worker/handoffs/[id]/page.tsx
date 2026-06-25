@@ -211,6 +211,9 @@ export default function HandoffPage({ params }: { params: Promise<{ id: string }
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
+  const [caseStatus, setCaseStatus] = useState<string | null>(null);
+  const [caseUpdating, setCaseUpdating] = useState(false);
+  const [caseMsg, setCaseMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [replyText, setReplyText] = useState("");
   const [replySending, setReplySending] = useState(false);
   const [replyStatus, setReplyStatus] = useState<{ ok: boolean; text: string } | null>(null);
@@ -226,6 +229,7 @@ export default function HandoffPage({ params }: { params: Promise<{ id: string }
     try {
       const handoff = await apiFetch<Handoff>(`/worker/handoffs/${id}`);
       setData(handoff);
+      setCaseStatus(handoff.caseStatus ?? null);
       setReplyText((current) => current || handoff.suggestedWorkerResponse || "");
       setError("");
     } catch (e) {
@@ -234,6 +238,24 @@ export default function HandoffPage({ params }: { params: Promise<{ id: string }
       setLoading(false);
     }
   }, [id]);
+
+  async function updateCaseStatus(newStatus: string) {
+    if (!data?.caseId) return;
+    setCaseUpdating(true);
+    setCaseMsg(null);
+    try {
+      await apiFetch(`/worker/cases/${data.caseId}/status`, {
+        method: "PATCH",
+        body: JSON.stringify({ status: newStatus }),
+      });
+      setCaseStatus(newStatus);
+      setCaseMsg({ ok: true, text: `Case marked as ${newStatus.replace("_", " ")}.` });
+    } catch (e) {
+      setCaseMsg({ ok: false, text: e instanceof Error ? e.message : "Update failed." });
+    } finally {
+      setCaseUpdating(false);
+    }
+  }
 
   useEffect(() => {
     void load();
@@ -340,6 +362,43 @@ export default function HandoffPage({ params }: { params: Promise<{ id: string }
         </div>
         <p className="mt-3 text-[12px] font-mono text-[rgba(214,235,230,0.35)]">Status: {label(data.reviewStatus)}</p>
       </header>
+
+      {/* Case status actions */}
+      {data.caseId && (
+        <div className="glass-card p-5">
+          <div className="flex items-center justify-between gap-3 flex-wrap mb-3">
+            <div>
+              <p className="sb-eyebrow">Case status</p>
+              <p className="mt-0.5 text-[13px] text-[rgba(214,235,230,0.5)]">
+                Current: <span className="text-[#f1f6f4] font-medium">{label(caseStatus ?? "unknown")}</span>
+              </p>
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {[
+              { status: "in_progress", label: "In Progress", color: "#6fb8aa", bg: "rgba(31,111,100,0.2)", border: "rgba(111,184,170,0.35)" },
+              { status: "followed_up", label: "Followed Up", color: "#e9c685", bg: "rgba(183,121,31,0.18)", border: "rgba(183,121,31,0.35)" },
+              { status: "needs_review", label: "Needs Review", color: "#e9c685", bg: "rgba(183,121,31,0.12)", border: "rgba(183,121,31,0.25)" },
+              { status: "escalated", label: "Escalate Case", color: "#e88d78", bg: "rgba(217,95,72,0.15)", border: "rgba(217,95,72,0.3)" },
+              { status: "closed", label: "Close Case", color: "rgba(214,235,230,0.5)", bg: "rgba(255,255,255,0.05)", border: "rgba(255,255,255,0.12)" },
+            ].map((opt) => (
+              <button
+                key={opt.status}
+                type="button"
+                disabled={caseUpdating || caseStatus === opt.status}
+                onClick={() => void updateCaseStatus(opt.status)}
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-[10px] text-[12.5px] font-semibold transition-all disabled:opacity-40"
+                style={{ background: caseStatus === opt.status ? opt.bg : "rgba(255,255,255,0.04)", border: `1px solid ${caseStatus === opt.status ? opt.border : "rgba(255,255,255,0.1)"}`, color: caseStatus === opt.status ? opt.color : "rgba(214,235,230,0.55)" }}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+          {caseMsg && (
+            <p className="mt-2 text-[12px]" style={{ color: caseMsg.ok ? "#6fb8aa" : "#e88d78" }}>{caseMsg.text}</p>
+          )}
+        </div>
+      )}
 
       {/* Key quote */}
       <div className="glass-card p-[18px] relative overflow-hidden" style={{ borderLeft: "3px solid rgba(111,184,170,0.6)" }}>

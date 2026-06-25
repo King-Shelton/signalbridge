@@ -81,11 +81,22 @@ def conversation_payload(db: Session, conversation: Conversation) -> dict:
     handoff = db.query(HandoffBrief).filter(HandoffBrief.conversation_id == conversation.id).order_by(HandoffBrief.created_at.desc()).first()
     messages = db.query(Message).filter(Message.conversation_id == conversation.id).order_by(Message.created_at).all()
     signals = db.query(Signal).filter(Signal.conversation_id == conversation.id).order_by(Signal.created_at.desc()).all()
+    # Derive channelType from model field, falling back to channel name.
+    raw_channel = conversation.channel or ""
+    channel_type = (
+        getattr(conversation, "channel_type", None)
+        or raw_channel.lower().replace(" ", "_")
+    )
+    youth_display = user.name if user else "Unknown youth"
+    # Strip placeholder names set at profile-creation time.
+    if youth_display in ("Business Telegram youth", "Telegram youth", "Discord youth", "Business Discord youth"):
+        youth_display = "Unknown youth"
     return {
         "id": conversation.id,
         "youthId": conversation.youth_id,
-        "youthName": user.name if user else "Unknown youth",
-        "channel": conversation.channel,
+        "youthName": youth_display,
+        "channel": raw_channel,
+        "channelType": channel_type,
         "status": conversation.status.value,
         "riskLevel": conversation.risk_level.value,
         "riskScore": conversation.risk_score,
@@ -103,14 +114,37 @@ def conversation_payload(db: Session, conversation: Conversation) -> dict:
 def handoff_payload(db: Session, handoff: HandoffBrief) -> dict:
     youth = db.get(YouthProfile, handoff.youth_id)
     user = db.get(User, youth.user_id) if youth else None
+    case_item = (
+        db.query(Case).filter(Case.youth_id == handoff.youth_id)
+        .order_by(Case.updated_at.desc()).first()
+    ) if youth else None
+    youth_name = user.name if user else "Unknown youth"
+    if youth_name in ("Business Telegram youth", "Telegram youth", "Discord youth"):
+        youth_name = "Unknown youth"
+    pre_ctx = None
+    mem_snap = None
+    try:
+        import json as _json
+        if handoff.pre_handoff_context:
+            pre_ctx = _json.loads(handoff.pre_handoff_context)
+        if handoff.memory_card_snapshot:
+            mem_snap = _json.loads(handoff.memory_card_snapshot)
+    except Exception:
+        pass
     return {
-        "id": handoff.id, "conversationId": handoff.conversation_id, "youthId": handoff.youth_id,
-        "youthName": user.name if user else "Unknown youth", "mainConcern": handoff.main_concern,
+        "id": handoff.id, "conversationId": handoff.conversation_id,
+        "caseId": case_item.id if case_item else None,
+        "caseStatus": case_item.status.value if case_item else None,
+        "youthId": handoff.youth_id,
+        "youthName": youth_name, "mainConcern": handoff.main_concern,
         "emotionalState": handoff.emotional_state, "riskLevel": handoff.risk_level.value,
         "riskScore": handoff.risk_score, "keyQuote": handoff.key_quote, "whatAiDid": handoff.what_ai_did,
         "whatNotToRepeat": handoff.what_not_to_repeat, "suggestedWorkerResponse": handoff.suggested_worker_response,
         "recommendedNextStep": handoff.recommended_next_step, "reviewStatus": handoff.review_status.value,
         "createdAt": handoff.created_at.isoformat() + "Z",
+        "platform": getattr(handoff, "platform", None),
+        "preHandoffContext": pre_ctx,
+        "memoryCardSnapshot": mem_snap,
     }
 
 
@@ -180,11 +214,29 @@ def worker_cockpit(current_user: User = Depends(worker_required), db: Session = 
     query = db.query(Conversation).join(YouthProfile, YouthProfile.id == Conversation.youth_id)
     if current_user.role == UserRole.worker:
         query = query.filter(YouthProfile.assigned_worker_id == current_user.id)
-    conversations = query.order_by(
-        sql_case((Conversation.risk_level == "critical", 4), (Conversation.risk_level == "high", 3), (Conversation.risk_level == "medium", 2), else_=1).desc(),
-        Conversation.unresolved_handoff.desc(), Conversation.last_message_at.desc(),
+    all_convs = query.order_by(
+        Conversation.last_message_at.desc().nullslast(),
+        Conversation.created_at.desc(),
     ).all()
-    return {"conversations": [conversation_payload(db, item) for item in conversations]}
+
+    # Deduplicate: one row per youth — keep the most recent conversation.
+    seen_youth: set[str] = set()
+    deduped: list[Conversation] = []
+    for conv in all_convs:
+        if conv.youth_id not in seen_youth:
+            seen_youth.add(conv.youth_id)
+            deduped.append(conv)
+
+    # Sort: unresolved handoffs first, then by risk level, then by recency.
+    risk_order = {"critical": 4, "high": 3, "medium": 2, "low": 1}
+    deduped.sort(
+        key=lambda c: (
+            not c.unresolved_handoff,
+            -risk_order.get(c.risk_level.value, 0),
+            -(c.last_message_at or c.created_at).timestamp(),
+        )
+    )
+    return {"conversations": [conversation_payload(db, item) for item in deduped]}
 
 
 @router.get("/worker/conversations/{conversation_id}")

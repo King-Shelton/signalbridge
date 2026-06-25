@@ -21,6 +21,8 @@ type ChannelSettings = {
   workHoursEnd: number;
 };
 
+type Me = { id: string; name: string; role: string };
+
 const HOURS = Array.from({ length: 24 }, (_, i) => {
   const suffix = i < 12 ? "AM" : "PM";
   const display = i === 0 ? "12 AM (midnight)" : i === 12 ? "12 PM (noon)" : `${i > 12 ? i - 12 : i} ${suffix}`;
@@ -79,18 +81,24 @@ function HourSelect({ value, onChange, label }: { value: number; onChange: (v: n
 
 export default function SettingsPage() {
   const [settings, setSettings] = useState<ChannelSettings | null>(null);
+  const [me, setMe] = useState<Me | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [startHour, setStartHour] = useState(9);
   const [endHour, setEndHour] = useState(18);
   const [saving, setSaving] = useState(false);
   const [saveStatus, setSaveStatus] = useState<{ ok: boolean; text: string } | null>(null);
+  const [copied, setCopied] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const data = await apiFetch<ChannelSettings>("/worker/channel-settings");
+      const [data, meData] = await Promise.all([
+        apiFetch<ChannelSettings>("/worker/channel-settings"),
+        apiFetch<Me>("/auth/me"),
+      ]);
       setSettings(data);
+      setMe(meData);
       setStartHour(data.workHoursStart);
       setEndHour(data.workHoursEnd);
       setError("");
@@ -100,6 +108,14 @@ export default function SettingsPage() {
       setLoading(false);
     }
   }, []);
+
+  function copyId() {
+    if (!me) return;
+    void navigator.clipboard.writeText(me.id).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  }
 
   useEffect(() => { void load(); }, [load]);
 
@@ -171,17 +187,22 @@ export default function SettingsPage() {
               </div>
             ) : (
               <div className="space-y-3">
-                <p className="text-[13px] text-[rgba(214,235,230,0.55)]">Follow these steps to connect your Telegram Business account:</p>
+                <p className="text-[13px] text-[rgba(214,235,230,0.55)]">Follow these steps in order to connect your Telegram Business account:</p>
                 <div className="space-y-2.5">
                   <StepCard number={1}>Upgrade to <strong className="text-[#f1f6f4]">Telegram Premium</strong> or <strong className="text-[#f1f6f4]">Telegram Business</strong> from your Telegram app settings.</StepCard>
-                  <StepCard number={2}>Open <strong className="text-[#f1f6f4]">Settings → Telegram Business → Chatbots</strong>.</StepCard>
-                  <StepCard number={3}>Tap <strong className="text-[#f1f6f4]">Add a bot</strong> and search for the SignalBridge bot username.</StepCard>
-                  <StepCard number={4}>Enable <strong className="text-[#f1f6f4]">Reply to messages</strong> so SafeNight can respond after your work hours.</StepCard>
-                  <StepCard number={5}>The connection will appear as <strong className="text-[rgba(111,184,170,0.9)]">Connected</strong> here once the bot receives your business connection handshake.</StepCard>
+                  <StepCard number={2}>
+                    Open a <strong className="text-[#f1f6f4]">Direct Message</strong> with the SignalBridge bot and send{" "}
+                    <code className="text-[#e9c685] bg-[rgba(183,121,31,0.15)] px-1 rounded">/register_business</code>.
+                    The bot will confirm your Telegram ID is linked to your worker account.
+                  </StepCard>
+                  <StepCard number={3}>Open <strong className="text-[#f1f6f4]">Settings → Telegram Business → Chatbots</strong>.</StepCard>
+                  <StepCard number={4}>Tap <strong className="text-[#f1f6f4]">Add a bot</strong>, search for the SignalBridge bot, and enable <strong className="text-[#f1f6f4]">Reply to messages</strong>.</StepCard>
+                  <StepCard number={5}>The status above will update to <strong className="text-[rgba(111,184,170,0.9)]">Connected</strong> automatically once the bot receives your business handshake.</StepCard>
                 </div>
                 <div className="mt-3 rounded-[11px] px-3.5 py-2.5 text-[12px] text-[rgba(214,235,230,0.5)] flex items-center gap-2" style={{ background: "rgba(183,121,31,0.1)", border: "1px solid rgba(183,121,31,0.25)" }}>
                   <Bot size={14} strokeWidth={1.75} className="flex-shrink-0 text-[#e9c685]" />
-                  Send <code className="mx-1 text-[#e9c685]">/start</code> to the SignalBridge bot in Telegram first so it can identify you.
+                  Step 2 must come <strong className="text-[#e9c685]">before</strong> step 4. If you already connected the bot in BotFather first, disconnect it, send{" "}
+                  <code className="text-[#e9c685]">/register_business</code>, then reconnect.
                 </div>
               </div>
             )}
@@ -214,17 +235,25 @@ export default function SettingsPage() {
                 <div className="space-y-2.5">
                   <StepCard number={1}>Join the <strong className="text-[#f1f6f4]">SignalBridge Discord server</strong> using the invite your administrator shared.</StepCard>
                   <StepCard number={2}>Find the SignalBridge bot and open a <strong className="text-[#f1f6f4]">Direct Message</strong> with it.</StepCard>
-                  <StepCard number={3}>
-                    Send the following command, replacing <code className="text-[#a08de8]">&lt;your-id&gt;</code> with your SignalBridge user ID:
-                  </StepCard>
+                  <StepCard number={3}>Send the command below. Your SignalBridge worker ID is already filled in.</StepCard>
                 </div>
-                <div className="rounded-[11px] px-4 py-3 font-mono text-[13px]" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.1)" }}>
-                  <span className="text-[rgba(214,235,230,0.4)]">!register_worker </span>
-                  <span className="text-[#a08de8]">&lt;your-signalbridge-user-id&gt;</span>
+                <div className="rounded-[11px] px-4 py-3 font-mono text-[13px] flex items-center justify-between gap-3" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.1)" }}>
+                  <span>
+                    <span className="text-[rgba(214,235,230,0.4)]">!register_worker </span>
+                    <span className="text-[#a08de8]">{me?.id ?? "…"}</span>
+                  </span>
+                  <button
+                    type="button"
+                    onClick={copyId}
+                    className="text-[11px] px-2.5 py-1 rounded-[8px] flex-shrink-0 transition-all"
+                    style={{ background: "rgba(160,141,232,0.15)", border: "1px solid rgba(160,141,232,0.3)", color: copied ? "#6fb8aa" : "#a08de8" }}
+                  >
+                    {copied ? "Copied!" : "Copy"}
+                  </button>
                 </div>
                 <div className="rounded-[11px] px-3.5 py-2.5 text-[12px] text-[rgba(214,235,230,0.5)] flex items-center gap-2" style={{ background: "rgba(183,121,31,0.1)", border: "1px solid rgba(183,121,31,0.25)" }}>
                   <Bot size={14} strokeWidth={1.75} className="flex-shrink-0 text-[#e9c685]" />
-                  Your user ID is shown in your profile. Once sent, this page will update to <strong className="text-[#e9c685]">Registered</strong>.
+                  Once sent, this page will update to <strong className="text-[#e9c685]">Registered</strong> automatically.
                 </div>
               </div>
             )}

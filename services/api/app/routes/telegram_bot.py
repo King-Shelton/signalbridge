@@ -32,7 +32,7 @@ from typing import Any
 
 import httpx
 from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
-from sqlalchemy import select
+from sqlalchemy import func as sqlfunc, select
 from sqlalchemy.orm import Session
 
 from app.config import get_settings
@@ -112,6 +112,12 @@ _BIZ_CONNECTED = (
     "when you're outside your work hours."
 )
 _BIZ_DISCONNECTED = "Telegram Business disconnected. SafeNight will no longer reply on your behalf."
+
+_AFTER_HOURS_HANDOVER_NOTICE = (
+    "👋 Just so you know — your worker is offline right now. "
+    "I'm SafeNight, an AI support companion covering for them after hours. "
+    "Everything you share stays private, and your worker will see this conversation when they're back."
+)
 
 
 def _bot_url(token: str, method: str) -> str:
@@ -463,12 +469,18 @@ def _send_business_reply(token: str, connection_id: str, chat_id: str | int, tex
 
 
 def _get_or_create_business_youth(
-    db: Session, youth_chat_id: str, worker_id: str
+    db: Session, youth_chat_id: str, worker_id: str, display_name: str | None = None
 ) -> YouthProfile:
     """Find or create a YouthProfile for a youth contacting the worker via TG Business."""
     # Reuse an existing profile if this chat_id was already seen (public intake or prior session).
     youth = db.scalar(select(YouthProfile).where(YouthProfile.telegram_chat_id == youth_chat_id))
     if youth is not None:
+        # Upgrade placeholder name if we now have a real one.
+        if display_name:
+            user = db.get(User, youth.user_id)
+            if user and user.name in ("Business Telegram youth", "Telegram youth"):
+                user.name = display_name
+                db.flush()
         return youth
 
     suffix = _telegram_hash(youth_chat_id)
@@ -476,12 +488,13 @@ def _get_or_create_business_youth(
     youth_id = f"youth_tgbiz_{suffix}"
     case_id = f"case_tgbiz_{suffix}"
     now = naive_utcnow()
+    name = display_name or f"Youth {suffix[:6]}"
 
     user = db.get(User, user_id)
     if user is None:
         user = User(
             id=user_id,
-            name="Business Telegram youth",
+            name=name,
             email=f"tgbiz-{suffix}@signalbridge.local",
             password_hash="telegram-business-no-login",
             role=UserRole.youth,
@@ -735,6 +748,12 @@ def _handle_business_message(msg: dict[str, Any], db: Session, token: str) -> No
     sender_tg_id: str = str(msg.get("from", {}).get("id", ""))
     text: str = (msg.get("text") or "").strip()
 
+    # Extract the sender's real name from the Telegram payload.
+    from_data = msg.get("from", {})
+    first_name = (from_data.get("first_name") or "").strip()
+    last_name = (from_data.get("last_name") or "").strip()
+    tg_display_name = f"{first_name} {last_name}".strip() or None
+
     if not connection_id or not youth_chat_id or not text:
         return
 
@@ -758,8 +777,8 @@ def _handle_business_message(msg: dict[str, Any], db: Session, token: str) -> No
             logger.warning("Business DM rate limit hit for chat %s", youth_chat_id)
             return
 
-    # Find or create the youth profile for this youth_chat_id.
-    youth = _get_or_create_business_youth(db, youth_chat_id, worker_id)
+    # Find or create the youth profile for this youth_chat_id, passing the real name.
+    youth = _get_or_create_business_youth(db, youth_chat_id, worker_id, tg_display_name if not is_worker_message else None)
 
     # Log every message — both sides — so the handoff brief has full context.
     conversation = _get_active_business_conversation(db, youth)
@@ -771,6 +790,20 @@ def _handle_business_message(msg: dict[str, Any], db: Session, token: str) -> No
         created_at=naive_utcnow(),
     ))
     conversation.last_message_at = naive_utcnow()
+
+    # Run risk analysis on every youth message so the dashboard always reflects
+    # the current conversation state, regardless of work hours.
+    if not is_worker_message:
+        from app.services.safenight_service import assess_safe_night_message
+        try:
+            assessment = assess_safe_night_message(text)
+            risk_order = {"low": 1, "medium": 2, "high": 3, "critical": 4}
+            if risk_order.get(assessment.risk_level.value, 1) >= risk_order.get(conversation.risk_level.value, 1):
+                conversation.risk_level = assessment.risk_level
+            conversation.risk_score = max(conversation.risk_score, assessment.risk_score)
+        except Exception as exc:
+            logger.warning("Risk analysis failed for business DM: %s", exc)
+
     db.commit()
 
     if is_worker_message:
@@ -784,6 +817,17 @@ def _handle_business_message(msg: dict[str, Any], db: Session, token: str) -> No
         return
 
     # ── After hours: SafeNight AI takes over ────────────────────────────────
+    # Send a one-time handover notice the first time SafeNight replies in this
+    # conversation so the youth knows they're talking to an AI, not the worker.
+    has_prior_ai = db.scalar(
+        select(sqlfunc.count(Message.id)).where(
+            Message.conversation_id == conversation.id,
+            Message.sender_type == SenderType.ai,
+        )
+    ) or 0
+    if has_prior_ai == 0:
+        _send_business_reply(token, connection_id, youth_chat_id, _AFTER_HOURS_HANDOVER_NOTICE)
+
     try:
         reply = _process_business_youth_message(db, youth, text, worker_id)
         _send_business_reply(token, connection_id, youth_chat_id, reply)
