@@ -3,44 +3,18 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import { Menu, X } from "lucide-react";
 import { RoleGate } from "@/components/RoleGate";
-import { clearAuthSession, readAuthSession } from "@/lib/auth-session";
+import { readAuthSession } from "@/lib/auth-session";
+import { logout } from "@/lib/api-client";
 
 const NAV = [
   {
     href: "/supervisor",
-    label: "Overview",
+    label: "Team Overview",
     icon: (
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
         <rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/>
-      </svg>
-    ),
-  },
-  {
-    href: "/worker/cockpit",
-    label: "Worker Cockpit",
-    icon: (
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M19.07 4.93A10 10 0 0 0 6.99 3.34"/><path d="M4 6h.01"/><path d="M2.29 9.62A10 10 0 1 0 21.31 8.35"/><path d="M16.24 7.76A6 6 0 1 0 8.23 16.67"/><path d="M12 18h.01"/><path d="M17.99 11.66A6 6 0 0 1 15.77 16.67"/><circle cx="12" cy="12" r="2"/><path d="m13.41 10.59 5.66-5.66"/>
-      </svg>
-    ),
-  },
-  {
-    href: "/worker/signal-radar",
-    label: "Signal Radar",
-    icon: (
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M4.9 16.1C1 12.2 1 5.8 4.9 1.9"/><path d="M7.8 4.7a6.14 6.14 0 0 0-.8 7.5"/><circle cx="12" cy="9" r="2"/>
-        <path d="M16.2 4.8c2 2 2.26 5.11.8 7.47"/><path d="M19.1 1.9a9.96 9.96 0 0 1 0 14.1"/>
-      </svg>
-    ),
-  },
-  {
-    href: "/worker/cases",
-    label: "Cases",
-    icon: (
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect width="8" height="4" x="8" y="2" rx="1" ry="1"/><path d="M9 14l2 2 4-4"/>
       </svg>
     ),
   },
@@ -59,14 +33,19 @@ export default function SupervisorLayout({ children }: { children: React.ReactNo
   const pathname = usePathname();
   const router = useRouter();
   const [user, setUser] = useState<{ name?: string } | null>(null);
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
   useEffect(() => {
     const session = readAuthSession();
     if (session?.user) setUser({ name: session.user.name });
   }, []);
 
-  function handleLogout() {
-    clearAuthSession();
+  useEffect(() => {
+    setMobileNavOpen(false);
+  }, [pathname]);
+
+  async function handleLogout() {
+    await logout();
     router.push("/login");
   }
 
@@ -80,8 +59,29 @@ export default function SupervisorLayout({ children }: { children: React.ReactNo
         <div className="absolute inset-0" style={{ opacity: 0.3, backgroundImage: "radial-gradient(rgba(255,255,255,0.04) 1px, transparent 1px)", backgroundSize: "36px 36px" }} />
       </div>
 
-      {/* Sidebar */}
-      <aside className="relative z-10 flex flex-col w-[220px] flex-shrink-0 py-6 px-4" style={{ borderRight: "1px solid rgba(255,255,255,0.08)", background: "rgba(6,13,12,0.8)" }}>
+      {/* Mobile drawer backdrop */}
+      {mobileNavOpen && (
+        <div
+          className="lg:hidden absolute inset-0 z-20 bg-black/60"
+          onClick={() => setMobileNavOpen(false)}
+          aria-hidden="true"
+        />
+      )}
+
+      {/* Sidebar — static on desktop, an off-canvas drawer on mobile */}
+      <aside
+        className={`absolute lg:relative inset-y-0 left-0 z-30 flex flex-col w-[220px] flex-shrink-0 py-6 px-4 transform transition-transform duration-200 lg:translate-x-0 ${mobileNavOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"}`}
+        style={{ borderRight: "1px solid rgba(255,255,255,0.08)", background: "rgba(6,13,12,0.94)", backdropFilter: "blur(8px)" }}
+      >
+        {/* Close button (mobile only) */}
+        <button
+          type="button"
+          onClick={() => setMobileNavOpen(false)}
+          className="lg:hidden absolute top-4 right-4 p-1.5 rounded-[9px] text-[rgba(214,235,230,0.5)] hover:bg-white/5"
+          aria-label="Close menu"
+        >
+          <X size={18} strokeWidth={1.75} />
+        </button>
         {/* Logo */}
         <div className="flex items-center gap-3 px-2 mb-8">
           <div className="w-8 h-8 rounded-[9px] flex items-center justify-center flex-shrink-0" style={{ background: "linear-gradient(160deg, #9a6318, #5a3a0e)", boxShadow: "0 6px 18px rgba(183,121,31,0.35)" }}>
@@ -136,9 +136,24 @@ export default function SupervisorLayout({ children }: { children: React.ReactNo
       </aside>
 
       {/* Main content */}
-      <main className="relative z-10 flex-1 overflow-y-auto">
-        {children}
-      </main>
+      <div className="relative z-10 flex-1 flex flex-col min-w-0">
+        {/* Mobile top bar */}
+        <div className="lg:hidden flex items-center gap-3 px-4 py-3 flex-shrink-0" style={{ borderBottom: "1px solid rgba(255,255,255,0.08)", background: "rgba(6,13,12,0.8)", backdropFilter: "blur(8px)" }}>
+          <button
+            type="button"
+            onClick={() => setMobileNavOpen(true)}
+            className="p-2 rounded-[9px] text-[rgba(214,235,230,0.7)] hover:bg-white/5"
+            aria-label="Open menu"
+          >
+            <Menu size={18} strokeWidth={1.75} />
+          </button>
+          <span className="text-[14px] font-semibold text-[#f1f6f4]">SignalBridge <span className="text-[rgba(214,235,230,0.4)] font-normal">· Supervisor</span></span>
+        </div>
+
+        <main className="flex-1 overflow-y-auto">
+          {children}
+        </main>
+      </div>
     </div>
     </RoleGate>
   );

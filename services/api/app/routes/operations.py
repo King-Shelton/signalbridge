@@ -93,7 +93,7 @@ def conversation_payload(db: Session, conversation: Conversation) -> dict:
         "unresolvedHandoff": conversation.unresolved_handoff,
         "lastMessageAt": (conversation.last_message_at or conversation.created_at).isoformat() + "Z",
         "suggestedAction": handoff.recommended_next_step if handoff else "Review recent conversation",
-        "case": ({"id": case_item.id, "status": case_item.status.value, "priority": case_item.priority, "summary": case_item.summary} if case_item else None),
+        "case": ({"id": case_item.id, "status": case_item.status.value, "priority": case_item.priority, "summary": case_item.summary, "createdAt": case_item.created_at.isoformat() + "Z"} if case_item else None),
         "handoffId": handoff.id if handoff else None,
         "messages": [{"id": m.id, "senderType": m.sender_type.value, "content": m.content, "safetyStatus": m.safety_status, "createdAt": m.created_at.isoformat() + "Z"} for m in messages],
         "signals": [{"id": s.id, "type": s.type, "severity": s.severity, "reason": s.reason, "source": s.source, "createdAt": s.created_at.isoformat() + "Z"} for s in signals],
@@ -139,13 +139,29 @@ def worker_load_payload(db: Session, worker: User) -> dict:
     )
     if score >= 70:
         pressure = "high"
-        recommendation = "Redistribute one active case to protect worker response time."
+        parts = []
+        if high_risk_cases > 0:
+            parts.append(f"{high_risk_cases} high-risk case{'s' if high_risk_cases != 1 else ''} active")
+        if unresolved_handoffs > 0:
+            parts.append(f"{unresolved_handoffs} handoff{'s' if unresolved_handoffs != 1 else ''} unresolved")
+        if overdue_follow_ups > 0:
+            parts.append(f"{overdue_follow_ups} follow-up{'s' if overdue_follow_ups != 1 else ''} overdue")
+        detail = " — " + ", ".join(parts) if parts else ""
+        recommendation = f"Load is high{detail}. Redistribute at least one active case to protect response time and avoid burnout."
     elif score >= 35:
         pressure = "moderate"
-        recommendation = "Monitor closely before assigning additional high-risk cases."
+        if high_risk_cases > 0:
+            recommendation = f"{high_risk_cases} high-risk case{'s' if high_risk_cases != 1 else ''} in play. Hold off on new intakes until a handoff is resolved."
+        elif unresolved_handoffs > 0:
+            recommendation = f"{unresolved_handoffs} unresolved handoff{'s' if unresolved_handoffs != 1 else ''}. Monitor closely before adding higher-risk cases."
+        else:
+            recommendation = f"Carrying {len(cases)} active case{'s' if len(cases) != 1 else ''}. Manageable — but check in before adding new intakes."
     else:
         pressure = "steady"
-        recommendation = "Capacity is healthy for routine assignment."
+        if len(cases) == 0:
+            recommendation = "No active cases. Available for new intakes from any channel."
+        else:
+            recommendation = f"{len(cases)} active case{'s' if len(cases) != 1 else ''}, all low pressure. Good fit for routine assignment or a new intake."
     return {
         "workerId": worker.id,
         "workerName": worker.name,
@@ -197,6 +213,10 @@ def create_worker_message(
         if not get_settings().telegram_bot_token:
             raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Telegram is not configured")
         delivery_channel = "telegram"
+    elif conversation.channel.lower() == "discord":
+        if youth is None or not youth.discord_user_id:
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Youth has not linked Discord yet")
+        delivery_channel = "discord"
 
     now = naive_utcnow()
     message = Message(
@@ -220,6 +240,9 @@ def create_worker_message(
 
     if delivery_channel == "telegram":
         send_telegram(youth.telegram_chat_id, f"{current_user.name}: {content}")
+    elif delivery_channel == "discord":
+        from app.services.discord_bot_service import send_discord_dm
+        send_discord_dm(youth.discord_user_id, f"{current_user.name}: {content}")
 
     return {
         "message": {
@@ -273,8 +296,21 @@ def worker_youth(youth_id: str, current_user: User = Depends(worker_required), d
     cases = db.query(Case).filter(Case.youth_id == youth.id).order_by(Case.updated_at.desc()).all()
     handoffs = db.query(HandoffBrief).filter(HandoffBrief.youth_id == youth.id).order_by(HandoffBrief.created_at.desc()).all()
     notes = db.query(CaseNote).join(Case, Case.id == CaseNote.case_id).filter(Case.youth_id == youth.id).order_by(CaseNote.created_at.desc()).all()
-    return {"id": youth.id, "name": user.name, "preferredChannel": youth.preferred_channel, "assignedWorker": worker.name if worker else None,
+    conversations = db.query(Conversation).filter(Conversation.youth_id == youth.id).order_by(Conversation.last_message_at.desc().nullslast(), Conversation.created_at.desc()).limit(5).all()
+    conv_data = []
+    for conv in conversations:
+        msgs = db.query(Message).filter(Message.conversation_id == conv.id).order_by(Message.created_at.asc()).all()
+        conv_data.append({
+            "id": conv.id, "channel": conv.channel, "riskLevel": conv.risk_level.value, "riskScore": conv.risk_score,
+            "status": conv.status.value, "consentToHandoff": conv.consent_to_handoff,
+            "lastMessageAt": (conv.last_message_at or conv.created_at).isoformat() + "Z",
+            "messages": [{"id": m.id, "senderType": m.sender_type.value, "content": m.content, "createdAt": m.created_at.isoformat() + "Z"} for m in msgs],
+        })
+    return {"id": youth.id, "name": user.name, "email": user.email if user else None,
+            "preferredChannel": youth.preferred_channel, "assignedWorker": worker.name if worker else None,
+            "hasTelegram": bool(youth.telegram_chat_id), "hasDiscord": bool(youth.discord_user_id),
             "supportStyle": youth.support_style, "stressors": youth.stressors,
+            "conversations": conv_data,
             "cases": [{"id": c.id, "status": c.status.value, "priority": c.priority, "summary": c.summary, "updatedAt": c.updated_at.isoformat() + "Z"} for c in cases],
             "handoffs": [handoff_payload(db, h) for h in handoffs if (conv := db.get(Conversation, h.conversation_id)) and conv.consent_to_handoff],
             "notes": [{"id": n.id, "content": n.content, "authorUserId": n.author_user_id, "createdAt": n.created_at.isoformat() + "Z"} for n in notes]}
@@ -399,7 +435,7 @@ def assign_case(case_id: str, payload: AssignmentUpdate, current_user: User = De
 
 
 @router.get("/audit/logs")
-def audit_logs(_: User = Depends(supervisor_required), db: Session = Depends(get_db), limit: int = 100) -> dict:
+def audit_logs(_: User = Depends(worker_required), db: Session = Depends(get_db), limit: int = 100) -> dict:
     rows = db.query(AuditLog).order_by(AuditLog.created_at.desc()).limit(min(max(limit, 1), 250)).all()
     logs = [{"id": row.id, "actorUserId": row.actor_user_id, "eventType": row.event_type, "entityType": row.entity_type,
              "entityId": row.entity_id, "details": row.details, "createdAt": row.created_at.isoformat() + "Z"} for row in rows]

@@ -1,9 +1,19 @@
-"""Discord bot for SafeNight DMs and server-thread conversations."""
+"""Discord bot - youth-facing SafeNight chat via Discord DMs and threads.
+
+Flow:
+  Youth DMs the bot -> discord.py gateway receives it -> SafeNight AI replies -> worker notified.
+  !link in DM links the Discord user ID to a youth profile.
+  !safenight in the configured server channel creates a private thread.
+
+Runs as an asyncio task inside FastAPI's lifespan. Synchronous DB/AI work is
+offloaded to a thread executor so the event loop stays free.
+"""
 
 import asyncio
 import hashlib
 import logging
 import re
+from datetime import timedelta
 
 import discord
 from sqlalchemy import select
@@ -29,29 +39,48 @@ from app.services.ai_service import (
     get_conversation_messages,
 )
 from app.services.notifications import notify_worker
+from app.services.rate_limit import allow as rate_allow
 from app.services.safenight_service import assess_safe_night_message
 from app.timeutil import naive_utcnow
 
+_RATE_MAX_EVENTS = 15
+_RATE_WINDOW_SECONDS = 60.0
+
 logger = logging.getLogger("signalbridge.discord_bot")
 
-_WELCOME = (
-    "Hi, I'm SafeNight, SignalBridge's after-hours support companion.\n\n"
-    "I'm here to listen, and I'll never share what you say without asking you first.\n\n"
-    "To connect this chat to your SignalBridge account, send:\n"
-    "!link YOUR_YOUTH_ID\n\n"
-    "Once linked, just type normally."
-)
+_PUBLIC_INTAKE_PENDING_STYLE = "__discord_public_intake_awaiting_name__"
+_PUBLIC_INTAKE_STYLE = "Started through public Discord intake. Use a calm first response and confirm details gently."
 
-_LINK_USAGE = "Send `!link` followed by your youth ID, e.g.:\n`!link youth_mira`"
-_PUBLIC_USAGE = "Start a SafeNight thread with `!safenight`, or use `!safenight YOUR_YOUTH_ID` if your worker gave you one."
-_NOT_LINKED = (
-    "I don't recognise this account yet.\n\n"
-    "Send `!link YOUR_YOUTH_ID` in DM, or start from the server with `!safenight YOUR_YOUTH_ID`."
+_bot_instance: "SafeNightDiscordBot | None" = None
+
+
+def send_discord_dm(discord_user_id: str, content: str) -> None:
+    """Send a DM to a Discord user via the running bot gateway."""
+    if _bot_instance is None or _bot_instance.loop is None or _bot_instance.loop.is_closed():
+        logger.warning("send_discord_dm: bot not running, message not delivered to %s", discord_user_id)
+        return
+
+    async def _send() -> None:
+        try:
+            user = await _bot_instance.fetch_user(int(discord_user_id))
+            dm = await user.create_dm()
+            await dm.send(content)
+        except Exception:
+            logger.exception("send_discord_dm: failed to send DM to %s", discord_user_id)
+
+    asyncio.run_coroutine_threadsafe(_send(), _bot_instance.loop)
+
+
+_WELCOME_NEW = (
+    "Hey, I'm SafeNight - I'm here with you.\n\n"
+    "I won't share anything you say without asking first. "
+    "Before we start, what name or nickname should I use for you?"
 )
 _LINKED_OK = "Linked! You can now chat with SafeNight right here. Just type whenever you're ready."
 _ALREADY_LINKED = "This Discord account is already linked to a SignalBridge account."
+_NAME_RECORDED = "Thanks, {name}. I'm here. What feels hardest tonight?"
 _THREAD_READY = "SafeNight is ready here. Keep typing in this thread."
-_PUBLIC_INTAKE_STYLE = "Started through public Discord intake. Use a calm first response and confirm details gently."
+_PUBLIC_USAGE = "Start a SafeNight thread with `!safenight`, or use `!safenight YOUR_YOUTH_ID` if your worker gave you one."
 
 
 def _discord_hash(discord_user_id: str) -> str:
@@ -66,14 +95,19 @@ def _default_worker_id(db) -> str | None:
     return worker.id if worker else None
 
 
-def _get_or_create_public_intake_youth(
+def _get_or_create_public_intake_discord_youth(
     db,
     discord_user_id: str,
     display_name: str,
+    *,
+    awaiting_name: bool = True,
 ) -> YouthProfile:
-    existing = db.scalar(select(YouthProfile).where(YouthProfile.discord_user_id == discord_user_id))
-    if existing is not None:
-        return existing
+    youth = db.scalar(select(YouthProfile).where(YouthProfile.discord_user_id == discord_user_id))
+    if youth is not None:
+        if not awaiting_name and _is_awaiting_name(youth):
+            _record_intake_name(db, youth, display_name)
+            db.refresh(youth)
+        return youth
 
     suffix = _discord_hash(discord_user_id)
     user_id = f"user_discord_{suffix}"
@@ -104,7 +138,7 @@ def _get_or_create_public_intake_youth(
             assigned_worker_id=_default_worker_id(db),
             preferred_channel="Discord",
             discord_user_id=discord_user_id,
-            support_style=_PUBLIC_INTAKE_STYLE,
+            support_style=_PUBLIC_INTAKE_PENDING_STYLE if awaiting_name else _PUBLIC_INTAKE_STYLE,
             stressors="Public Discord intake; details to be confirmed by worker.",
             created_at=now,
         )
@@ -112,25 +146,49 @@ def _get_or_create_public_intake_youth(
     else:
         youth.discord_user_id = discord_user_id
         youth.preferred_channel = "Discord"
+        youth.support_style = _PUBLIC_INTAKE_PENDING_STYLE if awaiting_name else _PUBLIC_INTAKE_STYLE
         if youth.assigned_worker_id is None:
             youth.assigned_worker_id = _default_worker_id(db)
 
+    db.flush()
+
     case = db.get(Case, case_id)
     if case is None:
+        summary = "Public Discord intake awaiting youth context." if awaiting_name else f"Public Discord intake for {clean_name}."
         case = Case(
             id=case_id,
             youth_id=youth_id,
             assigned_worker_id=youth.assigned_worker_id,
             status=CaseStatus.new,
             priority="medium",
-            summary=f"Public Discord intake for {clean_name}.",
+            summary=summary,
             created_at=now,
             updated_at=now,
         )
         db.add(case)
 
-    db.flush()
+    db.commit()
+    db.refresh(youth)
     return youth
+
+
+def _is_awaiting_name(youth: YouthProfile) -> bool:
+    return youth.support_style == _PUBLIC_INTAKE_PENDING_STYLE
+
+
+def _record_intake_name(db, youth: YouthProfile, name: str) -> str:
+    clean_name = " ".join(name.split())[:80] or "Discord youth"
+    user = db.get(User, youth.user_id)
+    if user:
+        user.name = clean_name
+    youth.support_style = _PUBLIC_INTAKE_STYLE
+    youth.preferred_channel = "Discord"
+    case = db.query(Case).filter(Case.youth_id == youth.id).order_by(Case.created_at.desc()).first()
+    if case:
+        case.summary = f"Public Discord intake for {clean_name}."
+        case.updated_at = naive_utcnow()
+    db.commit()
+    return clean_name
 
 
 def _get_active_discord_conversation(
@@ -156,7 +214,7 @@ def _get_active_discord_conversation(
         .where(
             Conversation.youth_id == youth.id,
             Conversation.channel == "Discord",
-            Conversation.discord_thread_id.is_(None),
+            Conversation.discord_thread_id.is_(None) if discord_thread_id is None else Conversation.discord_thread_id == discord_thread_id,
             Conversation.status != ConversationStatus.closed,
         )
         .order_by(Conversation.last_message_at.desc().nullslast(), Conversation.created_at.desc())
@@ -192,6 +250,7 @@ def _handle_link(discord_user_id: str, youth_id: str) -> str:
             return "This Discord account is already linked to another youth profile."
 
         youth.discord_user_id = discord_user_id
+        youth.preferred_channel = "Discord"
         db.commit()
         return _LINKED_OK
     finally:
@@ -208,7 +267,12 @@ def _ensure_thread_conversation(
     try:
         youth = db.get(YouthProfile, youth_id) if youth_id else None
         if youth is None:
-            youth = _get_or_create_public_intake_youth(db, discord_user_id, display_name)
+            youth = _get_or_create_public_intake_discord_youth(
+                db,
+                discord_user_id,
+                display_name,
+                awaiting_name=False,
+            )
 
         if youth.discord_user_id and youth.discord_user_id != discord_user_id:
             return _ALREADY_LINKED
@@ -230,13 +294,29 @@ def _ensure_thread_conversation(
 def _handle_message(
     discord_user_id: str,
     content: str,
+    display_name: str = "",
     discord_thread_id: str | None = None,
 ) -> str:
     db = SessionLocal()
     try:
         youth = db.scalar(select(YouthProfile).where(YouthProfile.discord_user_id == discord_user_id))
+
         if youth is None:
-            return _NOT_LINKED
+            if discord_thread_id:
+                youth = _get_or_create_public_intake_discord_youth(
+                    db,
+                    discord_user_id,
+                    display_name,
+                    awaiting_name=False,
+                )
+            else:
+                _get_or_create_public_intake_discord_youth(db, discord_user_id, display_name)
+                return _WELCOME_NEW
+
+        if _is_awaiting_name(youth) and discord_thread_id is None:
+            clean_name = _record_intake_name(db, youth, content)
+            db.refresh(youth)
+            return _NAME_RECORDED.format(name=clean_name)
 
         conversation = _get_active_discord_conversation(db, youth, discord_thread_id)
         now = naive_utcnow()
@@ -287,7 +367,7 @@ def _handle_message(
             sender_type=SenderType.ai,
             content=reply_content,
             safety_status=assessment.safety_status,
-            created_at=now,
+            created_at=now + timedelta(milliseconds=1),
         )
         db.add(ai_reply)
         db.flush()
@@ -331,7 +411,6 @@ def _handle_message(
         if youth.assigned_worker_id and assessment.risk_level.value in ("high", "critical"):
             ns = db.query(WorkerNotificationSettings).filter_by(user_id=youth.assigned_worker_id).first()
             if ns:
-                from app.models.user import User
                 user = db.get(User, youth.user_id)
                 youth_name = user.name if user else "A youth"
                 notify_worker(
@@ -361,11 +440,17 @@ class SafeNightDiscordBot(discord.Client):
         logger.info("Discord bot connected as %s (id=%s)", self.user, self.user.id)
 
     async def on_message(self, message: discord.Message) -> None:
-        if message.author.bot:
+        if message.author == self.user or message.author.bot:
             return
 
+        discord_user_id = str(message.author.id)
         text = (message.content or "").strip()
         if not text:
+            return
+
+        if not rate_allow(f"dc:{discord_user_id}", _RATE_MAX_EVENTS, _RATE_WINDOW_SECONDS):
+            logger.warning("Discord rate limit hit for user %s", discord_user_id)
+            await message.channel.send("You're sending messages very quickly - give me a moment to catch up.")
             return
 
         if isinstance(message.channel, discord.DMChannel):
@@ -381,21 +466,18 @@ class SafeNightDiscordBot(discord.Client):
     async def _handle_dm(self, message: discord.Message, text: str) -> None:
         discord_user_id = str(message.author.id)
 
-        if text.lower().startswith("!start"):
-            await message.channel.send(_WELCOME)
-            return
-
         if text.lower().startswith("!link"):
             parts = text.split(maxsplit=1)
             if len(parts) < 2 or not parts[1].strip():
-                await message.channel.send(_LINK_USAGE)
+                await message.channel.send("Send `!link` followed by your youth ID, e.g.:\n`!link youth_abc123`")
                 return
             reply = await asyncio.to_thread(_handle_link, discord_user_id, parts[1].strip())
             await message.channel.send(reply)
             return
 
+        display_name = str(message.author.display_name or message.author.name or "")
         async with message.channel.typing():
-            reply = await asyncio.to_thread(_handle_message, discord_user_id, text)
+            reply = await asyncio.to_thread(_handle_message, discord_user_id, text, display_name)
         await message.channel.send(reply)
 
     async def _handle_entry_channel_message(self, message: discord.Message, text: str) -> None:
@@ -409,7 +491,7 @@ class SafeNightDiscordBot(discord.Client):
 
         parts = text.split(maxsplit=1)
         youth_id = parts[1].strip() if len(parts) == 2 and parts[1].strip() else None
-        thread_name = _clean_thread_name(message.author.display_name)
+        thread_name = _clean_thread_name(str(message.author.display_name or message.author.name or "chat"))
         try:
             thread = await message.channel.create_thread(
                 name=thread_name,
@@ -424,29 +506,39 @@ class SafeNightDiscordBot(discord.Client):
 
         reply = await asyncio.to_thread(
             _ensure_thread_conversation,
-            str(message.author.id),
+            discord_user_id,
             youth_id,
             str(thread.id),
-            message.author.display_name,
+            str(message.author.display_name or message.author.name or "Discord youth"),
         )
         await thread.send(reply)
         await message.reply("I started a SafeNight thread for you.", mention_author=False)
 
     async def _handle_thread_message(self, message: discord.Message, text: str) -> None:
         discord_user_id = str(message.author.id)
+        display_name = str(message.author.display_name or message.author.name or "")
         async with message.channel.typing():
-            reply = await asyncio.to_thread(_handle_message, discord_user_id, text, str(message.channel.id))
+            reply = await asyncio.to_thread(
+                _handle_message,
+                discord_user_id,
+                text,
+                display_name,
+                str(message.channel.id),
+            )
         await message.channel.send(reply)
 
 
-def build_discord_bot() -> SafeNightDiscordBot | None:
+def build_discord_bot() -> "SafeNightDiscordBot | None":
+    global _bot_instance  # noqa: PLW0603
     settings = get_settings()
     if not settings.discord_bot_token:
-        logger.info("SIGNALBRIDGE_DISCORD_BOT_TOKEN not set; Discord bot disabled.")
+        logger.info("SIGNALBRIDGE_DISCORD_BOT_TOKEN not set - Discord bot disabled.")
         return None
 
     intents = discord.Intents.default()
     intents.dm_messages = True
     intents.guild_messages = True
     intents.message_content = True
-    return SafeNightDiscordBot(intents=intents)
+    bot = SafeNightDiscordBot(intents=intents)
+    _bot_instance = bot
+    return bot

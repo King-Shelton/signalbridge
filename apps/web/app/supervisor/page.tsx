@@ -554,6 +554,25 @@ export default function SupervisorPage() {
               </button>
             </div>
 
+            {assignmentModalCase.case?.createdAt && (() => {
+              const daysSince = Math.floor((Date.now() - new Date(assignmentModalCase.case!.createdAt!).getTime()) / 86_400_000);
+              if (daysSince >= 30) return (
+                <div className="rounded-[14px] px-4 py-3 flex items-start gap-3" style={{ background: "rgba(233,198,133,0.1)", border: "1px solid rgba(183,121,31,0.3)" }}>
+                  <svg className="flex-shrink-0 mt-0.5" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#e9c685" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+                    <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+                  </svg>
+                  <div>
+                    <p className="text-[13px] font-semibold" style={{ color: "#e9c685" }}>Long-committed relationship</p>
+                    <p className="text-[12px] mt-1 leading-relaxed" style={{ color: "rgba(233,198,133,0.7)" }}>
+                      {assignmentModalCase.youthName} has been with this worker for {daysSince} days. Youth-worker bonds at this stage are fragile — reassignment risks losing trust. Only proceed if the current worker is unavailable or capacity is critical.
+                    </p>
+                  </div>
+                </div>
+              );
+              return null;
+            })()}
+
             <div className="mt-5 grid gap-3 lg:grid-cols-[1.2fr_0.8fr]">
               <div className="rounded-[18px] border border-[rgba(255,255,255,0.07)] bg-[rgba(255,255,255,0.03)] p-4">
                 <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[rgba(214,235,230,0.45)]">
@@ -566,6 +585,11 @@ export default function SupervisorPage() {
                   <p>
                     Risk score: <span className="font-semibold text-[#f1f6f4]">{assignmentModalCase.riskScore}</span>
                   </p>
+                  {assignmentModalCase.case?.createdAt && (
+                    <p>
+                      Case age: <span className="font-semibold text-[#f1f6f4]">{Math.floor((Date.now() - new Date(assignmentModalCase.case.createdAt).getTime()) / 86_400_000)} days</span>
+                    </p>
+                  )}
                   <p>
                     Suggested action: <span className="text-[#f1f6f4]">{assignmentModalCase.suggestedAction}</span>
                   </p>
