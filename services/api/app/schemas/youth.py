@@ -49,6 +49,10 @@ class YouthConversationsResponse(BaseModel):
     conversations: list[YouthConversationPublic]
 
 
+class YouthConversationCreateResponse(BaseModel):
+    conversation: YouthConversationPublic
+
+
 class YouthMessageCreateResponse(BaseModel):
     conversation: YouthConversationPublic
     message: MessagePublic

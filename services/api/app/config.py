@@ -11,15 +11,18 @@ class Settings(BaseSettings):
     database_url: str = "postgresql+psycopg://signalbridge:signalbridge@localhost:5432/signalbridge"
     jwt_secret: str = "change-me-for-production"
     jwt_algorithm: str = "HS256"
-    access_token_minutes: int = 60
+    access_token_minutes: int = 60 * 24  # 24h — keeps demo/judging sessions alive without surprise logouts
     cors_origins: str = "http://localhost:3000,http://127.0.0.1:3000"
     openai_api_key: str | None = None
     openai_base_url: str | None = None
-    openai_model: str = "gpt-4.1-mini"
-    openai_timeout_seconds: float = 12.0
+    openai_model: str = "gpt-4.1"
+    openai_timeout_seconds: float = 20.0
     ai_prompt_version: str = "handoff-v1"
     telegram_bot_token: str | None = None
     telegram_webhook_secret: str | None = None
+    # Public HTTPS base URL of this API (e.g. https://signalbridge-api.onrender.com).
+    # Used to auto-register the Telegram webhook on startup. Leave unset locally.
+    public_base_url: str | None = None
     discord_webhook_url: str | None = None
     discord_bot_token: str | None = None
     discord_entry_channel_id: str | None = None

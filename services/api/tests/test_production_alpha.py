@@ -13,6 +13,7 @@ os.environ["SIGNALBRIDGE_DATABASE_URL"] = f"sqlite:///{DB_PATH.as_posix()}"
 os.environ["SIGNALBRIDGE_OPENAI_API_KEY"] = ""
 os.environ["SIGNALBRIDGE_TELEGRAM_BOT_TOKEN"] = "test-token"
 os.environ["SIGNALBRIDGE_TELEGRAM_WEBHOOK_SECRET"] = "test-secret"
+os.environ["SIGNALBRIDGE_ENVIRONMENT"] = "local"
 
 from fastapi.testclient import TestClient
 from jose import jwt
@@ -26,7 +27,7 @@ from app.models.message import Message, SenderType
 from app.models.youth_profile import YouthProfile
 from app.routes import operations, telegram_bot
 from app.services.ai_service import CRITICAL_FALLBACK_REPLY, generate_safenight_reply
-from app.services.discord_bot_service import _ensure_thread_conversation, _handle_message
+from app.services.discord_bot_service import _LINKED_OK, _ensure_thread_conversation, _handle_link, _handle_message
 from app.services.safenight_service import assess_safe_night_message
 from seed import seed
 
@@ -48,6 +49,11 @@ client = TestClient(app)
 def token(email: str) -> str:
     response = client.post("/auth/login", json={"email": email, "password": "password"})
     assert response.status_code == 200, response.text
+    # Login now also sets an httpOnly session cookie. The shared TestClient keeps
+    # one cookie jar across all simulated users, which would let a stale cookie
+    # authenticate later "bearer-only" requests. Clear it so each test exercises
+    # the bearer path in isolation (cookie auth is covered separately).
+    client.cookies.clear()
     return response.json()["accessToken"]
 
 
@@ -62,6 +68,22 @@ def test_health_login_and_role_isolation() -> None:
     assert client.get("/auth/me", headers=worker_headers).json()["role"] == "worker"
     assert client.get("/supervisor/load", headers=worker_headers).status_code == 403
     assert client.get("/worker/cockpit").status_code == 401
+
+
+def test_cookie_session_authenticates_without_bearer() -> None:
+    fresh = TestClient(app)
+    login = fresh.post("/auth/login", json={"email": "worker1@signalbridge.test", "password": "password"})
+    assert login.status_code == 200
+    # The httpOnly cookie is set and the jar carries it on the next request — no
+    # Authorization header needed.
+    assert "sb_session" in login.cookies
+    me = fresh.get("/auth/me")
+    assert me.status_code == 200
+    assert me.json()["role"] == "worker"
+    # After logout the cookie is cleared and protected routes 401 again.
+    assert fresh.post("/auth/logout").status_code == 204
+    fresh.cookies.clear()
+    assert fresh.get("/auth/me").status_code == 401
 
 
 def test_auth_rejects_token_with_stale_role_claim() -> None:
@@ -114,6 +136,7 @@ def test_telegram_deep_link_and_worker_reply_round_trip(monkeypatch) -> None:
     for text in [
         "Someone keeps editing my photos in the class chat and I don't want to go to school tomorrow.",
         "yes please share a short note with my worker",
+        "I am scared he will find me after school.",
     ]:
         response = client.post("/telegram/webhook", headers=headers, json={"message": {"chat": {"id": chat_id}, "text": text}})
         assert response.status_code == 200
@@ -124,6 +147,8 @@ def test_telegram_deep_link_and_worker_reply_round_trip(monkeypatch) -> None:
     assert telegram_row["riskScore"] >= 40
     assert telegram_row["consentToHandoff"] is True
     assert telegram_row["handoffId"]
+    handoff = client.get(f"/worker/handoffs/{telegram_row['handoffId']}", headers=worker_headers).json()
+    assert "after school" in handoff["keyQuote"].lower()
 
     reply = client.post(
         f"/worker/conversations/{telegram_row['id']}/messages",
@@ -145,22 +170,26 @@ def test_telegram_deep_link_and_worker_reply_round_trip(monkeypatch) -> None:
         assert conversation.last_message_at == last_message.created_at
 
 
-def test_discord_thread_conversation_routes_to_safenight() -> None:
-    discord_user_id = "discord_user_mira_thread_test"
-    discord_thread_id = "discord_thread_mira_001"
+def test_discord_dm_links_and_routes_to_safenight() -> None:
+    discord_user_id = "discord_user_mira_dm_test"
 
-    assert _ensure_thread_conversation(discord_user_id, "youth_mira", discord_thread_id) == "SafeNight is ready here. Keep typing in this thread."
+    # Youth links their existing profile, then DMs the bot.
+    assert _handle_link(discord_user_id, "youth_mira") == _LINKED_OK
 
     reply = _handle_message(
         discord_user_id,
         "Someone keeps editing my photos and I do not want to go to school tomorrow.",
-        discord_thread_id,
     )
 
     assert reply
     with SessionLocal() as db:
         youth = db.get(YouthProfile, "youth_mira")
-        conversation = db.query(Conversation).filter_by(discord_thread_id=discord_thread_id).one()
+        conversation = (
+            db.query(Conversation)
+            .filter_by(youth_id="youth_mira", channel="Discord")
+            .order_by(Conversation.created_at.desc())
+            .first()
+        )
         messages = db.query(Message).filter_by(conversation_id=conversation.id).order_by(Message.created_at.asc()).all()
 
         assert youth.discord_user_id == discord_user_id
@@ -184,7 +213,7 @@ def test_discord_public_intake_falls_back_when_youth_id_missing() -> None:
     reply = _handle_message(
         discord_user_id,
         "hello im scared of bullies",
-        discord_thread_id,
+        discord_thread_id=discord_thread_id,
     )
 
     assert reply
@@ -245,6 +274,21 @@ def test_consent_required_and_fallback_handoff_generation() -> None:
     assert client.get("/youth/handoffs", headers=youth_headers).json()["handoffs"]
 
 
+def test_youth_can_start_fresh_conversation_without_reusing_old_messages() -> None:
+    youth_headers = auth("mira@signalbridge.test")
+    before = client.get("/youth/conversations", headers=youth_headers).json()["conversations"]
+
+    created = client.post("/youth/conversations", headers=youth_headers)
+
+    assert created.status_code == 201
+    conversation = created.json()["conversation"]
+    assert conversation["messages"] == []
+    assert conversation["consentToHandoff"] is False
+    after = client.get("/youth/conversations", headers=youth_headers).json()["conversations"]
+    assert len(after) == len(before) + 1
+    assert after[0]["id"] == conversation["id"]
+
+
 def test_critical_language_cannot_be_downgraded() -> None:
     youth_headers = auth("mira@signalbridge.test")
     conversation_id = client.get("/youth/conversations", headers=youth_headers).json()["conversations"][0]["id"]
@@ -269,7 +313,7 @@ def test_safenight_fallback_reply_is_contextual_without_ai_key() -> None:
     ]
 
     assert len(set(replies)) == len(samples)
-    assert any("bullying" in reply.lower() for reply in replies)
+    assert any("humiliating" in reply.lower() for reply in replies)
     assert any("dark" in reply.lower() for reply in replies)
     assert CRITICAL_FALLBACK_REPLY == generate_safenight_reply(
         "I want to die",
@@ -293,7 +337,7 @@ def test_safenight_keeps_bullying_context_when_youth_says_scared_of_person() -> 
         assess_safe_night_message("im so scared of mruthulan"),
     )
 
-    assert "bullying" in reply.lower()
+    assert "bullying" in reply.lower() or "bullied" in reply.lower() or "humiliating" in reply.lower()
     assert "dark" not in reply.lower()
 
 
@@ -320,7 +364,37 @@ def test_safenight_handles_identity_questions_and_typo_greetings() -> None:
     assert "ai after-hours companion" in identity_reply.lower()
     assert "sexuality" in identity_reply.lower()
     assert "dark" not in identity_reply.lower()
-    assert "hi, i am here with you" in greeting_reply.lower()
+    assert "start with whatever feels easiest" in greeting_reply.lower()
+
+
+def test_safenight_handles_identity_disclosure_and_bad_reply_feedback() -> None:
+    identity_reply = generate_safenight_reply(
+        "Im kinda gay",
+        [],
+        assess_safe_night_message("Im kinda gay"),
+    )
+    feedback_reply = generate_safenight_reply(
+        "whats wrong with u",
+        [Message(conversation_id="test_conversation", sender_type=SenderType.ai, content=identity_reply)],
+        assess_safe_night_message("whats wrong with u"),
+    )
+
+    assert "nothing wrong" in identity_reply.lower()
+    assert "gay" in identity_reply.lower()
+    assert "worker" not in identity_reply.lower()
+    assert "right to call that out" in feedback_reply.lower()
+    assert "scripted" in feedback_reply.lower()
+
+
+def test_safenight_low_risk_fallback_does_not_push_worker_note() -> None:
+    reply = generate_safenight_reply(
+        "I just feel weird and don't know why",
+        [],
+        assess_safe_night_message("I just feel weird and don't know why"),
+    )
+
+    assert "worker" not in reply.lower()
+    assert "note" not in reply.lower()
 
 
 def test_safenight_gives_practical_bullying_help() -> None:
@@ -332,7 +406,7 @@ def test_safenight_gives_practical_bullying_help() -> None:
 
     assert "screenshots" in reply.lower()
     assert "trusted adult" in reply.lower()
-    assert "worker" in reply.lower()
+    assert "next small step" in reply.lower()
 
 
 def test_safenight_redirects_off_topic_insult_after_bullying_context() -> None:
@@ -391,3 +465,54 @@ def test_supervisor_reassignment_analytics_audit_and_simulator() -> None:
     simulated = client.post("/simulator/intake", headers=headers, json={"youthId": "youth_mira", "channel": "Discord Simulator", "message": "I do not want to go to school because they keep editing my photos."})
     assert simulated.status_code == 201
     assert simulated.json()["riskScore"] >= 40
+
+
+def test_youth_message_stream_opens_and_requires_auth(monkeypatch) -> None:
+    from app.routes import youth as youth_routes
+
+    # Keep the stream window tiny so the test doesn't sit through the real one.
+    monkeypatch.setattr(youth_routes, "_STREAM_MAX_SECONDS", 0.5)
+
+    # Unauthenticated → 401 before any streaming starts.
+    anon = TestClient(app)
+    assert anon.get("/youth/conversations/whatever/stream").status_code == 401
+
+    # Authenticated youth gets an event stream that emits the initial frame
+    # immediately (so the read returns without waiting the full window).
+    fresh = TestClient(app)
+    assert fresh.post("/auth/login", json={"email": "mira@signalbridge.test", "password": "password"}).status_code == 200
+    conv_id = fresh.post("/youth/conversations").json()["conversation"]["id"]
+    with fresh.stream("GET", f"/youth/conversations/{conv_id}/stream") as r:
+        assert r.status_code == 200
+        assert "text/event-stream" in r.headers["content-type"]
+        first_line = next(line for line in r.iter_lines() if line)
+        assert "connected" in first_line
+
+
+def test_rate_limiter_blocks_after_threshold() -> None:
+    from app.services.rate_limit import allow, reset
+
+    reset()
+    key = "unit-test-key"
+    assert all(allow(key, 3, 60.0) for _ in range(3))
+    # 4th event within the window is rejected.
+    assert allow(key, 3, 60.0) is False
+    # A different key is unaffected.
+    assert allow("other-key", 3, 60.0) is True
+
+
+def test_telegram_webhook_rate_limits_floods(monkeypatch) -> None:
+    from app.services.rate_limit import reset
+
+    reset()
+    sent: list[str] = []
+    monkeypatch.setattr(telegram_bot, "_send_telegram_message", lambda _t, _c, text: sent.append(text))
+
+    chat_id = 999777
+    headers = {"X-Telegram-Bot-Api-Secret-Token": "test-secret"}
+    # Well past the 15/min ceiling.
+    for _ in range(25):
+        body = {"message": {"chat": {"id": chat_id}, "text": "hello"}}
+        assert client.post("/telegram/webhook", json=body, headers=headers).status_code == 200
+
+    assert any("catch up" in text for text in sent), "expected a rate-limit notice to be sent"

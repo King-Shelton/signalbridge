@@ -49,8 +49,16 @@ export function readAuthSession(): AuthSession | null {
   }
 }
 
+// The real JWT now lives in an httpOnly cookie (set by the backend, relayed by
+// the /api proxy) so it can't be read by JavaScript. We persist only the
+// non-sensitive user profile plus a sentinel token, which keeps existing
+// "is the user signed in?" checks (`session.accessToken`) working without ever
+// putting the JWT in JS-readable storage.
+export const COOKIE_SESSION_SENTINEL = "cookie";
+
 export function saveAuthSession(session: AuthSession) {
-  window.localStorage.setItem(AUTH_SESSION_KEY, JSON.stringify(session));
+  const safe: AuthSession = { accessToken: COOKIE_SESSION_SENTINEL, user: session.user };
+  window.localStorage.setItem(AUTH_SESSION_KEY, JSON.stringify(safe));
 }
 
 export function clearAuthSession() {
