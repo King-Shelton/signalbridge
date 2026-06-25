@@ -21,12 +21,13 @@ from jose import jwt
 from app.config import get_settings
 from app.database import Base, SessionLocal, engine
 from app.main import app
+from app.models.case import Case
 from app.models.conversation import Conversation
 from app.models.message import Message, SenderType
 from app.models.youth_profile import YouthProfile
 from app.routes import operations, telegram_bot
 from app.services.ai_service import CRITICAL_FALLBACK_REPLY, generate_safenight_reply
-from app.services.discord_bot_service import _LINKED_OK, _handle_link, _handle_message
+from app.services.discord_bot_service import _LINKED_OK, _ensure_thread_conversation, _handle_link, _handle_message
 from app.services.safenight_service import assess_safe_night_message
 from seed import seed
 
@@ -196,6 +197,39 @@ def test_discord_dm_links_and_routes_to_safenight() -> None:
         assert conversation.risk_score >= 40
         assert messages[-2].sender_type == SenderType.youth
         assert messages[-1].sender_type == SenderType.ai
+
+
+def test_discord_public_intake_falls_back_when_youth_id_missing() -> None:
+    discord_user_id = "discord_public_intake_user_test"
+    discord_thread_id = "discord_thread_public_intake_001"
+
+    assert _ensure_thread_conversation(
+        discord_user_id,
+        "not_a_seeded_youth",
+        discord_thread_id,
+        "Psycatriz",
+    ) == "SafeNight is ready here. Keep typing in this thread."
+
+    reply = _handle_message(
+        discord_user_id,
+        "hello im scared of bullies",
+        discord_thread_id=discord_thread_id,
+    )
+
+    assert reply
+    worker_headers = auth("worker1@signalbridge.test")
+    rows = client.get("/worker/cockpit", headers=worker_headers).json()["conversations"]
+
+    with SessionLocal() as db:
+        youth = db.query(YouthProfile).filter_by(discord_user_id=discord_user_id).one()
+        conversation = db.query(Conversation).filter_by(discord_thread_id=discord_thread_id).one()
+        case = db.query(Case).filter_by(youth_id=youth.id).one()
+
+        assert youth.preferred_channel == "Discord"
+        assert conversation.channel == "Discord"
+        assert conversation.youth_id == youth.id
+        assert case.summary == "Public Discord intake for Psycatriz."
+        assert any(row["id"] == conversation.id and row["channel"] == "Discord" for row in rows)
 
 
 def test_public_telegram_intake_asks_name_then_syncs_to_worker_cockpit(monkeypatch) -> None:
