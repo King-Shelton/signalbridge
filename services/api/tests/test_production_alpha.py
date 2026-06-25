@@ -203,20 +203,28 @@ def test_discord_public_intake_falls_back_when_youth_id_missing() -> None:
     discord_user_id = "discord_public_intake_user_test"
     discord_thread_id = "discord_thread_public_intake_001"
 
-    assert _ensure_thread_conversation(
+    prompt = _ensure_thread_conversation(
         discord_user_id,
         "not_a_seeded_youth",
         discord_thread_id,
         "Psycatriz",
-    ) == "SafeNight is ready here. Keep typing in this thread."
+    )
+    assert "what name or nickname" in prompt.lower()
 
-    reply = _handle_message(
+    name_reply = _handle_message(
+        discord_user_id,
+        "Sam",
+        discord_thread_id=discord_thread_id,
+    )
+    assert "thanks, sam" in name_reply.lower()
+
+    ai_reply = _handle_message(
         discord_user_id,
         "hello im scared of bullies",
         discord_thread_id=discord_thread_id,
     )
 
-    assert reply
+    assert ai_reply
     worker_headers = auth("worker1@signalbridge.test")
     rows = client.get("/worker/cockpit", headers=worker_headers).json()["conversations"]
 
@@ -228,7 +236,7 @@ def test_discord_public_intake_falls_back_when_youth_id_missing() -> None:
         assert youth.preferred_channel == "Discord"
         assert conversation.channel == "Discord"
         assert conversation.youth_id == youth.id
-        assert case.summary == "Public Discord intake for Psycatriz."
+        assert case.summary == "Public Discord intake for Sam."
         assert any(row["id"] == conversation.id and row["channel"] == "Discord" for row in rows)
 
 

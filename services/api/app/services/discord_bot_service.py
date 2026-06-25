@@ -271,8 +271,9 @@ def _ensure_thread_conversation(
                 db,
                 discord_user_id,
                 display_name,
-                awaiting_name=False,
+                awaiting_name=True,
             )
+            return _WELCOME_NEW
 
         if youth.discord_user_id and youth.discord_user_id != discord_user_id:
             return _ALREADY_LINKED
@@ -307,13 +308,14 @@ def _handle_message(
                     db,
                     discord_user_id,
                     display_name,
-                    awaiting_name=False,
+                    awaiting_name=True,
                 )
+                return _WELCOME_NEW
             else:
                 _get_or_create_public_intake_discord_youth(db, discord_user_id, display_name)
                 return _WELCOME_NEW
 
-        if _is_awaiting_name(youth) and discord_thread_id is None:
+        if _is_awaiting_name(youth):
             clean_name = _record_intake_name(db, youth, content)
             db.refresh(youth)
             return _NAME_RECORDED.format(name=clean_name)
