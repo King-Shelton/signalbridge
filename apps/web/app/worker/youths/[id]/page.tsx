@@ -25,6 +25,48 @@ type YouthDetailResponse = {
   previousHandoffs: Handoff[];
 };
 
+type LegacyYouthDetailResponse = {
+  id: string;
+  name: string;
+  preferredChannel: string;
+  assignedWorker?: string;
+  supportStyle?: string;
+  stressors?: string;
+  conversations?: Array<Partial<ConvItem> & { id: string; channel: string; riskLevel: string; riskScore: number; status: string; consentToHandoff: boolean; lastMessageAt: string; messages?: Message[] }>;
+  cases?: Array<Omit<CaseItem, "notes"> & { notes?: CaseItem["notes"] }>;
+  handoffs?: Handoff[];
+  notes?: CaseItem["notes"];
+};
+
+function normalizeYouthDetailResponse(response: YouthDetailResponse | LegacyYouthDetailResponse): YouthDetailResponse {
+  if ("youth" in response) return response;
+
+  const firstCase = response.cases?.[0] ?? null;
+  return {
+    youth: {
+      id: response.id,
+      name: response.name,
+      preferredChannel: response.preferredChannel,
+      assignedWorkerId: response.assignedWorker,
+      supportStyle: response.supportStyle,
+      stressors: response.stressors,
+    },
+    case: firstCase ? { ...firstCase, notes: firstCase.notes ?? response.notes ?? [] } : null,
+    conversations: (response.conversations ?? []).map((conv) => ({
+      id: conv.id,
+      channel: conv.channel,
+      channelType: conv.channelType ?? conv.channel,
+      riskLevel: conv.riskLevel,
+      riskScore: conv.riskScore,
+      status: conv.status,
+      consentToHandoff: conv.consentToHandoff,
+      lastMessageAt: conv.lastMessageAt,
+      messages: conv.messages ?? [],
+    })),
+    previousHandoffs: response.handoffs ?? [],
+  };
+}
+
 function ChannelBadge({ channel }: { channel: string }) {
   const isTelegram = channel.toLowerCase().includes("telegram");
   const isDiscord = channel.toLowerCase().includes("discord");
@@ -190,7 +232,8 @@ export default function YouthPage({ params }: { params: Promise<{ id: string }> 
     if (!id) return;
     if (!silent) setLoading(true);
     try {
-      setData(await apiFetch<YouthDetailResponse>(`/worker/youths/${id}`));
+      const response = await apiFetch<YouthDetailResponse | LegacyYouthDetailResponse>(`/worker/youths/${id}`);
+      setData(normalizeYouthDetailResponse(response));
       setError("");
     } catch (e) {
       if (!silent) setError(e instanceof Error ? e.message : "Could not load youth context");

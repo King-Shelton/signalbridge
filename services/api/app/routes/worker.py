@@ -1,6 +1,7 @@
 import json
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -63,6 +64,10 @@ from app.services.case_service import (
 
 router = APIRouter()
 signals_router = APIRouter()
+
+
+class HandoffReviewUpdate(BaseModel):
+    status: ReviewStatus
 
 
 def youth_name(db: Session, youth: YouthProfile | None) -> str:
@@ -539,6 +544,49 @@ def get_worker_handoff(
     )
     db.commit()
     db.refresh(handoff)
+
+    return WorkerHandoffResponse(
+        handoffBrief=serialize_handoff(db, handoff),
+        conversation=serialize_conversation(db, conversation, include_messages=True),
+        youth=serialize_youth(db, youth),
+        case=serialize_case(db, case, include_notes=True) if case else None,
+    )
+
+
+@router.patch("/handoffs/{handoff_id}/review", response_model=WorkerHandoffResponse)
+def review_worker_handoff(
+    handoff_id: str,
+    payload: HandoffReviewUpdate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> WorkerHandoffResponse:
+    handoff = get_visible_handoff(db, current_user, handoff_id)
+    conversation = db.get(Conversation, handoff.conversation_id)
+    youth = db.get(YouthProfile, handoff.youth_id)
+    if conversation is None or youth is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Handoff context not found.")
+    case = get_case_for_youth(db, current_user, handoff.youth_id)
+
+    previous_status = handoff.review_status.value
+    handoff.review_status = payload.status
+    conversation.unresolved_handoff = payload.status == ReviewStatus.pending
+    write_audit_log(
+        db,
+        actor_user_id=current_user.id,
+        event_type="worker_handoff_reviewed",
+        entity_type="handoff_brief",
+        entity_id=handoff.id,
+        details={
+            "handoffId": handoff.id,
+            "conversationId": handoff.conversation_id,
+            "caseId": case.id if case else None,
+            "previousReviewStatus": previous_status,
+            "reviewStatus": handoff.review_status.value,
+        },
+    )
+    db.commit()
+    db.refresh(handoff)
+    db.refresh(conversation)
 
     return WorkerHandoffResponse(
         handoffBrief=serialize_handoff(db, handoff),

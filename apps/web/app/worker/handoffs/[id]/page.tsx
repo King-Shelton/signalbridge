@@ -30,6 +30,24 @@ import {
 import { apiFetch, downloadAuthenticated } from "@/lib/api-client";
 import { Handoff, MemoryCardSnapshot, label } from "@/lib/operations";
 
+type WorkerHandoffDetailResponse = {
+  handoffBrief: Handoff;
+  conversation?: unknown;
+  youth?: unknown;
+  case?: { id: string; status: string } | null;
+};
+
+function unwrapHandoffResponse(response: Handoff | WorkerHandoffDetailResponse): Handoff {
+  if ("handoffBrief" in response) {
+    return {
+      ...response.handoffBrief,
+      caseId: response.handoffBrief.caseId ?? response.case?.id ?? null,
+      caseStatus: response.handoffBrief.caseStatus ?? response.case?.status ?? null,
+    };
+  }
+  return response;
+}
+
 function riskMeta(level: string) {
   if (level === "high" || level === "critical")
     return { fg: "#e88d78", soft: "rgba(217,95,72,0.15)", border: "rgba(217,95,72,0.4)" };
@@ -227,7 +245,8 @@ export default function HandoffPage({ params }: { params: Promise<{ id: string }
     if (!id) return;
     setLoading(true);
     try {
-      const handoff = await apiFetch<Handoff>(`/worker/handoffs/${id}`);
+      const response = await apiFetch<Handoff | WorkerHandoffDetailResponse>(`/worker/handoffs/${id}`);
+      const handoff = unwrapHandoffResponse(response);
       setData(handoff);
       setCaseStatus(handoff.caseStatus ?? null);
       setReplyText((current) => current || handoff.suggestedWorkerResponse || "");
@@ -264,7 +283,10 @@ export default function HandoffPage({ params }: { params: Promise<{ id: string }
   async function review(reviewStatus: string) {
     setSaving(true);
     try {
-      setData(await apiFetch<Handoff>(`/worker/handoffs/${id}/review`, { method: "PATCH", body: JSON.stringify({ status: reviewStatus }) }));
+      const response = await apiFetch<Handoff | WorkerHandoffDetailResponse>(`/worker/handoffs/${id}/review`, { method: "PATCH", body: JSON.stringify({ status: reviewStatus }) });
+      const handoff = unwrapHandoffResponse(response);
+      setData(handoff);
+      setCaseStatus(handoff.caseStatus ?? null);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Review failed");
     } finally {
