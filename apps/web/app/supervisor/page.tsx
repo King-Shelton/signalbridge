@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { apiFetch } from "@/lib/api-client";
 import { ConversationItem, label } from "@/lib/operations";
+import { riskMeta } from "@/lib/ui";
 
 type Load = {
   workerId: string;
@@ -151,9 +152,11 @@ export default function SupervisorPage() {
         method: "PATCH",
         body: JSON.stringify({ workerId: assignmentWorkerId }),
       });
-      setNotice("Case reassigned and worker notified.");
+      setNotice(`${assignmentModalCase.youthName}'s case moved. Worker notified.`);
+      const reassignedId = assignmentModalCase.case!.id;
       setAssignmentModalCase(null);
       setAssignmentWorkerId("");
+      setCases((prev) => prev.filter((c) => c.case?.id !== reassignedId));
       await load();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Reassignment failed");
@@ -186,12 +189,12 @@ export default function SupervisorPage() {
     <div className="p-6 space-y-6 max-w-7xl mx-auto pb-20">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <p className="sb-eyebrow mb-2">Operational oversight</p>
+          <p className="sb-eyebrow mb-2">Your team</p>
           <h1 className="text-[28px] font-semibold text-[#f1f6f4]" style={{ letterSpacing: "-0.025em" }}>
-            Protect continuity and worker capacity.
+            Keep your team steady.
           </h1>
           <p className="mt-2 text-[13px] text-[rgba(214,235,230,0.5)] max-w-2xl">
-            Compare worker load, spot unresolved cases, and reassign safely when one caseload starts to strain the team.
+            See who&apos;s carrying the most, catch unresolved cases early, and shift work before anyone gets stretched too thin.
           </p>
         </div>
         <div className="glass-card px-4 py-3 min-w-[220px]">
@@ -243,7 +246,7 @@ export default function SupervisorPage() {
             <div>
               <p className="sb-eyebrow mb-2">Worker comparison</p>
               <h2 className="text-[18px] font-semibold text-[#f1f6f4]" style={{ letterSpacing: "-0.015em" }}>
-                Compare active load before you move a case.
+                See who has room before you shift a case.
               </h2>
             </div>
             {bestFitWorker && (
@@ -317,7 +320,7 @@ export default function SupervisorPage() {
             <div>
               <p className="sb-eyebrow mb-2">Worker list</p>
               <h2 className="text-[18px] font-semibold text-[#f1f6f4]" style={{ letterSpacing: "-0.015em" }}>
-                Quick scan of each worker load.
+                Everyone&apos;s load at a glance.
               </h2>
             </div>
             <p className="text-[12.5px] text-[rgba(214,235,230,0.45)]">
@@ -375,11 +378,11 @@ export default function SupervisorPage() {
             <div>
               <p className="sb-eyebrow mb-2">Case reassignment</p>
               <h2 className="text-[18px] font-semibold text-[#f1f6f4]" style={{ letterSpacing: "-0.015em" }}>
-                Open the modal when a case needs a new owner.
+                Move a case to a better-fit worker.
               </h2>
             </div>
             <p className="text-[12.5px] text-[rgba(214,235,230,0.45)] max-w-xl">
-              Keep the queue focused on unresolved, high-risk work and move the case to the lowest-pressure worker when needed.
+              Sorted by risk. Shift a case when someone&apos;s caseload is getting heavy — the system will suggest who has the most room.
             </p>
           </div>
 
@@ -392,9 +395,11 @@ export default function SupervisorPage() {
                 <div>
                   <div className="flex flex-wrap items-center gap-2">
                     <p className="text-[13.5px] font-semibold text-[#f1f6f4]">{item.youthName}</p>
-                    <span className="text-[10.5px] font-semibold px-2 py-0.5 rounded-full" style={{ background: "rgba(217,95,72,0.15)", border: "1px solid rgba(217,95,72,0.3)", color: "#e88d78" }}>
-                      {label(item.riskLevel)} - {item.riskScore}
+                    {(() => { const rm = riskMeta(item.riskLevel); return (
+                    <span className="text-[10.5px] font-semibold px-2 py-0.5 rounded-full" style={{ background: rm.soft, border: `1px solid ${rm.border}`, color: rm.fg }}>
+                      {label(item.riskLevel)} · {item.riskScore}
                     </span>
+                    ); })()}
                   </div>
                   <p className="mt-1 text-[12px] text-[rgba(214,235,230,0.42)]">{item.case!.summary}</p>
                 </div>
@@ -407,7 +412,7 @@ export default function SupervisorPage() {
                     className="px-4 py-2 rounded-[10px] text-[12.5px] font-semibold transition-all"
                     style={{ background: "rgba(31,111,100,0.2)", border: "1px solid rgba(111,184,170,0.3)", color: "#6fb8aa" }}
                   >
-                    Open reassignment modal
+                    Reassign
                   </button>
                 </div>
               </div>

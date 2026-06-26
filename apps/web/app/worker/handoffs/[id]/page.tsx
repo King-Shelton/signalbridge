@@ -134,25 +134,25 @@ function MemoryCard({ snapshot }: { snapshot: MemoryCardSnapshot }) {
           <p className="text-[11px] font-semibold uppercase tracking-wide text-[rgba(214,235,230,0.4)] mb-2 flex items-center gap-1.5">
             <AlertCircle size={12} strokeWidth={2} /> Key concerns
           </p>
-          <TagList items={snapshot.key_concerns} tone="coral" />
+          <TagList items={snapshot.key_concerns ?? []} tone="coral" />
         </div>
         <div>
           <p className="text-[11px] font-semibold uppercase tracking-wide text-[rgba(214,235,230,0.4)] mb-2 flex items-center gap-1.5">
             <Zap size={12} strokeWidth={2} /> Known triggers
           </p>
-          <TagList items={snapshot.triggers} tone="amber" />
+          <TagList items={snapshot.triggers ?? []} tone="amber" />
         </div>
         <div>
           <p className="text-[11px] font-semibold uppercase tracking-wide text-[rgba(214,235,230,0.4)] mb-2 flex items-center gap-1.5">
             <Sparkles size={12} strokeWidth={2} /> What&apos;s helped before
           </p>
-          <TagList items={snapshot.coping_strategies} tone="pine" />
+          <TagList items={snapshot.coping_strategies ?? []} tone="pine" />
         </div>
         <div>
           <p className="text-[11px] font-semibold uppercase tracking-wide text-[rgba(214,235,230,0.4)] mb-2 flex items-center gap-1.5">
             <Users size={12} strokeWidth={2} /> Support network
           </p>
-          <TagList items={snapshot.support_network} tone="purple" />
+          <TagList items={snapshot.support_network ?? []} tone="purple" />
         </div>
       </div>
 
