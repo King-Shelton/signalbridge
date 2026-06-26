@@ -187,6 +187,15 @@ class WorkerChannelSettingsUpdate(BaseModel):
     workHoursEnd: int | None = None
 
 
+class WorkerMessageCreate(BaseModel):
+    content: str = Field(min_length=1, max_length=4000)
+
+
+class WorkerMessageSentResponse(BaseModel):
+    message: WorkerMessagePublic
+    deliveryChannel: str
+
+
 class CaseNoteCreate(BaseModel):
     content: str = Field(min_length=1, max_length=4000)
     followUpAction: str | None = Field(default=None, max_length=2000)

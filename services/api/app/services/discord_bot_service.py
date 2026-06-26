@@ -100,6 +100,24 @@ def send_discord_dm(discord_user_id: str, content: str) -> None:
     asyncio.run_coroutine_threadsafe(_send(), _bot_instance.loop)
 
 
+def send_discord_channel_message(channel_id: str, content: str) -> None:
+    """Send a message to a Discord text channel (e.g. a private case channel)."""
+    if _bot_instance is None or _bot_instance.loop is None or _bot_instance.loop.is_closed():
+        logger.warning("send_discord_channel_message: bot not running, message not delivered to channel %s", channel_id)
+        return
+
+    async def _send() -> None:
+        try:
+            channel = _bot_instance.get_channel(int(channel_id))
+            if channel is None:
+                channel = await _bot_instance.fetch_channel(int(channel_id))
+            await channel.send(content)
+        except Exception:
+            logger.exception("send_discord_channel_message: failed to send to channel %s", channel_id)
+
+    asyncio.run_coroutine_threadsafe(_send(), _bot_instance.loop)
+
+
 _WELCOME_NEW = (
     "Hey, I'm SafeNight - I'm here with you.\n\n"
     "I won't share anything you say without asking first. "

@@ -945,7 +945,7 @@ async def telegram_webhook(
         is_new_session = (
             has_prior_ai == 0
             or conversation.last_message_at is None
-            or (naive_utcnow() - conversation.last_message_at).total_seconds() > 4 * 3600
+            or (naive_utcnow() - conversation.last_message_at).total_seconds() > 2 * 60
         )
         if is_new_session:
             _send_telegram_message(token, chat_id, _AFTER_HOURS_HANDOVER_NOTICE)

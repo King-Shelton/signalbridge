@@ -9,24 +9,20 @@ import { caseStatusColor, formatDateTime, riskMeta } from "@/lib/ui";
 
 type Message = { id: string; senderType: string; content: string; createdAt: string };
 type ConvItem = {
-  id: string; channel: string; riskLevel: string; riskScore: number; status: string;
+  id: string; channel: string; channelType: string; riskLevel: string; riskScore: number; status: string;
   consentToHandoff: boolean; lastMessageAt: string; messages: Message[];
 };
+type CaseItem = { id: string; status: string; priority: string; summary: string; updatedAt: string; notes: Array<{ id: string; content: string; authorUserId: string; createdAt: string }> };
 
-type Youth = {
-  id: string;
-  name: string;
-  email?: string;
-  preferredChannel: string;
-  hasTelegram?: boolean;
-  hasDiscord?: boolean;
-  assignedWorker?: string;
-  supportStyle?: string;
-  stressors?: string;
+// Shape returned by GET /worker/youths/{id} (WorkerYouthDetailResponse)
+type YouthDetailResponse = {
+  youth: {
+    id: string; name: string; preferredChannel: string; assignedWorkerId?: string;
+    supportStyle?: string; stressors?: string;
+  };
+  case: CaseItem | null;
   conversations: ConvItem[];
-  cases: Array<{ id: string; status: string; priority: string; summary: string; updatedAt: string }>;
-  handoffs: Handoff[];
-  notes: Array<{ id: string; content: string; authorUserId: string; createdAt: string }>;
+  previousHandoffs: Handoff[];
 };
 
 function ChannelBadge({ channel }: { channel: string }) {
@@ -182,7 +178,7 @@ function ConversationThread({ conv, youthName }: { conv: ConvItem; youthName: st
 
 export default function YouthPage({ params }: { params: Promise<{ id: string }> }) {
   const [id, setId] = useState("");
-  const [data, setData] = useState<Youth | null>(null);
+  const [data, setData] = useState<YouthDetailResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -194,7 +190,7 @@ export default function YouthPage({ params }: { params: Promise<{ id: string }> 
     if (!id) return;
     if (!silent) setLoading(true);
     try {
-      setData(await apiFetch<Youth>(`/worker/youths/${id}`));
+      setData(await apiFetch<YouthDetailResponse>(`/worker/youths/${id}`));
       setError("");
     } catch (e) {
       if (!silent) setError(e instanceof Error ? e.message : "Could not load youth context");
@@ -231,7 +227,9 @@ export default function YouthPage({ params }: { params: Promise<{ id: string }> 
     );
   }
 
-  const stressors = data.stressors?.split(",").map((value) => value.trim()).filter(Boolean) ?? [];
+  const youth = data.youth;
+  const stressors = youth.stressors?.split(",").map((value) => value.trim()).filter(Boolean) ?? [];
+  const notes = data.case?.notes ?? [];
 
   return (
     <div className="p-6 space-y-5 max-w-4xl mx-auto">
@@ -239,28 +237,13 @@ export default function YouthPage({ params }: { params: Promise<{ id: string }> 
       <div className="glass-card p-6">
         <p className="sb-eyebrow mb-2">Youth profile</p>
         <h1 className="text-[28px] font-semibold text-[#f1f6f4]" style={{ letterSpacing: "-0.025em" }}>
-          {data.name}
+          {youth.name}
         </h1>
         <div className="mt-3 flex flex-wrap gap-2">
-          <ChannelBadge channel={data.preferredChannel} />
+          <ChannelBadge channel={youth.preferredChannel} />
           <span className="px-3 py-1 rounded-full text-[12px] font-medium" style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)", color: "rgba(214,235,230,0.6)" }}>
-            Assigned to {data.assignedWorker ?? "Unassigned"}
+            Assigned to {youth.assignedWorkerId ?? "Unassigned"}
           </span>
-          {data.hasTelegram && (
-            <span className="px-3 py-1 rounded-full text-[12px] font-semibold" style={{ background: "rgba(41,128,185,0.15)", border: "1px solid rgba(41,128,185,0.3)", color: "#5dade2" }}>
-              Telegram linked
-            </span>
-          )}
-          {data.hasDiscord && (
-            <span className="px-3 py-1 rounded-full text-[12px] font-semibold" style={{ background: "rgba(88,101,242,0.15)", border: "1px solid rgba(88,101,242,0.3)", color: "#7289da" }}>
-              Discord linked
-            </span>
-          )}
-          {data.email && !data.email.endsWith("@signalbridge.local") && (
-            <span className="px-3 py-1 rounded-full text-[12px] font-mono" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", color: "rgba(214,235,230,0.4)" }}>
-              {data.email}
-            </span>
-          )}
         </div>
       </div>
 
@@ -270,7 +253,7 @@ export default function YouthPage({ params }: { params: Promise<{ id: string }> 
           <p className="sb-eyebrow mb-4">Conversation history</p>
           <div className="space-y-4">
             {data.conversations.map((conv) => (
-              <ConversationThread key={conv.id} conv={conv} youthName={data.name} />
+              <ConversationThread key={conv.id} conv={conv} youthName={youth.name} />
             ))}
           </div>
         </section>
@@ -279,7 +262,7 @@ export default function YouthPage({ params }: { params: Promise<{ id: string }> 
       <div className="grid gap-4 lg:grid-cols-2">
         <div className="glass-card p-5" style={{ borderLeft: "3px solid rgba(111,184,170,0.4)" }}>
           <p className="sb-eyebrow mb-3">Support approach</p>
-          <p className="text-[14px] text-[rgba(214,235,230,0.8)] leading-relaxed">{data.supportStyle ?? "No style recorded yet."}</p>
+          <p className="text-[14px] text-[rgba(214,235,230,0.8)] leading-relaxed">{youth.supportStyle ?? "No style recorded yet."}</p>
         </div>
 
         <div className="glass-card p-5">
@@ -293,38 +276,34 @@ export default function YouthPage({ params }: { params: Promise<{ id: string }> 
               ))}
             </div>
           ) : (
-            <p className="text-[14px] text-[rgba(214,235,230,0.5)]">{data.stressors ?? "No stressors recorded."}</p>
+            <p className="text-[14px] text-[rgba(214,235,230,0.5)]">{youth.stressors ?? "No stressors recorded."}</p>
           )}
         </div>
       </div>
 
-      {/* Cases */}
+      {/* Case */}
       <div className="glass-card p-5">
-        <p className="sb-eyebrow mb-4">Cases</p>
-        {data.cases.length > 0 ? (
-          <div className="space-y-2">
-            {data.cases.map((item) => {
-              const colors = caseStatusColor(item.status);
-              return (
-                <div key={item.id} className="p-3 rounded-[12px] flex items-start gap-3" style={{ background: colors.bg, border: `1px solid ${colors.border}` }}>
-                  <span className="text-[11px] font-semibold mt-0.5 flex-shrink-0" style={{ color: colors.color }}>{label(item.status)}</span>
-                  <p className="text-[13px] text-[rgba(214,235,230,0.7)] leading-relaxed flex-1">{item.summary}</p>
-                  <span className="text-[10.5px] font-mono text-[rgba(214,235,230,0.3)] flex-shrink-0">{new Date(item.updatedAt).toLocaleDateString("en-SG")}</span>
-                </div>
-              );
-            })}
-          </div>
-        ) : (
-          <p className="text-[13px] text-[rgba(214,235,230,0.4)]">No cases yet.</p>
+        <p className="sb-eyebrow mb-4">Case</p>
+        {data.case ? (() => {
+          const colors = caseStatusColor(data.case.status);
+          return (
+            <div className="p-3 rounded-[12px] flex items-start gap-3" style={{ background: colors.bg, border: `1px solid ${colors.border}` }}>
+              <span className="text-[11px] font-semibold mt-0.5 flex-shrink-0" style={{ color: colors.color }}>{label(data.case.status)}</span>
+              <p className="text-[13px] text-[rgba(214,235,230,0.7)] leading-relaxed flex-1">{data.case.summary}</p>
+              <span className="text-[10.5px] font-mono text-[rgba(214,235,230,0.3)] flex-shrink-0">{new Date(data.case.updatedAt).toLocaleDateString("en-SG")}</span>
+            </div>
+          );
+        })() : (
+          <p className="text-[13px] text-[rgba(214,235,230,0.4)]">No case yet.</p>
         )}
       </div>
 
       {/* Approved handoffs */}
       <div className="glass-card p-5">
         <p className="sb-eyebrow mb-4">Approved handoff briefs</p>
-        {data.handoffs.length > 0 ? (
+        {data.previousHandoffs.length > 0 ? (
           <div className="space-y-3">
-            {data.handoffs.map((handoff) => (
+            {data.previousHandoffs.map((handoff) => (
               <Link
                 key={handoff.id}
                 href={`/worker/handoffs/${handoff.id}`}
@@ -350,9 +329,9 @@ export default function YouthPage({ params }: { params: Promise<{ id: string }> 
       {/* Worker notes */}
       <div className="glass-card p-5">
         <p className="sb-eyebrow mb-4">Worker notes</p>
-        {data.notes.length > 0 ? (
+        {notes.length > 0 ? (
           <div className="space-y-2">
-            {data.notes.map((note) => (
+            {notes.map((note) => (
               <div key={note.id} className="p-3 rounded-[12px]" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.07)" }}>
                 <p className="text-[13px] text-[rgba(214,235,230,0.7)] leading-relaxed">{note.content}</p>
                 <p className="mt-1.5 text-[10.5px] font-mono text-[rgba(214,235,230,0.25)]">{new Date(note.createdAt).toLocaleString("en-SG")}</p>

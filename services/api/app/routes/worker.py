@@ -33,7 +33,9 @@ from app.schemas.worker import (
     WorkerChannelSettingsUpdate,
     WorkerHandoffPublic,
     WorkerHandoffResponse,
+    WorkerMessageCreate,
     WorkerMessagePublic,
+    WorkerMessageSentResponse,
     WorkerSignalPublic,
     WorkerYouthPublic,
     WorkerYouthDetailResponse,
@@ -435,6 +437,73 @@ def get_worker_conversation(
         youth=serialize_youth(db, youth),
         case=serialize_case(db, case, include_notes=True) if case else None,
         handoffBriefs=[serialize_handoff(db, handoff) for handoff in handoffs],
+    )
+
+
+@router.post("/conversations/{conversation_id}/messages", response_model=WorkerMessageSentResponse, status_code=status.HTTP_201_CREATED)
+def post_worker_message(
+    conversation_id: str,
+    payload: WorkerMessageCreate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> WorkerMessageSentResponse:
+    conversation = get_visible_conversation(db, current_user, conversation_id)
+    youth = db.get(YouthProfile, conversation.youth_id)
+    if youth is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Youth profile not found.")
+
+    content = payload.content.strip()
+    if not content:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Message content cannot be blank.")
+
+    now = naive_utcnow()
+    msg = Message(
+        conversation_id=conversation.id,
+        sender_type="worker",
+        content=content,
+        created_at=now,
+    )
+    db.add(msg)
+    conversation.last_message_at = now
+    write_audit_log(
+        db,
+        actor_user_id=current_user.id,
+        event_type="worker_message_sent",
+        entity_type="conversation",
+        entity_id=conversation.id,
+        details={"conversationId": conversation.id, "youthId": conversation.youth_id, "channel": conversation.channel},
+    )
+    db.commit()
+    db.refresh(msg)
+
+    # Deliver the reply to the youth's connected channel.
+    delivery_channel = "signalbridge"
+    channel_type = conversation.channel_type or ""
+    channel = conversation.channel or ""
+
+    if channel_type == "discord_private_channel" and conversation.discord_channel_id:
+        from app.services.discord_bot_service import send_discord_channel_message
+        send_discord_channel_message(conversation.discord_channel_id, content)
+        delivery_channel = "discord"
+    elif "discord" in channel.lower() and youth.discord_user_id:
+        from app.services.discord_bot_service import send_discord_dm
+        send_discord_dm(youth.discord_user_id, content)
+        delivery_channel = "discord"
+    elif channel_type == "telegram_business" and youth.telegram_chat_id:
+        from app.models.worker_profile import WorkerProfile as WP
+        profile = db.query(WP).filter_by(user_id=current_user.id).first()
+        if profile and profile.telegram_business_connection_id and youth.telegram_chat_id:
+            from app.services.notifications import send_telegram_business
+            send_telegram_business(youth.telegram_chat_id, profile.telegram_business_connection_id, content)
+            delivery_channel = "telegram"
+    elif "telegram" in channel.lower() and youth.telegram_chat_id:
+        from app.services.notifications import send_telegram
+        send_telegram(youth.telegram_chat_id, content)
+        delivery_channel = "telegram"
+
+    return WorkerMessageSentResponse(
+        message=serialize_message(msg),
+        deliveryChannel=delivery_channel,
     )
 
 
