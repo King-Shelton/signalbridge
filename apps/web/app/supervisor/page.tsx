@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { apiFetch } from "@/lib/api-client";
 import { ConversationItem, label } from "@/lib/operations";
 import { riskMeta } from "@/lib/ui";
@@ -70,6 +70,10 @@ export default function SupervisorPage() {
   const [assignmentModalCase, setAssignmentModalCase] = useState<ConversationItem | null>(null);
   const [assignmentWorkerId, setAssignmentWorkerId] = useState("");
   const [busyCaseId, setBusyCaseId] = useState("");
+  // Case IDs that were reassigned this session — kept out of the risk list
+  // so they don't reappear after the next load() refresh.
+  const [reassignedCaseIds, setReassignedCaseIds] = useState<Set<string>>(new Set());
+  const noticeRef = useRef<HTMLDivElement>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -145,19 +149,27 @@ export default function SupervisorPage() {
   async function confirmReassign() {
     if (!assignmentModalCase || !assignmentWorkerId) return;
 
-    setBusyCaseId(assignmentModalCase.case!.id);
+    const caseId = assignmentModalCase.case!.id;
+    const youthName = assignmentModalCase.youthName;
+    setBusyCaseId(caseId);
     setError("");
     try {
-      await apiFetch(`/supervisor/cases/${assignmentModalCase.case!.id}/assign`, {
+      await apiFetch(`/supervisor/cases/${caseId}/assign`, {
         method: "PATCH",
         body: JSON.stringify({ workerId: assignmentWorkerId }),
       });
-      setNotice(`${assignmentModalCase.youthName}'s case moved. Worker notified.`);
-      const reassignedId = assignmentModalCase.case!.id;
       setAssignmentModalCase(null);
       setAssignmentWorkerId("");
-      setCases((prev) => prev.filter((c) => c.case?.id !== reassignedId));
-      await load();
+      // Keep case off the reassignment list for the rest of this session.
+      setReassignedCaseIds((prev) => new Set([...prev, caseId]));
+      setNotice(`${youthName}'s case moved. Worker has been notified.`);
+      // Scroll notice into view so the user sees it.
+      requestAnimationFrame(() => noticeRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" }));
+      // Refresh load stats and worker list in the background (don't await — keeps UI snappy).
+      void Promise.allSettled([
+        apiFetch<{ workers: Load[] }>("/supervisor/load").then((d) => setLoads(d.workers)),
+        apiFetch<{ workers: Worker[] }>("/supervisor/workers").then((d) => setWorkers(d.workers)),
+      ]);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Reassignment failed");
     } finally {
@@ -180,9 +192,10 @@ export default function SupervisorPage() {
   const topRiskCases = useMemo(
     () =>
       [...openCases]
+        .filter((c) => !reassignedCaseIds.has(c.case?.id ?? ""))
         .sort((a, b) => b.riskScore - a.riskScore)
         .slice(0, 6),
-    [openCases]
+    [openCases, reassignedCaseIds]
   );
 
   return (
@@ -206,8 +219,9 @@ export default function SupervisorPage() {
       </div>
 
       {notice && (
-        <div className="text-[13px] text-[#6fb8aa] bg-[rgba(31,111,100,0.12)] border border-[rgba(31,111,100,0.25)] rounded-xl px-4 py-3">
-          {notice}
+        <div ref={noticeRef} className="text-[13px] text-[#6fb8aa] bg-[rgba(31,111,100,0.12)] border border-[rgba(31,111,100,0.25)] rounded-xl px-4 py-3 flex items-center gap-2">
+          <span>✓</span>
+          <span>{notice}</span>
         </div>
       )}
 
