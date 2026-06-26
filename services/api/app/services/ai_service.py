@@ -70,6 +70,16 @@ def detect_verbal_consent(youth_message: str, last_ai_message: str | None) -> bo
                 "tell my worker",
                 "share with my worker",
                 "please share",
+                "send a handoff",
+                "send handoff",
+                "handoff brief",
+                "send the brief",
+                "send me a brief",
+                "brief to my worker",
+                "handoff to my worker",
+                "send the handoff",
+                "create a handoff",
+                "make a handoff",
             )
         )
     text = youth_message.strip().lower().rstrip("!.?")
@@ -94,12 +104,23 @@ def _should_ask_consent(
     """Return True when SafeNight should embed a consent ask in its next reply."""
     if consent_to_handoff:
         return False
-    if assessment.risk_score < 40:
-        return False
     ai_messages = [m for m in history if m.sender_type == SenderType.ai]
+    # Don't ask again if the last AI turn already asked
     if ai_messages and _ai_asked_about_consent(ai_messages[-1].content):
         return False
-    return True
+    # Ask if current message has enough risk signal
+    if assessment.risk_score >= 40:
+        return True
+    # Also ask on follow-up turns after a prior crisis response
+    # (critical messages return CRITICAL_FALLBACK_REPLY and never embed the ask inline)
+    _CRISIS_MARKERS = ("singapore emergency", "995", "samaritans of singapore", "1767")
+    had_crisis_response = any(
+        any(marker in m.content.lower() for marker in _CRISIS_MARKERS)
+        for m in ai_messages
+    )
+    if had_crisis_response:
+        return True
+    return False
 
 
 class HandoffDraft(BaseModel):
