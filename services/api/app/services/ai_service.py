@@ -96,9 +96,6 @@ def _should_ask_consent(
         return False
     if assessment.risk_score < 40:
         return False
-    youth_count = sum(1 for m in history if m.sender_type == SenderType.youth)
-    if youth_count < 2:
-        return False
     ai_messages = [m for m in history if m.sender_type == SenderType.ai]
     if ai_messages and _ai_asked_about_consent(ai_messages[-1].content):
         return False
@@ -251,6 +248,7 @@ RULES: dict[str, dict[str, object]] = {
             "get back at",
             "hurt someone",
             "hurt them",
+            "hurting them",
             "want to fight",
             "want to punch",
             "feel like hitting",
@@ -259,6 +257,12 @@ RULES: dict[str, dict[str, object]] = {
             "could kill",
             "i could kill",
             "make them suffer",
+            "hurt badly",
+            "injured",
+            "badly injured",
+            "punch",
+            "hit them",
+            "punch them",
         ],
         "reason": "Message expresses anger or thoughts of harming others.",
     },
@@ -275,9 +279,7 @@ RULES: dict[str, dict[str, object]] = {
             "want to die",
             "can't stay alive",
             "cannot stay alive",
-            "jump off",
-            "jump from",
-            "jump down",
+            "jump",
             "throw myself",
             "overdose",
             "take all my pills",
