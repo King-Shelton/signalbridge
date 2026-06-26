@@ -932,6 +932,24 @@ async def telegram_webhook(
         return {"ok": "true"}
 
     try:
+        # Send a one-time handover notice the first time SafeNight replies, and
+        # again whenever the youth returns after a gap (>4 h = new session), so
+        # they always know they're talking to an AI, not their worker.
+        conversation = _get_active_telegram_conversation(db, youth)
+        has_prior_ai = db.scalar(
+            select(sqlfunc.count(Message.id)).where(
+                Message.conversation_id == conversation.id,
+                Message.sender_type == SenderType.ai,
+            )
+        ) or 0
+        is_new_session = (
+            has_prior_ai == 0
+            or conversation.last_message_at is None
+            or (naive_utcnow() - conversation.last_message_at).total_seconds() > 4 * 3600
+        )
+        if is_new_session:
+            _send_telegram_message(token, chat_id, _AFTER_HOURS_HANDOVER_NOTICE)
+
         reply = _process_youth_message(db, youth, text)
         _send_telegram_message(token, chat_id, reply)
     except Exception as exc:
