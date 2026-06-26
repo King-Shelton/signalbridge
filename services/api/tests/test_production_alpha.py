@@ -23,12 +23,12 @@ from app.config import get_settings
 from app.database import Base, SessionLocal, engine
 from app.main import app
 from app.models.case import Case
-from app.models.conversation import Conversation
+from app.models.conversation import Conversation, RiskLevel
 from app.models.message import Message, SenderType
 from app.models.user import User
 from app.models.youth_profile import YouthProfile
 from app.routes import operations, telegram_bot
-from app.services.ai_service import CRITICAL_FALLBACK_REPLY, generate_safenight_reply
+from app.services.ai_service import CRITICAL_FALLBACK_REPLY, analyse_risk, generate_safenight_reply
 from app.services.discord_bot_service import (
     _LINKED_OK,
     _ensure_thread_conversation,
@@ -231,7 +231,7 @@ def test_telegram_deep_link_and_worker_reply_round_trip(monkeypatch) -> None:
     assert reply.json()["deliveryChannel"] == "telegram"
     assert outbound[-1] == (
         chat_id,
-        "Aisha Rahman: I read the note you allowed SignalBridge to prepare. You do not have to repeat everything.",
+        "Mru: I read the note you allowed SignalBridge to prepare. You do not have to repeat everything.",
     )
 
     with SessionLocal() as db:
@@ -388,6 +388,19 @@ def test_critical_language_cannot_be_downgraded() -> None:
     assert response.json()["aiReply"]["safetyStatus"] == "requires_immediate_human_review"
     follow_up = client.post(f"/youth/conversations/{conversation_id}/messages", headers=youth_headers, json={"content": "Thank you."})
     assert follow_up.json()["conversation"]["riskLevel"] == "critical"
+
+
+def test_self_harm_keywords_score_as_critical() -> None:
+    for message in (
+        "I might self harm tonight.",
+        "I may harm myself tonight.",
+        "I am going to self-harm.",
+    ):
+        assessment = analyse_risk([message])
+
+        assert assessment.risk_level == RiskLevel.critical
+        assert assessment.risk_score == 95
+        assert any(signal.type == "crisis_phrases" for signal in assessment.signals)
 
 
 def test_safenight_fallback_reply_is_contextual_without_ai_key() -> None:

@@ -245,9 +245,9 @@ def seed(reset: bool = False) -> None:
     mira_after_hours = last_night_2342.astimezone(timezone.utc).replace(tzinfo=None)
 
     try:
-        worker = upsert_user(db, "user_worker_1", "Aisha Rahman", "worker1@signalbridge.test", UserRole.worker)
+        worker = upsert_user(db, "user_worker_1", "Mru", "worker1@signalbridge.test", UserRole.worker)
         worker_two = upsert_user(db, "user_worker_2", "Marcus Lee", "worker2@signalbridge.test", UserRole.worker)
-        upsert_user(db, "user_supervisor", "Daniel Lim", "supervisor@signalbridge.test", UserRole.supervisor)
+        upsert_user(db, "user_supervisor", "Davier", "supervisor@signalbridge.test", UserRole.supervisor)
         db.flush()
 
         youth_users = {
@@ -549,7 +549,7 @@ def seed(reset: bool = False) -> None:
                          prompt_version="handoff-v1", safety_status="fallback_passed",
                          error="Deterministic fallback - no OpenAI key required for seed demo"))
 
-        # Worker 1 (Aisha Rahman) — pre-seeded notification channels for demo
+        # Worker 1 (Mru) — pre-seeded notification channels for demo
         _upsert_worker_notifications(
             db,
             user_id="user_worker_1",
