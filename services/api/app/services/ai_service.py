@@ -53,36 +53,43 @@ def _ai_asked_about_consent(last_ai_message: str) -> bool:
     return any(marker in text for marker in _CONSENT_ASK_MARKERS)
 
 
+_EXPLICIT_HANDOFF_PHRASES: tuple[str, ...] = (
+    "share a note",
+    "share the note",
+    "send a note",
+    "tell my worker",
+    "share with my worker",
+    "please share",
+    "send a handoff",
+    "send handoff",
+    "handoff brief",
+    "hand off brief",
+    "send the brief",
+    "send me a brief",
+    "brief to my worker",
+    "handoff to my worker",
+    "send the handoff",
+    "create a handoff",
+    "make a handoff",
+)
+
+
 def detect_verbal_consent(youth_message: str, last_ai_message: str | None) -> bool:
     """Return True when the youth appears to be verbally consenting to a worker handoff.
 
-    Only fires when (a) the last AI turn actually asked about sharing a note, and
-    (b) the youth's reply is a short, clearly affirmative message.
+    Explicit handoff request phrases always trigger consent regardless of prior context.
+    Short affirmatives (yes/ok/sure) only trigger consent when the last AI turn
+    actually asked about sharing a note.
     """
-    if not last_ai_message or not _ai_asked_about_consent(last_ai_message):
-        text = youth_message.strip().lower().rstrip("!.?")
-        return any(
-            phrase in text
-            for phrase in (
-                "share a note",
-                "share the note",
-                "send a note",
-                "tell my worker",
-                "share with my worker",
-                "please share",
-                "send a handoff",
-                "send handoff",
-                "handoff brief",
-                "send the brief",
-                "send me a brief",
-                "brief to my worker",
-                "handoff to my worker",
-                "send the handoff",
-                "create a handoff",
-                "make a handoff",
-            )
-        )
     text = youth_message.strip().lower().rstrip("!.?")
+
+    # Explicit requests always consent — no dependency on what the AI said before.
+    if any(phrase in text for phrase in _EXPLICIT_HANDOFF_PHRASES):
+        return True
+
+    # Short affirmatives only count when the AI previously asked about sharing a note.
+    if not last_ai_message or not _ai_asked_about_consent(last_ai_message):
+        return False
     if len(text) > 60:
         return False
     return text in _CONSENT_PHRASES or any(text.startswith(p + " ") for p in _CONSENT_PHRASES)

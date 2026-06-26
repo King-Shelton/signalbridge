@@ -430,20 +430,29 @@ def _process_youth_message(
         db=db,
     )
 
-    # Notify assigned worker if risk is elevated
-    if youth.assigned_worker_id and assessment.risk_level.value in ("high", "critical"):
+    if youth.assigned_worker_id:
         ns = db.query(WorkerNotificationSettings).filter_by(user_id=youth.assigned_worker_id).first()
         if ns:
             from app.models.user import User
             user = db.get(User, youth.user_id)
             youth_name = user.name if user else "A youth"
-            notify_worker(
-                ns.telegram_chat_id,
-                ns.discord_webhook_url,
-                title=f"📱 Telegram message — {assessment.risk_level.value} risk",
-                body=f"{youth_name} sent a message on Telegram.\nRisk score: {assessment.risk_score}/100\n\"{content[:120]}{'…' if len(content) > 120 else ''}\"",
-                risk_level=assessment.risk_level.value,
-            )
+            if ai_triggered_consent:
+                # Always notify when a handoff brief is freshly generated via consent.
+                notify_worker(
+                    ns.telegram_chat_id,
+                    ns.discord_webhook_url,
+                    title="📋 Handoff brief ready",
+                    body=f"{youth_name} agreed to share their conversation.\nA handoff brief is waiting in SignalBridge.",
+                    risk_level=conversation.risk_level.value,
+                )
+            elif assessment.risk_level.value in ("high", "critical"):
+                notify_worker(
+                    ns.telegram_chat_id,
+                    ns.discord_webhook_url,
+                    title=f"📱 Telegram message — {assessment.risk_level.value} risk",
+                    body=f"{youth_name} sent a message on Telegram.\nRisk score: {assessment.risk_score}/100\n\"{content[:120]}{'…' if len(content) > 120 else ''}\"",
+                    risk_level=assessment.risk_level.value,
+                )
 
     return reply_content
 
@@ -685,23 +694,31 @@ def _process_business_youth_message(
         db=db,
     )
 
-    # Notify assigned worker
-    if youth.assigned_worker_id and assessment.risk_level.value in ("high", "critical"):
+    if youth.assigned_worker_id:
         ns = db.query(WorkerNotificationSettings).filter_by(user_id=youth.assigned_worker_id).first()
         if ns:
             user = db.get(User, youth.user_id)
             youth_name = user.name if user else "A youth"
-            notify_worker(
-                ns.telegram_chat_id,
-                ns.discord_webhook_url,
-                title=f"💼 Business DM — {assessment.risk_level.value} risk",
-                body=(
-                    f"{youth_name} messaged your personal Telegram after hours.\n"
-                    f"Risk score: {assessment.risk_score}/100\n"
-                    f"\"{content[:120]}{'…' if len(content) > 120 else ''}\""
-                ),
-                risk_level=assessment.risk_level.value,
-            )
+            if ai_triggered_consent:
+                notify_worker(
+                    ns.telegram_chat_id,
+                    ns.discord_webhook_url,
+                    title="📋 Handoff brief ready",
+                    body=f"{youth_name} agreed to share their conversation.\nA handoff brief is waiting in SignalBridge.",
+                    risk_level=conversation.risk_level.value,
+                )
+            elif assessment.risk_level.value in ("high", "critical"):
+                notify_worker(
+                    ns.telegram_chat_id,
+                    ns.discord_webhook_url,
+                    title=f"💼 Business DM — {assessment.risk_level.value} risk",
+                    body=(
+                        f"{youth_name} messaged your personal Telegram after hours.\n"
+                        f"Risk score: {assessment.risk_score}/100\n"
+                        f"\"{content[:120]}{'…' if len(content) > 120 else ''}\""
+                    ),
+                    risk_level=assessment.risk_level.value,
+                )
 
     return reply_content
 
@@ -782,6 +799,7 @@ def _handle_business_message(msg: dict[str, Any], db: Session, token: str) -> No
 
     # Log every message — both sides — so the handoff brief has full context.
     conversation = _get_active_business_conversation(db, youth)
+    prev_last_message_at = conversation.last_message_at
     sender_type = SenderType.worker if is_worker_message else SenderType.youth
     db.add(Message(
         conversation_id=conversation.id,
@@ -817,15 +835,20 @@ def _handle_business_message(msg: dict[str, Any], db: Session, token: str) -> No
         return
 
     # ── After hours: SafeNight AI takes over ────────────────────────────────
-    # Send a one-time handover notice the first time SafeNight replies in this
-    # conversation so the youth knows they're talking to an AI, not the worker.
+    # Send the handover notice on the first AI reply ever, or whenever the youth
+    # returns after a gap of >2 minutes (mirrors the regular bot behaviour).
     has_prior_ai = db.scalar(
         select(sqlfunc.count(Message.id)).where(
             Message.conversation_id == conversation.id,
             Message.sender_type == SenderType.ai,
         )
     ) or 0
-    if has_prior_ai == 0:
+    is_new_session = (
+        has_prior_ai == 0
+        or prev_last_message_at is None
+        or (naive_utcnow() - prev_last_message_at).total_seconds() > 2 * 60
+    )
+    if is_new_session:
         _send_business_reply(token, connection_id, youth_chat_id, _AFTER_HOURS_HANDOVER_NOTICE)
 
     try:
