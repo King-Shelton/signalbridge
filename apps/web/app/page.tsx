@@ -102,7 +102,7 @@ function Scene3() {
         <div className={styles.eyebrow}>The promise</div>
         <h2>
           <AnimatedWords
-            text="You only have to say it once. We hold it until morning."
+            text="The youth does not have to repeat their pain twice. The worker does not have to start from zero."
             startMs={250}
             stepMs={95}
             dur="0.7s"

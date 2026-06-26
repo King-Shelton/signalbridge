@@ -349,7 +349,7 @@ function LoginHub() {
 
       <div className="relative z-10 flex min-h-screen flex-col lg:flex-row">
         {/* Left panel — branding + youth */}
-        <div className="flex flex-1 flex-col justify-center px-8 py-12 lg:px-16 lg:max-w-[580px]">
+        <div className="flex flex-1 flex-col justify-center px-8 py-12 lg:px-16">
           <Link href="/" className="inline-flex items-center gap-1.5 text-[13px] mb-10 transition self-start" style={{ color: "rgba(214,235,230,0.4)" }}>
             <ArrowLeft size={14} strokeWidth={2} />
             Back to intro
@@ -373,10 +373,16 @@ function LoginHub() {
         </div>
 
         {/* Right panel — staff */}
-        <div className="flex flex-col justify-center px-8 py-12 lg:px-12 lg:w-[340px] lg:border-l" style={{ borderColor: "rgba(255,255,255,0.06)", background: "rgba(0,0,0,0.12)" }}>
-          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] mb-5" style={{ color: "rgba(214,235,230,0.35)" }}>
-            Staff access
-          </p>
+        <div className="flex flex-col justify-center px-8 py-12 lg:px-12 lg:w-[420px] lg:border-l" style={{ borderColor: "rgba(255,255,255,0.06)", background: "rgba(0,0,0,0.12)" }}>
+          <div className="mb-6">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] mb-2" style={{ color: "rgba(214,235,230,0.35)" }}>
+              Staff portal
+            </p>
+            <p className="text-[22px] font-semibold leading-tight" style={{ color: "#f1f6f4", letterSpacing: "-0.02em" }}>Sign in to your dashboard</p>
+            <p className="mt-2 text-[13px] leading-relaxed" style={{ color: "rgba(214,235,230,0.45)" }}>
+              Review overnight signals, handoffs, and youth cases from the morning queue.
+            </p>
+          </div>
 
           <div className="space-y-3">
             {ACCOUNTS.map((account) => (

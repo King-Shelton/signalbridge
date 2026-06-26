@@ -263,14 +263,15 @@ def create_worker_message(
     if not content:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Message content cannot be blank")
 
+    channel_lower = conversation.channel.lower()
     delivery_channel = "signalbridge"
-    if conversation.channel.lower() == "telegram":
+    if "telegram" in channel_lower:
         if youth is None or not youth.telegram_chat_id:
             raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Youth has not linked Telegram yet")
         if not get_settings().telegram_bot_token:
             raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Telegram is not configured")
-        delivery_channel = "telegram"
-    elif conversation.channel.lower() == "discord":
+        delivery_channel = "telegram_business" if "business" in channel_lower else "telegram"
+    elif "discord" in channel_lower:
         if youth is None or not youth.discord_user_id:
             raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Youth has not linked Discord yet")
         delivery_channel = "discord"
@@ -295,7 +296,15 @@ def create_worker_message(
     db.commit()
     db.refresh(message)
 
-    if delivery_channel == "telegram":
+    if delivery_channel == "telegram_business":
+        from app.models.worker_profile import WorkerProfile
+        from app.services.notifications import send_telegram_business
+        wp = db.query(WorkerProfile).filter_by(user_id=current_user.id).first()
+        if wp and wp.telegram_business_connection_id:
+            send_telegram_business(youth.telegram_chat_id, wp.telegram_business_connection_id, f"{current_user.name}: {content}")
+        else:
+            send_telegram(youth.telegram_chat_id, f"{current_user.name}: {content}")
+    elif delivery_channel == "telegram":
         send_telegram(youth.telegram_chat_id, f"{current_user.name}: {content}")
     elif delivery_channel == "discord":
         from app.services.discord_bot_service import send_discord_dm

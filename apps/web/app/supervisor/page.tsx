@@ -65,14 +65,10 @@ export default function SupervisorPage() {
   const [analytics, setAnalytics] = useState<Analytics | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [channel, setChannel] = useState("WhatsApp Simulator");
-  const [youthId, setYouthId] = useState("");
-  const [message, setMessage] = useState("I do not want to go to school tomorrow. People keep sharing edited photos of me.");
   const [notice, setNotice] = useState("");
   const [assignmentModalCase, setAssignmentModalCase] = useState<ConversationItem | null>(null);
   const [assignmentWorkerId, setAssignmentWorkerId] = useState("");
   const [busyCaseId, setBusyCaseId] = useState("");
-  const [simulating, setSimulating] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -91,7 +87,6 @@ export default function SupervisorPage() {
     if (c.status === "fulfilled") {
       const convs = c.value.conversations.filter((item) => item.case);
       setCases(convs);
-      setYouthId((current) => current || convs[0]?.youthId || "");
     }
     if (a.status === "fulfilled") setAudit(a.value.logs);
     if (stats.status === "fulfilled") setAnalytics(stats.value);
@@ -164,25 +159,6 @@ export default function SupervisorPage() {
       setError(e instanceof Error ? e.message : "Reassignment failed");
     } finally {
       setBusyCaseId("");
-    }
-  }
-
-  async function simulate() {
-    if (!youthId || simulating) return;
-
-    setSimulating(true);
-    setError("");
-    try {
-      const result = await apiFetch<{ riskLevel: string; riskScore: number }>("/simulator/intake", {
-        method: "POST",
-        body: JSON.stringify({ youthId, channel, message }),
-      });
-      setNotice(`Simulated intake created at ${result.riskLevel} risk (${result.riskScore}); the assigned worker was alerted.`);
-      await load();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Simulation failed");
-    } finally {
-      setSimulating(false);
     }
   }
 
@@ -440,58 +416,14 @@ export default function SupervisorPage() {
         </section>
       )}
 
-      <div className="glass-card p-5">
-        <p className="sb-eyebrow mb-2">Approved-channel simulator</p>
-        <p className="text-[12.5px] text-[rgba(214,235,230,0.45)] mb-4">
-          Creates fictional intake, deterministic signals, a case, and a worker notification.
-        </p>
-        <div className="grid gap-2 lg:grid-cols-[180px_200px_1fr_auto]">
-          <select
-            value={channel}
-            onChange={(e) => setChannel(e.target.value)}
-            className="px-3 py-2 rounded-[9px] text-[12.5px] outline-none"
-            style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)", color: "rgba(214,235,230,0.75)" }}
-          >
-            {["WhatsApp Simulator", "Instagram Simulator", "Discord Simulator", "GatherTown Simulator", "Web Chat"].map((value) => (
-              <option key={value}>{value}</option>
-            ))}
-          </select>
-          <select
-            value={youthId}
-            onChange={(e) => setYouthId(e.target.value)}
-            className="px-3 py-2 rounded-[9px] text-[12.5px] outline-none"
-            style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)", color: "rgba(214,235,230,0.75)" }}
-          >
-            {Array.from(new Map(cases.map((item) => [item.youthId, item])).values()).map((item) => (
-              <option key={item.youthId} value={item.youthId}>
-                {item.youthName}
-              </option>
-            ))}
-          </select>
-          <input
-            value={message}
-            onChange={(e) => setMessage(e.target.value)}
-            className="px-3 py-2 rounded-[9px] text-[12.5px] outline-none"
-            style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)", color: "rgba(214,235,230,0.8)" }}
-          />
-          <button
-            type="button"
-            disabled={simulating || !youthId}
-            onClick={() => void simulate()}
-            className="px-4 py-2 rounded-[9px] text-[12.5px] font-semibold transition-all disabled:opacity-40"
-            style={{ background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.15)", color: "#f1f6f4" }}
-          >
-            Simulate
-          </button>
-        </div>
-      </div>
-
       {audit.length > 0 && (
         <div className="glass-card p-5">
           <p className="sb-eyebrow mb-4">Safety audit trail</p>
           <div className="space-y-2 max-h-96 overflow-y-auto">
             {audit.map((row) => {
               const colors = auditEventColor(row.eventType);
+              let details: Record<string, unknown> = {};
+              try { details = JSON.parse(row.details) as Record<string, unknown>; } catch { /* keep empty */ }
 
               return (
                 <div
@@ -499,16 +431,30 @@ export default function SupervisorPage() {
                   className="p-3 rounded-[11px] flex flex-wrap items-start justify-between gap-2"
                   style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}
                 >
-                  <div>
-                    <span
-                      className="inline-block px-2.5 py-0.5 rounded-full text-[10.5px] font-semibold mb-1.5"
-                      style={{ background: colors.bg, border: `1px solid ${colors.border}`, color: colors.color }}
-                    >
-                      {label(row.eventType)}
-                    </span>
-                    <p className="text-[12px] text-[rgba(214,235,230,0.55)] break-words">
-                      {row.entityType} - {row.details}
-                    </p>
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2 mb-1.5">
+                      <span
+                        className="inline-block px-2.5 py-0.5 rounded-full text-[10.5px] font-semibold"
+                        style={{ background: colors.bg, border: `1px solid ${colors.border}`, color: colors.color }}
+                      >
+                        {label(row.eventType)}
+                      </span>
+                      <span className="inline-block px-2.5 py-0.5 rounded-full text-[10.5px]" style={{ background: "rgba(255,255,255,0.05)", color: "rgba(214,235,230,0.45)" }}>
+                        {row.entityType}
+                      </span>
+                    </div>
+                    {Object.keys(details).length > 0 ? (
+                      <dl className="flex flex-wrap gap-x-4 gap-y-0.5">
+                        {Object.entries(details).map(([key, value]) => (
+                          <div key={key} className="flex gap-1 text-[12px]">
+                            <dt className="font-semibold text-[rgba(214,235,230,0.4)]">{key}:</dt>
+                            <dd className="text-[rgba(214,235,230,0.65)]">{String(value)}</dd>
+                          </div>
+                        ))}
+                      </dl>
+                    ) : (
+                      <p className="text-[12px] text-[rgba(214,235,230,0.35)]">No additional details</p>
+                    )}
                   </div>
                   <time className="text-[11px] font-mono text-[rgba(214,235,230,0.3)] flex-shrink-0">
                     {new Date(row.createdAt).toLocaleString("en-SG")}

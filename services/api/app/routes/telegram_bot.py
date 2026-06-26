@@ -334,10 +334,10 @@ def _process_youth_message(
     db.add(youth_msg)
     db.flush()
 
-    # Verbal consent detection
+    # Verbal consent detection — no risk gate so low-risk conversations can also consent
     ai_triggered_consent = False
     risk_rank = {"low": 1, "medium": 2, "high": 3, "critical": 4}
-    if not conversation.consent_to_handoff and risk_rank.get(conversation.risk_level.value, 1) >= 2:
+    if not conversation.consent_to_handoff:
         last_ai = next((m for m in reversed(history) if m.sender_type == SenderType.ai), None)
         if detect_verbal_consent(content, last_ai.content if last_ai else None):
             ai_triggered_consent = True

@@ -65,6 +65,28 @@ def send_telegram(chat_id: str, text: str) -> None:
     _fire(_telegram_send, settings.telegram_bot_token, chat_id, text)
 
 
+def _telegram_business_send(bot_token: str, business_connection_id: str, chat_id: str, text: str) -> None:
+    url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
+    try:
+        with httpx.Client(timeout=8) as client:
+            r = client.post(url, json={
+                "business_connection_id": business_connection_id,
+                "chat_id": chat_id,
+                "text": text,
+            })
+        if not r.is_success:
+            logger.warning("Telegram business send failed: %s %s", r.status_code, r.text[:200])
+    except Exception as exc:
+        logger.warning("Telegram business send error: %s", exc)
+
+
+def send_telegram_business(chat_id: str, business_connection_id: str, text: str) -> None:
+    settings = get_settings()
+    if not settings.telegram_bot_token:
+        return
+    _fire(_telegram_business_send, settings.telegram_bot_token, business_connection_id, chat_id, text)
+
+
 def send_discord(webhook_url: str, title: str, description: str, risk_level: str = "high") -> None:
     color = _RISK_COLORS.get(risk_level, _RISK_COLORS["high"])
     _fire(_discord_send, webhook_url, title, description, color)

@@ -141,11 +141,30 @@ RULES: dict[str, dict[str, object]] = {
             "editing my photos",
             "edited photos",
             "posting my photo",
+            "posting photos",
+            "shared my photo",
+            "sharing my photo",
+            "sent my photo",
+            "screenshot",
+            "screenshots",
+            "screenshotting",
             "cyberbully",
             "cyberbullying",
             "bully",
+            "bullying",
             "mean comments",
-            "screenshots",
+            "nasty comments",
+            "making fun of me",
+            "talking behind my back",
+            "spreading rumours",
+            "spreading rumors",
+            "send it to everyone",
+            "sent it around",
+            "shared it around",
+            "group chat about me",
+            "online harassment",
+            "people are saying",
+            "they keep sending",
         ],
         "reason": "Message mentions online peer harm, edited photos, group chat harassment, or bullying.",
     },
@@ -161,6 +180,15 @@ RULES: dict[str, dict[str, object]] = {
             "school tomorrow",
             "avoid school",
             "not going to school",
+            "hate school",
+            "afraid to go to school",
+            "scared to go to school",
+            "can't face school",
+            "cannot face school",
+            "don't want to face",
+            "skip tomorrow",
+            "not attending",
+            "refuse to go",
         ],
         "reason": "Message suggests avoiding school or feeling unable to attend after the incident.",
     },
@@ -179,8 +207,60 @@ RULES: dict[str, dict[str, object]] = {
             "can't anymore",
             "cannot anymore",
             "so done",
+            "hate myself",
+            "hate myself so much",
+            "feel so bad",
+            "feeling so bad",
+            "feel terrible",
+            "feel awful",
+            "feel empty",
+            "feel numb",
+            "feel alone",
+            "no one cares",
+            "nobody cares",
+            "nobody understands",
+            "no one understands",
+            "i can't cope",
+            "i cant cope",
+            "can't handle",
+            "cannot handle",
+            "don't know what to do",
+            "don't know who to tell",
+            "feel like crying",
+            "been crying",
+            "cried all night",
+            "really upset",
+            "so upset",
+            "feel humiliated",
+            "so embarrassing",
+            "feel helpless",
+            "feel trapped",
+            "feel stuck",
         ],
         "reason": "Message uses strong negative emotional language or overwhelm cues.",
+    },
+    "harm_ideation": {
+        "severity": "high",
+        "score": 45,
+        "terms": [
+            "want to hurt",
+            "want to harm",
+            "going to hurt",
+            "going to harm",
+            "make them pay",
+            "get back at",
+            "hurt someone",
+            "hurt them",
+            "want to fight",
+            "want to punch",
+            "feel like hitting",
+            "feel like hurting",
+            "feel like killing",
+            "could kill",
+            "i could kill",
+            "make them suffer",
+        ],
+        "reason": "Message expresses anger or thoughts of harming others.",
     },
     "crisis_phrases": {
         "severity": "critical",
@@ -221,6 +301,14 @@ RULES: dict[str, dict[str, object]] = {
             "cut myself",
             "starve myself",
             "stop breathing",
+            "don't want to live",
+            "do not want to live",
+            "can't live like this",
+            "cannot live like this",
+            "want everything to stop",
+            "make it all stop",
+            "disappear forever",
+            "never wake up",
         ],
         "reason": "Message contains possible self-harm or immediate crisis language.",
     },
@@ -390,23 +478,87 @@ def extract_key_quote(messages: list[Message]) -> str | None:
 
 def build_handoff_brief(conversation: Conversation, messages: list[Message], assessment: RiskAssessment) -> HandoffBrief:
     signal_types = {signal.type for signal in assessment.signals}
-    if "cyberbullying" in signal_types:
+    youth_messages = [m for m in messages if m.sender_type == SenderType.youth]
+    ai_messages = [m for m in messages if m.sender_type == SenderType.ai]
+    worker_messages = [m for m in messages if m.sender_type == SenderType.worker]
+
+    # --- Main concern: ground in actual youth words where possible
+    first_youth_excerpt = (youth_messages[0].content[:200] + "…") if youth_messages and len(youth_messages[0].content) > 200 else (youth_messages[0].content if youth_messages else "")
+    if "crisis_phrases" in signal_types:
+        main_concern = "Possible immediate safety concern: the youth used language that may indicate self-harm or a crisis situation. Prioritise a direct safety check before anything else."
+    elif "cyberbullying" in signal_types and first_youth_excerpt:
+        main_concern = f"Cyberbullying or online peer harm. Opening message: \"{first_youth_excerpt}\""
+    elif "cyberbullying" in signal_types:
         main_concern = "Cyberbullying or online peer harm affecting school safety and emotional wellbeing."
-    elif "crisis_phrases" in signal_types:
-        main_concern = "Possible immediate safety concern requiring urgent human review."
+    elif "school_avoidance" in signal_types:
+        main_concern = "School avoidance: the youth expressed reluctance or inability to face school, likely connected to stress or a peer situation."
+    elif "harm_ideation" in signal_types:
+        main_concern = "The youth expressed anger and thoughts of harming others. The situation needs careful de-escalation and a safety check."
+    elif first_youth_excerpt:
+        main_concern = f"Youth reached out after hours. Opening message: \"{first_youth_excerpt}\""
     else:
         main_concern = "Youth reached out after-hours and may need worker continuity."
 
-    emotional_state = "Overwhelmed and needing a calm, non-repetitive follow-up."
-    if "negative_emotional_language" in signal_types:
-        emotional_state = "Tired, distressed, or overwhelmed based on the youth's wording."
+    # --- Emotional state
     if "crisis_phrases" in signal_types:
-        emotional_state = "Possibly in acute distress; prioritise immediate safety check."
+        emotional_state = "Possibly in acute distress — youth used language that suggests self-harm ideation. Prioritise immediate safety."
+    elif "negative_emotional_language" in signal_types and "cyberbullying" in signal_types:
+        emotional_state = "Distressed and overwhelmed. Carrying emotional weight from a peer situation and may feel humiliated or helpless."
+    elif "negative_emotional_language" in signal_types:
+        emotional_state = "Emotionally low — tired, overwhelmed, or ashamed based on the words they used."
+    elif "cyberbullying" in signal_types:
+        emotional_state = "Hurt and unsettled. The peer situation is affecting their sense of safety and dignity."
+    elif "harm_ideation" in signal_types:
+        emotional_state = "Angry and possibly feeling cornered or powerless. Approach calmly without escalating."
+    elif "school_avoidance" in signal_types:
+        emotional_state = "Anxious about returning to a difficult environment. Avoidance may be a protective response."
+    else:
+        emotional_state = "Emotional state not fully clear from this session. Approach gently — they may still be processing what they want to share."
+
+    # --- What AI did
+    msg_count = len(ai_messages)
+    did_consent_ask = any(
+        "note for your worker" in m.content.lower() or "share with your worker" in m.content.lower() or "prepare a" in m.content.lower()
+        for m in ai_messages
+    )
+    what_ai_did_parts = [
+        f"Engaged the youth across {msg_count} AI exchange{'s' if msg_count != 1 else ''}",
+        "reflected their feelings back without diagnosing or labelling",
+        "did not offer clinical advice or promise confidentiality it cannot keep",
+    ]
+    if did_consent_ask:
+        what_ai_did_parts.append("asked for consent before preparing this brief, and the youth agreed")
+    if "cyberbullying" in signal_types:
+        what_ai_did_parts.append("acknowledged the peer harm without minimising it")
+    if "crisis_phrases" in signal_types:
+        what_ai_did_parts.append("directed the youth to emergency services (995) and Samaritans of Singapore (1767)")
+    what_ai_did = "; ".join(what_ai_did_parts).capitalize() + "."
+
+    # --- What not to repeat
+    repetition_parts = ["Do not ask the youth to retell the full story from the start — begin from this note"]
+    if "cyberbullying" in signal_types:
+        repetition_parts.append("avoid dwelling on incident details immediately; let them lead")
+    if "school_avoidance" in signal_types:
+        repetition_parts.append("do not pressure them about school attendance before checking in emotionally first")
+    if worker_messages:
+        repetition_parts.append("build on what the worker had already established before handoff")
+    what_not_to_repeat = "; ".join(repetition_parts) + "."
+
+    # --- Recommended next step
+    if assessment.risk_level == RiskLevel.critical:
+        next_step = "Escalate to the approved crisis protocol immediately and conduct a direct human safety check."
+    elif "cyberbullying" in signal_types and "school_avoidance" in signal_types:
+        next_step = "Check how the youth is feeling about school today. Help identify one safe person to tell (teacher or parent) and one concrete step (e.g. saving evidence, requesting a school meeting)."
+    elif "cyberbullying" in signal_types:
+        next_step = "Gently ask how they are feeling right now. Acknowledge the harm, then together identify one trusted adult and one safe action (e.g. blocking, documenting)."
+    elif "school_avoidance" in signal_types:
+        next_step = "Explore what feels hardest about returning. If there is a safety concern, loop in the school. If emotional, focus on one manageable next step."
+    elif "harm_ideation" in signal_types:
+        next_step = "Check in on the youth's current state calmly. Help redirect anger into a safe outlet and assess whether there is an immediate safety risk to anyone."
+    else:
+        next_step = "Check in gently on how the youth is feeling today and agree on one supportive next step."
 
     suggested_reply = suggest_worker_reply(assessment)
-    next_step = "Review the handoff, check immediate safety, and agree on one next support step with the youth."
-    if assessment.risk_level == RiskLevel.critical:
-        next_step = "Escalate to the approved crisis protocol and conduct an immediate human safety check."
 
     return HandoffBrief(
         conversation_id=conversation.id,
@@ -416,8 +568,8 @@ def build_handoff_brief(conversation: Conversation, messages: list[Message], ass
         risk_level=assessment.risk_level,
         risk_score=assessment.risk_score,
         key_quote=extract_key_quote(messages),
-        what_ai_did="Stayed with the youth, reflected back what they shared without judging or diagnosing, noted the key support signals, and only prepared this brief after they gave consent.",
-        what_not_to_repeat="Do not ask the youth to retell the full story immediately; begin from the approved handoff and let them choose what to add.",
+        what_ai_did=what_ai_did,
+        what_not_to_repeat=what_not_to_repeat,
         suggested_worker_response=suggested_reply,
         recommended_next_step=next_step,
     )
