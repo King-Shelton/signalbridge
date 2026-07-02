@@ -28,10 +28,3 @@ Thumbs.db
 .vscode/
 .claude/
 test.py
-
-# Design-sync tooling artifacts (generated, not source)
-.ds-sync/
-.design-sync/
-ds-bundle/
-*.dc.html
-outputs/

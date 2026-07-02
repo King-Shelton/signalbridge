@@ -5,7 +5,3 @@ node_modules
 **/__pycache__
 **/*.pyc
 **/.pytest_cache
-outputs
-ds-bundle
-.design-sync
-.ds-sync
